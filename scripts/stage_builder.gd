@@ -9,7 +9,7 @@ extends RefCounted
 
 const CELL := 2.0
 const WALL_H := 3.0
-const SOLID := "#=DBkbodnKCctTXHWeQYFmi"
+const SOLID := "#=DBkbodnKCctTXHWeQYFmiO"
 const PSX := preload("res://shaders/psx.gdshader")
 const PICKUP := preload("res://scripts/pickup.gd")
 const STAGE := preload("res://scripts/stage.gd")
@@ -130,6 +130,7 @@ func _build(stage_data: Dictionary, props: Dictionary, with_player: bool) -> Nod
 				"J": _scare(p, _nth("J"))
 				"A": _coworker(p, _nth("A"))
 				"i": _block(p + Vector3.UP * WALL_H / 2, Vector3(CELL, WALL_H, 0.2), data.wall, "wall", "ThinWall")
+				"O": _door(c, p)
 				"m": _mirror(c, p)
 				"K":
 					_desk(p)
@@ -401,6 +402,20 @@ func _rack(p: Vector3) -> void:
 		led.material_override = psx_mat(col, null, false, col * 2.0)
 		led.position = Vector3(_rng.randf_range(-0.6, 0.6), _rng.randf_range(-0.7, 0.9), 0.61 * (1 if i % 2 else -1))
 		rack.add_child(led)
+
+# 'O' -> a closed door in a gap of the wall: brown slab across the gap, frame above, a handle.
+func _door(c: Vector2i, p: Vector3) -> void:
+	var along_x := _at(c.x - 1, c.y) == "#" or _at(c.x + 1, c.y) == "#"   # walls left/right: the door runs along x
+	var size := Vector3(CELL, 2.2, 0.15) if along_x else Vector3(0.15, 2.2, CELL)
+	var d := _block(p + Vector3.UP * 1.1, size, Color(0.42, 0.26, 0.15), "fabric", "Door")
+	_block(p + Vector3.UP * (2.2 + (WALL_H - 2.2) / 2), Vector3(size.x, WALL_H - 2.2, size.z), data.wall, "wall", "DoorTop")
+	var knob := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.1, 0.06, 0.24) if not along_x else Vector3(0.24, 0.06, 0.1)
+	knob.mesh = bm
+	knob.material_override = psx_mat(Color(0.75, 0.7, 0.4))
+	knob.position = (Vector3(0.6, 0, 0) if along_x else Vector3(0, 0, 0.6)) + Vector3.UP * -0.1
+	d.add_child(knob)
 
 # Pickup with a small glowing box so it can be found. Also used at runtime (thrown objects).
 static func make_item(kind: String, pos: Vector3, size: Vector3, color: Color) -> Area3D:

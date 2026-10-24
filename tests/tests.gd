@@ -93,9 +93,11 @@ func done(lvl: Node3D) -> void:
 	Game.new_game()
 
 func t_rules() -> void:
-	check(Game.resolve_ending(4, 0, false) == "B", "ending B: all 4 dream clues + no phone")
+	check(Game.resolve_ending(Game.CLUE_TOTAL, 0, false) == "B", "ending B: every dream clue + no phone")
 	check(Game.resolve_ending(3, 5, false) == "C", "3 clues, no phone -> C")
-	check(Game.resolve_ending(4, Game.EVIDENCE_NEEDED, true) == "A", "taking the phone overrides the dream -> A (if enough evidence)")
+	check(Game.resolve_ending(Game.CLUE_TOTAL, Game.EVIDENCE_NEEDED, true) == "D", "every clue + his phone + enough evidence -> D (true end)")
+	check(Game.resolve_ending(Game.CLUE_TOTAL - 1, Game.EVIDENCE_NEEDED, true) == "A", "phone + evidence without every clue -> A")
+	check(Game.resolve_ending(Game.CLUE_TOTAL, Game.EVIDENCE_NEEDED - 1, true) == "C", "every clue but took the phone without enough evidence -> C")
 	check(Game.resolve_ending(0, Game.EVIDENCE_NEEDED - 1, true) == "C", "phone but not enough evidence -> C")
 	Game.new_game()
 	Game.heal(50)
@@ -708,7 +710,7 @@ func t_cameo() -> void:
 
 func t_endings() -> void:
 	Game.skip_cutscenes = false
-	for id in ["A", "B", "C"]:
+	for id in ["A", "B", "C", "D"]:
 		var lvl: Node3D = load("res://scenes/endings/ending_%s.tscn" % id).instantiate()
 		add_child(lvl)
 		var data: Dictionary = lvl.data

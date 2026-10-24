@@ -7,6 +7,7 @@ render_mode diffuse_lambert, specular_disabled;
 uniform vec4 albedo : source_color = vec4(1.0);
 uniform float snap_res = 120.0;
 uniform float fade : hint_range(0.0, 1.0) = 1.0;   // 0 = gone, 1 = solid
+uniform vec3 emission = vec3(0.0);
 
 const float BAYER[16] = {0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0};
 
@@ -22,4 +23,5 @@ void fragment() {
 		discard;
 	}
 	ALBEDO = albedo.rgb;
+	EMISSION = emission;
 }

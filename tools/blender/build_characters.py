@@ -93,6 +93,23 @@ C = {k: rgb(v) for k, v in {
     "dummy": "c9b9a0", "dummy_joint": "8f8270",
 }.items()}
 
+# Night palette: what they turn into after dark (the *_night models + the faceless staff + HR).
+C.update({k: rgb(v) for k, v in {
+    "dead": "8c9886", "dead_dark": "56614f", "corpse": "8296a0", "ghost": "d6dad2", "guard_dark": "7a5a40",
+    "blood": "6e0a0c", "blood_dry": "3a0507", "socket": "070609", "rot": "4a3f2c",
+    "maroon": "6a1f2e", "maroon_dark": "4a1520", "blouse": "ece6dc", "skirt": "2a2830", "bob": "121016",
+    "lipstick": "c0182a", "mask": "9fc6c4", "staff_shirt": "c3c7cf", "staff_pants": "30333a", "silver": "c8ccd0",
+}.items()})
+# Colours that glow (exported as emission; body.gd feeds it to the PSX shader): eyes in the dark.
+EMIT = set()
+def glow(key, hexcol):
+    C[key] = rgb(hexcol)
+    EMIT.add(C[key])
+glow("glow_white", "fff6d8")
+glow("glow_red", "ff2414")
+glow("glow_cyan", "3ae6ff")
+glow("glow_milk", "c8e4dc")
+
 # Standard skeleton (Godot axes, metres) — same joints the old box bodies used.
 HIP_Y, SHOULDER_Y, NECK_Y = 0.8, 1.42, 1.46
 HEAD = 0.42
@@ -333,11 +350,244 @@ def dummy(p):   # tutorial: faceless office-training mannequin
     h.box((0, HEAD / 2, 0), (HEAD * 0.85, HEAD * 1.1, HEAD * 0.9), C["dummy"], bot=(0.75, 0.8), top=(0.85, 0.9))
     h.box((0, HEAD * 0.35, FZ * 0.85 - 0.02), (0.05, 0.08, 0.05), C["dummy"])   # just a nose
 
+# ---------------------------------------------------------------- night versions
+# Black sockets under a heavy brow, a pinpoint of light for a pupil.
+def dead_eyes(h, y=0.25, gap=0.095, w=0.11, hgt=0.085, pupil=0.022, light="glow_white", look=(0, 0)):
+    skin = getattr(h, "skin", C["skin"])
+    h.box((0, y + hgt / 2 + 0.03, FZ - 0.026), (2 * gap + w + 0.07, 0.05, 0.05), shade(skin, 0.8))   # heavy brow
+    for s_ in (-1, 1):
+        x = s_ * gap
+        h.box((x, y, FZ - 0.004), (w * 1.3, hgt * 1.6, 0.014), C["socket"])
+        h.box((x + look[0], y + look[1], FZ - 0.014), (pupil, pupil, 0.012), C[light])
+
+# A mouth hole full of pointed teeth, stretched as wide as w.
+def grin(h, y=0.1, w=0.3, hgt=0.1, teeth=8, lips="mouth"):
+    h.box((0, y, FZ - 0.006), (w + 0.03, hgt + 0.03, 0.02), C[lips])
+    h.box((0, y, FZ - 0.012), (w, hgt, 0.02), C["socket"])
+    tw = w / teeth
+    for i in range(teeth):
+        x = -w / 2 + tw * (i + 0.5)
+        h.box((x, y + hgt * 0.27, FZ - 0.022), (tw * 0.75, hgt * 0.42, 0.012), C["white"], bot=(0.3, 1))   # upper fangs
+        h.box((x, y - hgt * 0.27, FZ - 0.022), (tw * 0.75, hgt * 0.42, 0.012), C["white"], top=(0.3, 1))   # lower
+
+def claws(p, col, length=0.65):   # long thin fingers past the hand
+    for n in ("ArmL", "ArmR"):
+        for x in (-0.045, 0.0, 0.045):
+            p[n].box((x, -length - 0.2, -0.03), (0.025, 0.14, 0.03), col, bot=(0.4, 0.4))
+
+def manager_night(p):   # the grin keeps going: ear to ear, split up the cheeks
+    legs(p, C["mgr_pants"], C["shoe"])
+    arms(p, C["suit"], C["dead"], cuff=C["white"])
+    claws(p, C["dead_dark"])
+    t = p["Torso"]
+    torso(t, C["suit"], bottom=(0.9, 0.95))
+    t.box((0, 0.5, -0.155), (0.2, 0.3, 0.02), C["white"], bot=(0.2, 1))
+    t.box((0, 0.44, -0.17), (0.07, 0.36, 0.02), C["red"], bot=(0.7, 1))
+    for s_ in (-1, 1):
+        t.box((s_ * 0.11, 0.45, -0.165), (0.07, 0.32, 0.02), C["suit_dark"], rot=(0, 0, s_ * 12))
+    t.box((0.03, 0.5, -0.168), (0.1, 0.12, 0.012), C["blood"])        # dripped down the shirt
+    t.box((0.05, 0.36, -0.168), (0.04, 0.18, 0.012), C["blood_dry"])
+    a = p["ArmR"]
+    a.box((-0.05, -0.62, -0.16), (0.3, 0.38, 0.03), C["board"])
+    a.box((-0.05, -0.64, -0.18), (0.24, 0.3, 0.01), C["paper"])
+    a.box((-0.02, -0.6, -0.188), (0.1, 0.14, 0.008), C["blood"])        # a bloody handprint on the report
+    h = p["Head"]
+    head_base(h, C["dead"], jaw=(0.8, 0.88))
+    for s_ in (-1, 1):
+        h.box((s_ * (HEAD / 2 + 0.015), 0.27, 0.05), (0.04, 0.13, 0.26), C["grey_hair"])
+    h.box((0, 0.27, HEAD / 2 + 0.015), (HEAD * 0.9, 0.13, 0.04), C["grey_hair"])
+    dead_eyes(h, y=0.27, w=0.12, hgt=0.1, pupil=0.02)
+    glasses(h, y=0.27, thick=0.03)
+    h.box((-0.095, 0.27, FZ - 0.062), (0.13, 0.01, 0.006), C["white"], rot=(0, 0, 35))   # cracked lens
+    grin(h, y=0.1, w=0.36, hgt=0.12, teeth=10)
+    for s_ in (-1, 1):   # the corners tear up the cheeks
+        h.box((s_ * 0.2, 0.15, FZ - 0.012), (0.05, 0.022, 0.02), C["socket"], rot=(0, 0, s_ * 35))
+
+def sweeper_night(p):   # wet hair hanging over her face, milk-white eyes, mouth hanging open
+    legs(p, C["porn_pants"], C["shoe"])
+    arms(p, C["porn_shirt"], C["corpse"], length=1.05)
+    claws(p, C["corpse"], length=1.05)
+    t = p["Torso"]
+    torso(t, C["porn_shirt"], bottom=(1.08, 1.05))
+    t.box((0, 0.27, -0.165), (0.46, 0.52, 0.02), C["apron"], bot=(1.1, 1))
+    t.box((-0.08, 0.2, -0.178), (0.2, 0.22, 0.012), C["rot"])          # dirty water stain
+    t.box((0.12, 0.34, -0.178), (0.08, 0.1, 0.012), C["blood_dry"])
+    a = p["ArmR"]   # mop, dripping dark red
+    a.box((0, -0.5, -0.15), (0.05, 1.7, 0.05), C["stick"])
+    a.box((0, -1.32, -0.15), (0.36, 0.1, 0.22), C["blood_dry"])
+    a.box((0, -1.4, -0.15), (0.42, 0.08, 0.26), C["blood"], top=(0.9, 0.9))
+    a = p["ArmL"]   # bowl of black water
+    a.box((0, -1.18, -0.02), (0.24, 0.06, 0.24), C["bowl"], bot=(0.7, 0.7))
+    a.box((0, -1.15, -0.02), (0.18, 0.02, 0.18), C["socket"])
+    h = p["Head"]
+    head_base(h, C["corpse"], jaw=(0.84, 0.9))
+    for s_ in (-1, 1):
+        h.box((s_ * 0.095, 0.25, FZ - 0.004), (0.13, 0.11, 0.014), C["socket"])
+        h.box((s_ * 0.095, 0.25, FZ - 0.012), (0.09, 0.07, 0.012), C["glow_milk"])
+    h.box((0, 0.05, FZ - 0.012), (0.09, 0.17, 0.02), C["socket"])        # jaw hanging past the chin
+    h.box((0, HEAD + 0.02, 0.01), (HEAD + 0.06, 0.1, HEAD + 0.06), C["hair"])
+    h.box((0, HEAD * 0.15, HEAD / 2 + 0.035), (HEAD + 0.06, HEAD * 1.7, 0.05), C["hair"])   # down her back
+    for s_ in (-1, 1):
+        h.box((s_ * (HEAD / 2 + 0.03), HEAD * 0.2, 0.0), (0.05, HEAD * 1.6, HEAD + 0.04), C["hair"])
+    for x, ln in ((-0.175, 0.62), (-0.12, 0.5), (-0.065, 0.36), (0.125, 0.3), (0.18, 0.66)):   # strands over the face
+        h.box((x, HEAD - ln / 2, FZ - 0.04), (0.042, ln, 0.02), C["hair"])
+
+def goblin_night(p):   # hood up, eyes lit like a screen, cables spilling out of his mouth
+    legs(p, C["tae_pants"], C["shoe"])
+    arms(p, C["hoodie_dark"], C["ghost"], cuff=C["socket"])
+    claws(p, C["ghost"])
+    t = p["Torso"]
+    torso(t, C["hoodie_dark"], bottom=(0.95, 1.0))
+    t.box((0, 0.18, -0.17), (0.36, 0.16, 0.02), C["socket"])
+    for i, (col, x) in enumerate((("cable1", -0.05), ("cable2", 0.0), ("cable3", 0.05))):   # out of the mouth, down the chest
+        t.box((x, 0.42 - i * 0.04, -0.172), (0.025, 0.42, 0.015), C[col])
+    a = p["ArmL"]
+    for i, (col, r) in enumerate((("cable1", 30), ("cable2", -25), ("cable3", 60), ("cable1", -60))):
+        a.box((0.05, -0.74 + i * 0.02, -0.12), (0.5, 0.025, 0.025), C[col], rot=(0, r, 8 * (i - 1.5)))
+    h = p["Head"]
+    head_base(h, C["ghost"], jaw=(0.84, 0.9))
+    for s_ in (-1, 1):
+        h.box((s_ * 0.095, 0.235, FZ - 0.004), (0.11, 0.085, 0.014), C["socket"])
+        h.box((s_ * 0.095, 0.235, FZ - 0.012), (0.075, 0.05, 0.012), C["glow_cyan"])
+    glasses(h, y=0.235, frame="grey_hair", thick=0.016, round_=True)
+    h.box((0, 0.1, FZ - 0.012), (0.1, 0.07, 0.02), C["socket"])        # mouth wide open
+    for col, x, ln in (("cable1", -0.03, 0.2), ("cable2", 0.0, 0.26), ("cable3", 0.035, 0.18)):
+        h.box((x, 0.1 - ln / 2, FZ - 0.03), (0.022, ln, 0.022), C[col])
+    h.box((0, HEAD - 0.07, FZ - 0.02), (HEAD, 0.08, 0.05), C["hair"])
+    h.box((0, HEAD + 0.05, 0.02), (HEAD + 0.1, 0.1, HEAD + 0.1), C["hoodie_dark"])          # hood: top
+    h.box((0, HEAD * 0.45, HEAD / 2 + 0.05), (HEAD + 0.1, HEAD * 1.1, 0.06), C["hoodie_dark"])   # back
+    for s_ in (-1, 1):
+        h.box((s_ * (HEAD / 2 + 0.05), HEAD * 0.45, 0.0), (0.06, HEAD * 1.1, HEAD + 0.1), C["hoodie_dark"])
+    h.box((0, HEAD - 0.01, FZ - 0.045), (HEAD + 0.1, 0.07, 0.07), C["hoodie_dark"])   # brim shading the eyes
+
+def guard_night(p):   # cap pulled low, red pinpoint eyes, a black grin, blood on the mouth and hands
+    legs(p, C["navy"], C["shoe"])
+    arms(p, C["navy"], C["blood"])
+    claws(p, C["blood_dry"])
+    for s_, n in ((-1, "ArmL"), (1, "ArmR")):
+        p[n].box((0, 0.0, 0), (0.24, 0.05, 0.26), C["gold"])
+    a = p["ArmR"]
+    a.box((0, -0.8, -0.1), (0.07, 0.24, 0.08), C["phone"])
+    for i in range(5):
+        a.box((0.05 * (i % 2), -0.95 - i * 0.05, -0.08), (0.04, 0.035, 0.04), C["phone"])
+    t = p["Torso"]
+    torso(t, C["navy"], bottom=(0.92, 0.96))
+    t.box((0, 0.6, -0.15), (0.22, 0.08, 0.04), C["navy_dark"])
+    t.box((-0.15, 0.48, -0.17), (0.09, 0.11, 0.02), C["gold"])
+    t.box((0.15, 0.48, -0.17), (0.13, 0.04, 0.02), C["tag"])
+    t.box((0.02, 0.52, -0.172), (0.12, 0.08, 0.012), C["blood"])
+    t.box((0.06, 0.4, -0.172), (0.04, 0.16, 0.012), C["blood_dry"])
+    t.box((0, 0.04, 0), (0.58, 0.07, 0.34), C["black"])
+    t.box((0, 0.04, -0.175), (0.07, 0.05, 0.01), C["gold"])
+    h = p["Head"]
+    head_base(h, C["guard_dark"], jaw=(0.9, 0.92), chin=C["stubble"])
+    dead_eyes(h, y=0.24, w=0.1, hgt=0.07, pupil=0.024, light="glow_red")
+    h.box((0, 0.07, FZ - 0.004), (HEAD * 0.86, 0.14, 0.02), C["stubble"])
+    grin(h, y=0.1, w=0.28, hgt=0.06, teeth=9, lips="blood")
+    h.box((0.05, 0.035, FZ - 0.016), (0.04, 0.06, 0.012), C["blood"])        # drip down the chin
+    h.box((-0.08, 0.045, FZ - 0.016), (0.03, 0.04, 0.012), C["blood"])
+    h.box((0, HEAD + 0.03, 0.0), (HEAD + 0.07, 0.15, HEAD + 0.07), C["navy"], top=(1.04, 1.04))
+    h.box((0, HEAD - 0.04, FZ - 0.08), (HEAD + 0.02, 0.035, 0.16), C["navy_dark"])   # brim, low over the eyes
+    h.box((0, HEAD + 0.05, FZ - 0.045), (0.07, 0.08, 0.02), C["gold"])
+
+def doctor_night(p):   # the dream's doctor: surgical mask soaked through, scalpel, no eyes to speak of
+    legs(p, C["scrubs"], C["white"], coat=C["coat"])
+    arms(p, C["coat"], C["ghost"])
+    claws(p, C["ghost"])
+    a = p["ArmR"]
+    a.box((0, -0.86, -0.08), (0.03, 0.1, 0.03), C["black"])
+    a.box((0, -0.97, -0.08), (0.012, 0.14, 0.03), C["silver"], bot=(0.2, 1))   # scalpel blade
+    t = p["Torso"]
+    torso(t, C["coat"])
+    t.box((0, 0.48, -0.165), (0.16, 0.26, 0.02), C["scrubs"], bot=(0.2, 1))
+    t.box((-0.1, 0.36, -0.175), (0.03, 0.26, 0.02), C["steth"])
+    t.box((0.08, 0.3, -0.172), (0.16, 0.2, 0.012), C["blood"])
+    t.box((-0.12, 0.12, -0.172), (0.1, 0.1, 0.012), C["blood_dry"])
+    h = p["Head"]
+    head_base(h, C["ghost"])
+    dead_eyes(h, w=0.1, hgt=0.07, pupil=0.018)
+    h.box((0, 0.1, FZ - 0.016), (0.34, 0.17, 0.02), C["mask"])
+    h.box((0.03, 0.08, FZ - 0.028), (0.12, 0.08, 0.008), C["blood"])
+    for s_ in (-1, 1):
+        h.box((s_ * (HEAD / 2 + 0.005), 0.16, 0.0), (0.012, 0.02, HEAD * 0.9), C["mask"])   # mask straps
+    h.box((0, HEAD + 0.04, 0.02), (HEAD + 0.05, 0.1, HEAD + 0.05), C["scrubs"])           # surgical cap
+
+def staff(p):   # night staff: everyone who never went home. No face.
+    legs(p, C["staff_pants"], C["shoe"])
+    arms(p, C["staff_shirt"], C["ghost"])
+    t = p["Torso"]
+    torso(t, C["staff_shirt"])
+    t.box((0, 0.6, -0.15), (0.24, 0.08, 0.04), C["white"])
+    t.box((0, 0.42, -0.17), (0.08, 0.34, 0.02), C["navy"], bot=(0.6, 1))
+    t.box((-0.12, 0.42, -0.165), (0.04, 0.42, 0.02), C["lanyard"], rot=(0, 0, -18))
+    t.box((-0.06, 0.22, -0.18), (0.16, 0.12, 0.015), C["white"])           # blank ID card
+    h = p["Head"]
+    h.box((0, HEAD / 2, 0), (HEAD * 0.9, HEAD * 1.08, HEAD * 0.92), C["ghost"], bot=(0.8, 0.85))
+    h.box((0, HEAD + 0.02, 0.02), (HEAD * 0.94, 0.08, HEAD * 0.96), C["hair"])
+    h.box((0, HEAD * 0.98, FZ * 0.92 - 0.01), (HEAD * 0.92, 0.06, 0.04), C["hair"])
+
+def _hr_body(p, skin, night):
+    for n in ("LegL", "LegR"):
+        p[n].box((0, -0.4, 0), (0.18, 0.8, 0.2), skin, bot=(0.9, 0.9))         # stockings
+        p[n].box((0, -0.76, -0.05), (0.2, 0.1, 0.3), C["shoe"])
+        p[n].box((0, -0.18, 0), (0.27, 0.38, 0.28), C["skirt"])               # pencil skirt
+    arms(p, C["maroon"], skin, cuff=C["blouse"])
+    if night:
+        claws(p, shade(skin, 0.8))
+    t = p["Torso"]
+    torso(t, C["maroon"], bottom=(0.88, 0.94))
+    t.box((0, 0.5, -0.155), (0.2, 0.3, 0.02), C["blouse"], bot=(0.2, 1))
+    for s_ in (-1, 1):
+        t.box((s_ * 0.11, 0.45, -0.165), (0.07, 0.32, 0.02), C["maroon_dark"], rot=(0, 0, s_ * 12))
+    t.box((0.12, 0.42, -0.165), (0.04, 0.42, 0.02), C["lanyard"], rot=(0, 0, 18))
+    t.box((0.06, 0.22, -0.18), (0.16, 0.12, 0.015), C["clipboard"])
+    if night:   # red stamp marks all over her: "อนุมัติ" / "ไม่อนุมัติ"
+        for x, y in ((-0.15, 0.3), (0.0, 0.12), (0.17, 0.5)):
+            t.box((x, y, -0.175), (0.08, 0.06, 0.008), C["red"])
+    a = p["ArmR"]   # PA microphone
+    a.box((0, -0.8, -0.1), (0.06, 0.2, 0.06), C["black"])
+    a.box((0, -0.68, -0.1), (0.1, 0.09, 0.1), C["steth"])
+    a = p["ArmL"]   # rubber stamp
+    a.box((0, -0.82, -0.05), (0.08, 0.14, 0.08), C["board"])
+    a.box((0, -0.9, -0.05), (0.15, 0.05, 0.13), C["red"])
+
+def _bob(h, messy):
+    h.box((0, HEAD + 0.03, 0.01), (HEAD + 0.06, 0.1, HEAD + 0.06), C["bob"])
+    h.box((0, HEAD * 0.45, HEAD / 2 + 0.03), (HEAD + 0.06, HEAD * 0.9, 0.05), C["bob"])
+    for s_ in (-1, 1):
+        h.box((s_ * (HEAD / 2 + 0.03), HEAD * 0.45, 0.0), (0.05, HEAD * 0.9, HEAD + 0.04), C["bob"])
+    h.box((0, HEAD - 0.04, FZ - 0.02), (HEAD + 0.04, 0.09, 0.05), C["bob"])   # straight fringe
+    if messy:
+        for x, ln in ((-0.15, 0.32), (-0.04, 0.22), (0.16, 0.36)):
+            h.box((x, HEAD - ln / 2, FZ - 0.045), (0.035, ln, 0.02), C["bob"])
+
+def hr(p):   # พี่แหม่ม HR: blazer, bob, the PA mic and the approval stamp
+    _hr_body(p, C["skin_pale"], False)
+    h = p["Head"]
+    head_base(h, C["skin_pale"], jaw=(0.84, 0.9))
+    eyes(h, look=(0, 0), brow=C["bob"], brow_rot=-4)
+    h.box((0, 0.1, FZ - 0.01), (0.15, 0.032, 0.02), C["lipstick"])
+    for s_ in (-1, 1):
+        h.box((s_ * 0.075, 0.112, FZ - 0.012), (0.04, 0.022, 0.02), C["lipstick"], rot=(0, 0, s_ * 25))
+    _bob(h, False)
+
+def hr_night(p):   # the smile is stitched on, ear to ear
+    _hr_body(p, C["ghost"], True)
+    h = p["Head"]
+    head_base(h, C["ghost"], jaw=(0.84, 0.9))
+    dead_eyes(h, w=0.1, hgt=0.08, pupil=0.02)
+    h.box((0, 0.1, FZ - 0.008), (0.38, 0.03, 0.02), C["lipstick"])
+    for i in range(9):
+        h.box((-0.16 + i * 0.04, 0.1, FZ - 0.02), (0.008, 0.07, 0.008), C["socket"])   # stitches
+    _bob(h, True)
+
 CHARACTERS = {
     "tong": tong, "manager": manager, "sweeper": sweeper, "goblin": goblin,
     "guard": guard, "doctor": doctor, "dummy": dummy,
+    "manager_night": manager_night, "sweeper_night": sweeper_night, "goblin_night": goblin_night,
+    "guard_night": guard_night, "doctor_night": doctor_night, "staff": staff, "hr": hr, "hr_night": hr_night,
 }
-NECK = {"manager": 0.22}   # default neck length shown in Blender (the game sets its own)
+NECK = {"manager": 0.22, "manager_night": 0.22}   # default neck length shown in Blender (the game sets its own)
 
 
 # ---------------------------------------------------------------- scene assembly
@@ -352,12 +602,17 @@ def build(name):
             bsdf = m.node_tree.nodes.get("Principled BSDF")
             bsdf.inputs["Base Color"].default_value = (*lin(col), 1.0)
             bsdf.inputs["Roughness"].default_value = 1.0
+            if col in EMIT:   # eyes that glow in the dark
+                bsdf.inputs["Emission Color"].default_value = (*lin(col), 1.0)
+                bsdf.inputs["Emission Strength"].default_value = 2.0
             mats[col] = m
         return mats[col]
     names = ["LegL", "LegR", "ArmL", "ArmR", "Torso", "NeckMesh", "Head"]
     parts = {n: Part(n) for n in names}
     skin = {"manager": "skin_tan", "sweeper": "skin_brown", "goblin": "skin_pale", "guard": "skin_tan",
-            "doctor": "skin_tan", "dummy": "dummy"}.get(name, "skin")
+            "doctor": "skin_tan", "dummy": "dummy", "manager_night": "dead", "sweeper_night": "corpse",
+            "goblin_night": "ghost", "guard_night": "guard_dark", "doctor_night": "ghost", "staff": "ghost",
+            "hr": "skin_pale", "hr_night": "ghost"}.get(name, "skin")
     parts["NeckMesh"].box((0, 0.5, 0), (0.14, 1.0, 0.14), C[skin])
     CHARACTERS[name](parts)
     coll = bpy.context.scene.collection

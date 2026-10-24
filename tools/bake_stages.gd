@@ -2,10 +2,13 @@
 # story.gd, with the navmesh baked. After that, the .tscn files are what you edit in the editor.
 #   Godot --path . res://tools/bake_stages.tscn             (only creates missing scenes)
 #   Godot --path . res://tools/bake_stages.tscn -- --force  (overwrites: loses editor edits!)
+#   Godot --path . res://tools/bake_stages.tscn -- --force ending_C stage_hr   (overwrites only these)
 extends Node
 
 func _ready() -> void:
-	var force := "--force" in OS.get_cmdline_user_args()
+	var args := Array(OS.get_cmdline_user_args())
+	var force := "--force" in args
+	var only := args.filter(func(a): return a != "--force")
 	var jobs := []
 	for i in Story.STAGES.size():
 		jobs.append(["res://scenes/stages/stage_%d.tscn" % (i + 1), Story.STAGES[i], {"stage_index": i}, true])
@@ -16,6 +19,8 @@ func _ready() -> void:
 		jobs.append(["res://scenes/endings/ending_%s.tscn" % id, d, {"ending_id": id}, false])
 	StageBuilder.baking = true
 	for j in jobs:
+		if not only.is_empty() and not j[0].get_file().get_basename() in only:
+			continue
 		if ResourceLoader.exists(j[0]) and not force:
 			print("skip (already exists): ", j[0])
 			continue

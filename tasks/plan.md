@@ -1,25 +1,43 @@
-# Plan v3: real character models, more horror, tutorial, useful notes, distinct stages
+# Plan v4: longer story, more stages, scarier, ending fixes
 
-v2 archived in `tasks/archive/`. Baseline before v3: 187 tests PASS.
+v3 archived in `tasks/archive/`. Baseline before v4: the v3 suite (259 checks).
 
-## Decisions (confirmed with user, 2026-10-01)
-- **Characters:** remodel all of them in Blender (Tong, Thana, Pa Porn, Tae, Somchai, doctor + tutorial mannequin), following the pitch-deck art. No more face photo pasted on a box.
-- **Horror:** scripted scares + hallucinations tied to Social Battery + blackout/flashlight + chase sequences.
-- **Tutorial:** stage 0 that plays before stage 1 (skippable).
-- **Notes:** give a real hint inside the stage + count as evidence toward Ending A.
-- **Stages:** each stage gets its own core mechanic.
-- **Editing:** editable in the Godot editor (Inspector) + a step-by-step guide.
+## Request (2026-10-24)
+More story, gameplay that doesn't get boring, aim for a ~5 hour game, story cutscenes where Tong runs
+from the ghosts, real jump scares, scarier models, and fix the ending cutscenes that look wrong.
 
-## Root causes found
-- Notes showed nothing: `Game.note_opened` is emitted, but no UI is connected to it.
+## Root causes found (ending cutscenes)
+- After every ending vignette the cutscene camera was freed before the fade-out. Endings have no
+  player camera to fall back to, so the screen went grey and the HUD (battery bar, phone hint)
+  popped back up for a second before the ending card.
+- Ending C: the camera started on the dividing wall, the guard stood facing away from the camera
+  (he faced into his own room), and there was no door: the "peephole" shot (fov 130) showed the
+  side of his head from 1 m away.
+- Ending B: "turn left" swung the camera past the doctor into the wall.
 
-## Tasks
-- [x] T1 Blender: `tools/blender/build_characters.py` → `assets/characters/<name>.blend` + `.glb`; segmented PSX model with parts LegL/LegR/ArmL/ArmR/Torso/Neck(NeckMesh, Head) so the existing animations/jumpscares keep working; `body.gd` loads the glb
-- [x] T2 Notes: reading UI + `title/text/reveal/evidence` in the Inspector + reveal (goals/hides/npc) + evidence → Ending A
-- [x] T3 Editable nodes: `story_trigger.gd` (monologue/chat/sound) + `scare.gd` (lights_out / figure / behind / sound), placed in scenes
-- [x] T4 Horror systems: VHS/hallucination shader by battery, phantom coworkers when battery is low, NPCs see the flashlight / dark hides you
-- [x] T5 Stages: 1 stealth + scares · 2 coffee → chased by ป้าพร to the elevator · 3 floor blackout, breaker, post-it codes → keypad · 4 flickering lights let พี่สมชาย move + finale where everyone chases you while you hold the fingerprint scan
-- [x] T6 Stage 0 tutorial (mannequin NPC; walk, sprint, crouch, read, phone/flashlight, throw, hide/hold breath)
-- [x] T7 `EDITING.md` (Thai), README/report/ASSETS, tests (259 PASS)
-- [x] T8 web export to `docs/` (tested in headless Chrome: menu, tutorial, stage 4). Exe: only web templates are installed
-- [x] T9 Stage 0 redone as a half-cutscene intro: bright afternoon with the four coworkers at work and chatting -> texts from the unknown number that lock you until read (controls, then the night-shift rumour) -> day turns to night -> mirror ending (`tutorial.gd`, `coworker.gd`). Replaces the T6 mannequin course. `docs/` web build not re-exported yet
+## Steps
+- [ ] S1 Endings: keep the last shot until the fade is done, HUD stays hidden; restage A/B/C (door +
+      peephole in C, B camera framing, A police lights); ending D (true end)
+- [ ] S2 Scarier models (Blender script, run with the `bpy` module): night versions of the four
+      coworkers + doctor + faceless night staff, glowing eyes through the PSX shader; the tutorial's
+      daytime coworkers keep the normal models (`*_day` presets)
+- [ ] S3 Cutscene steps for chases: `run`, `npc_go`, `shake`, `scare` (face slam), `extra`; scare kinds
+      `rush` (charges at you, gone at arm's length), `face` (full-screen face + scream), `peek`;
+      mid-stage cutscenes (`goal_scenes`, `rage_scene`)
+- [ ] S4 New stages (each with its own mechanic, intro chase cutscene, notes, scares, clue):
+      - HR & meeting room: พี่แหม่ม HR calls Tong's name over the PA; when the chime ends she knows
+        where you are unless you are hidden
+      - Fire stairs: the corridor loops; spot what changed, turn back if anything is wrong, 8 clean
+        loops to get out (anomalies, some of them come at you)
+      - Hospital (the dream): the doctor hears your heartbeat; running and fear make it louder,
+        hiding and holding your breath calm it
+- [ ] S5 Story: more texts/notes/triggers/scares in the old stages, clue/evidence totals follow the
+      stage list, endings text, true ending D
+- [ ] S6 Tests green, README / EDITING / ASSETS, web build in `docs/`, commit + push
+
+## Stage order (v4)
+0 บทนำ · 1 แผนกบัญชี · 2 โถงทางเดิน · 3 ฝ่ายบุคคล & ห้องประชุม (new) · 4 ห้องเซิร์ฟเวอร์ ·
+5 บันไดหนีไฟ (new) · 6 โรงพยาบาล (new) · 7 ออกจากบริษัท
+
+Old stage scenes keep their file names (stage_1..4.tscn); each stage entry in story.gd says which
+scene it uses (`scene`), so editor edits in them are kept.

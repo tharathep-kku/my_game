@@ -53,6 +53,8 @@ func _ready() -> void:
 	if StageBuilder.baking:
 		set_physics_process(false)
 		return
+	if Story.BODIES.has(body.preset + "_day"):   # by day they still look like themselves
+		body.preset += "_day"
 	_from = global_position
 	_yaw = rotation.y
 	if work == "mop":   # ป้าพร hums while she mops

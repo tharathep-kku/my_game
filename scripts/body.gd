@@ -22,12 +22,13 @@ var neck_len := 0.1
 var head_size := 0.42
 var _fade_mats: Array[ShaderMaterial] = []
 
-static func mat(color: Color, tex: Texture2D = null) -> ShaderMaterial:
-	var key := str(color) + str(tex)
+static func mat(color: Color, tex: Texture2D = null, emit := Color.BLACK) -> ShaderMaterial:
+	var key := str(color) + str(tex) + str(emit)
 	if not _mats.has(key):
 		var m := ShaderMaterial.new()
 		m.shader = PSX
 		m.set_shader_parameter("albedo", color)
+		m.set_shader_parameter("emission", Vector3(emit.r, emit.g, emit.b))
 		if tex:
 			m.set_shader_parameter("albedo_tex", tex)
 		_mats[key] = m
@@ -60,7 +61,10 @@ func build(spec: Dictionary) -> Body:
 	for m: MeshInstance3D in find_children("*", "MeshInstance3D", true, false):
 		for i in m.mesh.get_surface_count():   # Blender colours, redrawn with the PSX shader
 			var sm := m.mesh.surface_get_material(i)
-			m.set_surface_override_material(i, mat(sm.albedo_color if sm is BaseMaterial3D else Color.WHITE))
+			var emit := Color.BLACK   # glowing eyes (Emission in Blender)
+			if sm is BaseMaterial3D and sm.emission_enabled:
+				emit = sm.emission * sm.emission_energy_multiplier
+			m.set_surface_override_material(i, mat(sm.albedo_color if sm is BaseMaterial3D else Color.WHITE, null, emit))
 	set_neck(spec.get("neck", neck_len))
 	return self
 
@@ -81,7 +85,9 @@ func set_fade(a: float) -> void:
 			for i in m.mesh.get_surface_count():
 				var f := ShaderMaterial.new()
 				f.shader = FADE
-				f.set_shader_parameter("albedo", (m.get_surface_override_material(i) as ShaderMaterial).get_shader_parameter("albedo"))
+				var src := m.get_surface_override_material(i) as ShaderMaterial
+				f.set_shader_parameter("albedo", src.get_shader_parameter("albedo"))
+				f.set_shader_parameter("emission", src.get_shader_parameter("emission"))
 				m.set_surface_override_material(i, f)
 				_fade_mats.append(f)
 	visible = a > 0.0

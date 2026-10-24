@@ -98,4 +98,22 @@ for _ in range(2):
     vib += [0.4 * env(i, n, 0.01, 0.02) * math.sin(2*math.pi*170*i/SR) * (0.6 + 0.4*math.sin(2*math.pi*25*i/SR)) for i in range(n)]
     vib += silence(0.12)
 save("vibrate", vib)
+
+# police siren (ending A): two-tone wail, loopable
+n = SR * 2; ph = 0; siren = []
+for i in range(n):
+    f = 700 + 260 * (0.5 + 0.5 * math.sin(2 * math.pi * i / n))
+    ph += 2 * math.pi * f / SR
+    siren.append(0.3 * (math.sin(ph) + 0.4 * math.sin(2 * ph)) / 1.4)
+save("siren", siren)
+# PA chime (ฝ่ายบุคคล calls a name): ding-dong-ding with a soft decay
+pa = []
+for f, d in ((784, 0.5), (622, 0.5), (523, 0.9)):
+    n = int(d * SR)
+    pa += [0.35 * math.exp(-3.0 * i / n) * (math.sin(2*math.pi*f*i/SR) + 0.3*math.sin(4*math.pi*f*i/SR)) for i in range(n)]
+save("pa_chime", pa)
+# TV / radio static (stairwell anomalies), loopable
+save("static", [0.25 * random.uniform(-1, 1) * (0.7 + 0.3 * math.sin(i / 700)) for i in range(SR)])
+# flatline (hospital): one long monitor tone
+save("flatline", tone([988], 2.5, 0.3))
 print("ok")

@@ -511,7 +511,7 @@ func add_wet(pos: Vector3, sweeper: Npc, secs := 10.0) -> void:
 	add_child(a)
 
 func _process(dt: float) -> void:
-	if not dark and gloom > 0.5 and not lights.is_empty() and _rng.randf() < 0.04:   # one dying fluorescent tube
+	if not dark and gloom > 0.5 and ending_id == "" and not lights.is_empty() and _rng.randf() < 0.04:   # one dying fluorescent tube (endings set their own lights)
 		lights[0].visible = not lights[0].visible or _rng.randf() < 0.5
 	_cameos(dt)
 	if is_instance_valid(player) and not Game.in_cutscene:

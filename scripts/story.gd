@@ -496,50 +496,135 @@ const GUARD_CALLS := [
 	"พี่สมชาย (โทรศัพท์): ไม่ต้องรีบนะครับ... เดี๋ยวผมไปส่งถึงบ้านเอง",
 ]
 
-# 3D ending vignettes: tiny maps + cutscene, then the ending card in main.gd.
+# 3D ending vignettes: tiny maps + cutscene (cutscene.gd steps), then the ending card in main.gd.
+# The last shot stays up until main.gd fades it out: end each one on a "fade" so it goes black on cue.
 const ENDING_SCENES := {
-	"A": {
-		"map": ["##########", "#o......o#", "#...L....#", "#........#", "#........#", "##########"],
+	"A": {   # out in front of the building at 3 am, his phone in Tong's hand... and him in the doorway
+		"map": ["############", "#o...#.....#", "#....#..L..#", "#....L.....#", "#....#.....#", "#o...#....o#", "############"],
 		"floor": Color(0.2, 0.2, 0.22), "wall": Color(0.3, 0.3, 0.35), "light": Color(0.7, 0.8, 1.0),
 		"steps": [
-			["body", "tong", Vector3(4, 0, 2), Vector3(4, 0, 4)],
-			["cam", Vector3(4, 1.6, 4.4), Vector3(4, 1.4, 2), 0.0],
-			["say", "ต๋อง: (เปิดมือถือพี่สมชาย...) รูปเรา... รูปเรา... ทั้งอัลบั้มเลย", 3.5],
-			["say", "ต๋อง: ฮัลโหล 191 ครับ... ผมจะแจ้งความ", 3.0],
-			["flash", "police"], ["wait", 0.6], ["flash", "police"], ["wait", 0.6], ["flash", "police"],
-			["cam", Vector3(4, 3.5, 5.0), Vector3(4, 1.0, 2), 3.0],
+			["body", "guard", Vector3(2, 0, 3), Vector3(9, 0, 3), "guard"],
+			["cam", Vector3(8.9, 1.6, 3.3), Vector3(5.5, 1.5, 3), 0.0],
+			["say", "ต๋อง: (ออกมาได้แล้ว... ลมตอนตีสาม ไม่เคยรู้สึกดีขนาดนี้)", 3.5],
+			["look", Vector3(8.7, 0.8, 2.6), 1.0],   # down at the phone in his hand
+			["say", "ต๋อง: (มือถือพี่สมชาย... ไม่ได้ล็อกด้วยซ้ำ)", 2.8],
+			["sfx", "metalClick"],
+			["move", "guard", Vector3(5.3, 0, 3), 0.01],   # nobody saw him come
+			["say", "ต๋อง: รูปเรา... รูปเรากำลังหลับ... รูปหน้าบ้านเรา... ทั้งอัลบั้มเลย", 4.0],
+			["look", Vector3(5.3, 1.6, 3), 1.0],   # looks up: he's in the doorway
+			["sfx", "sting"], ["shake", 0.025, 0.6],
+			["say", "พี่สมชาย: ...คืนมือถือผมด้วยครับ คุณต๋อง", 3.0],
+			["walk", Vector3(10.2, 1.6, 3.5), Vector3(5.3, 1.6, 3), 1.0],   # backs off
+			["say", "ต๋อง: ฮัลโหล 191 ครับ!! มีคนสะกดรอยตามผม... เขาอยู่ตรงหน้าผมตอนนี้!", 3.5],
+			["move", "guard", Vector3(7.2, 0, 3.1), 2.6, "walk"],
+			["wait", 1.4],
+			["sfx", "siren"], ["flash", "police"], ["tint", Color(1, 0.15, 0.15)], ["wait", 0.45],
+			["tint", Color(0.2, 0.3, 1)], ["flash", "police"], ["wait", 0.45], ["tint", Color(1, 0.15, 0.15)],
+			["turn", "guard", Vector3(2, 0, 3)],
+			["sfx", "siren"],
+			["say", "(เสียงไซเรน... รถตำรวจเลี้ยวเข้ามาหน้าตึก)", 2.4],
+			["tint", Color(0.2, 0.3, 1)], ["flash", "police"],
+			["gone", "guard"],
+			["tint", Color(0.7, 0.8, 1.0)],
+			["say", "ต๋อง: ...เขาหนีไปแล้ว แต่หลักฐานทั้งหมดอยู่ในมือเรา", 3.0],
+			["cam", Vector3(10, 3.2, 4.8), Vector3(6, 1.0, 3), 3.0],
+			["fade", 1.0, 1.5], ["wait", 1.6],
 		],
 	},
-	"B": {
+	"B": {   # waking up in hospital bed 4: the doctor on the left... and on the right
 		"map": ["#########", "#o..L..o#", "#...Q...#", "#.......#", "#########"],
 		"floor": Color(0.75, 0.8, 0.8), "wall": Color(0.85, 0.9, 0.9), "light": Color(0.9, 1.0, 1.0),
 		"steps": [
-			["body", "doctor", Vector3(2.6, 0, 2.6), Vector3(4, 0, 2)],
-			["body", "manager_long", Vector3(5.4, 0, 2.6), Vector3(4, 0, 2)],
-			["cam", Vector3(4, 1.0, 2.2), Vector3(4, 2.9, 1.0), 0.0],
-			["sfx", "beep"], ["wait", 1.0], ["sfx", "beep"],
-			["say", "หมอ: ฟื้นแล้วเหรอครับ คุณหมดสติเพราะทำงานหนักเกินไป", 3.0],
-			["cam", Vector3(4, 1.0, 2.2), Vector3(2.6, 1.8, 2.6), 1.2],
-			["say", "หันซ้าย... คุณหมอยิ้มให้", 2.0],
-			["cam", Vector3(4, 1.0, 2.2), Vector3(5.4, 2.5, 2.6), 1.2],
+			["body", "doctor", Vector3(2.7, 0, 2.5), Vector3(4, 0, 2), "doctor"],
+			["body", "manager_long", Vector3(5.4, 0, 1.6), Vector3(4, 0, 2.2), "boss"],
+			["lights", false],
+			["cam", Vector3(4, 1.0, 2.2), Vector3(4, 2.9, 1.7), 0.0],   # lying in bed, eyes on the ceiling
+			["sfx", "beep"], ["wait", 1.0], ["sfx", "beep"], ["wait", 0.8],
+			["lights", true], ["sfx", "beep"],
+			["say", "หมอ: ฟื้นแล้วเหรอครับ... คุณหมดสติไปสามวัน เพราะทำงานหนักเกินไป", 3.5],
+			["look", Vector3(2.7, 1.7, 2.5), 1.3],   # turns left
+			["say", "หันซ้าย... คุณหมอยิ้มให้", 2.2],
+			["say", "หมอ: เพื่อนร่วมงานของคุณ แวะมาเยี่ยมทุกคืนเลยนะครับ", 3.0],
+			["look", Vector3(4, 2.9, 1.7), 1.2],
+			["sfx", "beep"],
+			["say", "ต๋อง: (ฝัน... ทั้งหมดเป็นแค่ฝันสินะ)", 2.6],
 			["sfx", "squeak"],
-			["say", "หันขวา... \"งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ?\"", 3.5],
+			["look", Vector3(5.4, 2.7, 1.6), 1.3],   # turns right: someone tall by the bed
+			["say", "หันขวา...", 1.5],
+			["lights", false], ["sfx", "squeak"], ["wait", 0.3],
+			["part", "boss", "Neck", Vector3(-0.9, 0, 0)], ["part", "boss", "Head", Vector3(0.9, 0, 0.35)],   # ...and now he's leaning over you
+			["cam", Vector3(4, 1.0, 2.2), Vector3(5.0, 2.2, 1.8), 0.0],
+			["lights", true], ["shake", 0.015, 0.5],
+			["say", "หัวหน้าธนา: ฟื้นแล้วเหรอจ๊ะ~ งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ?", 3.2],
+			["scare", "manager_long", "mutter"],
+			["fade", 1.0, 0.05], ["sfx", "flatline"], ["wait", 1.4],
 		],
 	},
-	"C": {
-		"map": ["#########", "#...#...#", "#.L.#.L.#", "#.......#", "#########"],
+	"C": {   # home at 2 am, door locked. Knock knock. The door viewer. Then the lights.
+		"map": ["#########", "#..L....#", "###O#####", "#.....o.#", "#..L....#", "#.Q.....#", "#########"],
 		"floor": Color(0.35, 0.28, 0.22), "wall": Color(0.55, 0.5, 0.42), "light": Color(1.0, 0.8, 0.6),
 		"steps": [
-			["body", "guard", Vector3(2, 0, 1.2), Vector3(2, 0, 3)],
-			["cam", Vector3(6, 1.6, 3), Vector3(4.4, 1.5, 1.5), 0.0],
-			["say", "ต๋อง: ถึงห้องสักที... ล็อกประตูแล้ว", 2.5],
-			["sfx", "knock"], ["wait", 1.5],
-			["say", "\"ข้าวมันไก่ครับ... ซื้อมาฝาก\"", 3.0],
-			["cam", Vector3(5, 1.7, 1.5), Vector3(3, 1.7, 1.5), 1.5],
-			["fov", 130.0],
-			["cam", Vector3(2.35, 1.72, 1.5), Vector3(2, 1.72, 1.2), 0.0],
-			["sfx", "sting"],
-			["wait", 2.0],
+			["body", "guard", Vector3(3, 0, 1.3), Vector3(3, 0, 3), "guard"],
+			["cam", Vector3(5.6, 1.6, 4.8), Vector3(3, 1.4, 2.2), 0.0],
+			["say", "ต๋อง: ถึงห้องสักที... ล็อกประตูสองชั้นแล้ว", 3.0],
+			["walk", Vector3(4.6, 1.6, 4.4), Vector3(2, 0.8, 5), 1.6],   # toward the bed
+			["say", "ต๋อง: (วันนี้... ลาป่วยแน่นอน)", 2.4],
+			["sfx", "knock"], ["wait", 0.9], ["sfx", "knock"],
+			["look", Vector3(3, 1.4, 2.2), 0.5],
+			["shake", 0.012, 0.4],
+			["say", "\"ข้าวมันไก่ครับ... ไม่เอาหนัง ซื้อมาฝาก\"", 3.0],
+			["say", "ต๋อง: (ไม่เคยบอกใครเลยว่าบ้านอยู่ที่ไหน...)", 3.0],
+			["walk", Vector3(3, 1.6, 3.0), Vector3(3, 1.6, 2.2), 2.6],   # tiptoes to the door
+			["fov", 118.0], ["peephole", true],
+			["cam", Vector3(3, 1.66, 1.92), Vector3(3, 1.7, 1.0), 0.0],   # through the door viewer
+			["wait", 1.4],
+			["part", "guard", "Head", Vector3(0, 0, 0.35)],
+			["say", "พี่สมชาย: ...ผมรู้นะครับ ว่าคุณยืนอยู่หลังประตู", 3.0],
+			["move", "guard", Vector3(3, 0, 1.6), 1.4, "walk"],   # leans in to the lens
+			["wait", 1.5],
+			["peephole", false], ["fov", 60.0],
+			["lights", false], ["sfx", "whisper"],
+			["cam", Vector3(3, 1.6, 3.0), Vector3(3, 1.6, 2.2), 0.0],
+			["wait", 1.3],
+			["move", "guard", Vector3(3.1, 0, 4.1), 0.01],   # ...inside. Behind him.
+			["turn", "guard", Vector3(3, 0, 3)],
+			["part", "guard", "Head", Vector3(0, 0, -0.4)],
+			["lights", true],
+			["say", "พี่สมชาย (ข้างหลัง): ...ล็อกไม่ทันหรอกครับ", 2.4],
+			["look", Vector3(3.1, 1.75, 4.1), 0.22],
+			["scare", "guard", "whisper"],
+			["fade", 1.0, 0.05], ["wait", 1.4],
+		],
+	},
+	"D": {   # true end: he wakes for real. The police are in the corridor. One last text to the boss.
+		"map": ["############", "#o..L..#...#", "#...Q..#.L.#", "#..........#", "#o.....#...#", "############"],
+		"floor": Color(0.75, 0.8, 0.8), "wall": Color(0.85, 0.9, 0.9), "light": Color(1.0, 0.95, 0.85),
+		"steps": [
+			["body", "doctor", Vector3(2.7, 0, 2.6), Vector3(4, 0, 2), "doctor"],
+			["body", "guard", Vector3(9.6, 0, 3.0), Vector3(4, 0, 3), "guard"],
+			["part", "guard", "Head", Vector3(-0.5, 0, 0)],   # head down
+			["part", "guard", "ArmL", Vector3(-0.5, 0, 0.3)], ["part", "guard", "ArmR", Vector3(-0.5, 0, -0.3)],   # wrists together
+			["lights", false],
+			["cam", Vector3(4, 1.0, 2.2), Vector3(4, 2.9, 1.7), 0.0],
+			["sfx", "beep"], ["wait", 1.0], ["sfx", "beep"], ["wait", 0.6],
+			["lights", true],
+			["say", "หมอ: ฟื้นแล้วครับ! ...คุณหมดสติที่โต๊ะทำงาน มาสามวันแล้วนะครับ", 3.5],
+			["look", Vector3(2.7, 1.7, 2.6), 1.3],
+			["say", "หมอ: ตำรวจรออยู่ข้างนอก... เขาบอกว่าคุณโทรแจ้งความไว้ ก่อนจะหมดสติ", 4.0],
+			["text", "แม่", "ลูกฟื้นแล้วใช่ไหม แม่กำลังไปนะ ไม่ต้องห่วงเรื่องงานแล้ว"],
+			["look", Vector3(9.6, 1.2, 3.0), 1.6],   # out of the door: the corridor
+			["sfx", "siren"], ["flash", "police"],
+			["say", "(ที่ทางเดิน... พี่สมชายนั่งก้มหน้า ข้อมือถูกใส่กุญแจมือ)", 3.5],
+			["say", "ต๋อง: (ครึ่งหนึ่งเป็นฝัน... อีกครึ่งเป็นเรื่องจริง)", 3.0],
+			["look", Vector3(4, 0.6, 2.9), 1.0],   # down at his own phone
+			["text", "หัวหน้าธนา", "ต๋องจ๊ะ หายไวๆ นะ ...ว่าแต่งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ ^_^"],
+			["wait", 1.2],
+			["say", "ต๋อง: (พิมพ์ตอบ...) \"เรียนหัวหน้า ผมขอลาออกครับ\"", 3.5],
+			["sfx", "metalClick"], ["sfx", "pickup"],
+			["tint", Color(1.0, 0.85, 0.6)],
+			["look", Vector3(4, 2.9, 1.7), 1.6],
+			["say", "ต๋อง: ...ฮ่า ฮ่าๆ — คืนนี้ ไม่ต้องอยู่กะดึกแล้ว", 3.2],
+			["fade", 1.0, 2.0], ["wait", 2.1],
 		],
 	},
 }
@@ -547,12 +632,22 @@ const ENDING_SCENES := {
 # Character looks (Body presets). Coworker scenes pick one in the Inspector (Body > preset).
 # model = assets/characters/<model>.glb (edit the .blend in Blender). The UI shows the same model live (face_view.gd).
 const BODIES := {
-	"manager": {"model": "manager"},
-	"manager_long": {"model": "manager", "neck": 1.0},
-	"sweeper": {"model": "sweeper"},
-	"goblin": {"model": "goblin"},
+	# night: how they look once the office goes dark (every stage, the mirror, the endings)
+	"manager": {"model": "manager_night"},
+	"manager_long": {"model": "manager_night", "neck": 1.0},
+	"sweeper": {"model": "sweeper_night"},
+	"goblin": {"model": "goblin_night"},
+	"guard": {"model": "guard_night"},
+	"hr": {"model": "hr_night"},
+	"doctor_night": {"model": "doctor_night"},
+	"staff": {"model": "staff"},
+	# day: the same people on a normal Friday afternoon (the tutorial's coworkers use "<preset>_day")
+	"manager_day": {"model": "manager"},
+	"sweeper_day": {"model": "sweeper"},
+	"goblin_day": {"model": "goblin"},
+	"guard_day": {"model": "guard"},
+	"hr_day": {"model": "hr"},
 	"tong": {"model": "tong"},
 	"doctor": {"model": "doctor"},
-	"guard": {"model": "guard"},
 	"dummy": {"model": "dummy"},
 }

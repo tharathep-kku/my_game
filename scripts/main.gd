@@ -11,7 +11,9 @@ const ENDINGS := {
 	"B": ["B · DREAM END", "ทุกอย่างเป็นแค่ฝัน", "manager",
 		"ต๋องลืมตาขึ้นมาที่โรงพยาบาล\nหมอบอกว่าเขาหมดสติเพราะทำงานหนักเกินไป\n\nหันซ้าย... คุณหมอยิ้มให้\nหันขวา... หัวหน้าธนายื่นหน้ามาพร้อมรอยยิ้มค้าง\n\n\"งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ?\""],
 	"C": ["C · BAD END", "มีคนตามกลับบ้าน", "guard",
-		"ต๋องถึงห้องพักตอนตีสอง ล็อกประตูแล้วถอนหายใจโล่งอก\n\nก๊อก... ก๊อก... ก๊อก...\n\"ข้าวมันไก่ครับ... ซื้อมาฝาก\"\n\nต๋องไม่เคยบอกใครเลยว่าบ้านอยู่ที่ไหน\n\n(คำใบ้: รับสายโทรศัพท์ที่ดัง มองหาพี่สมชายที่ยืนอยู่ไกลๆ อ่านโน้ตที่พูดถึงเขา\nแล้วขโมยมือถือเขามาแจ้งตำรวจ — หรือเก็บของแปลกๆ ที่ไม่ควรอยู่ในออฟฟิศให้ครบ)"],
+		"ต๋องถึงห้องพักตอนตีสอง ล็อกประตูแล้วถอนหายใจโล่งอก\n\nก๊อก... ก๊อก... ก๊อก...\n\"ข้าวมันไก่ครับ... ซื้อมาฝาก\"\n\nต๋องไม่เคยบอกใครเลยว่าบ้านอยู่ที่ไหน\n\n(คำใบ้: รับสายโทรศัพท์ที่ดัง มองหาพี่สมชายที่ยืนอยู่ไกลๆ อ่านโน้ตที่พูดถึงเขา\nแล้วขโมยมือถือเขามาแจ้งตำรวจ — หรือเก็บของแปลกๆ ที่ไม่ควรอยู่ในออฟฟิศให้ครบ — หรือทำทั้งสองอย่าง...)"],
+	"D": ["D · TRUE END", "ตื่นแล้ว", "tong",
+		"ต๋องลืมตาขึ้นที่โรงพยาบาล เตียง 4 ห้อง 7 — ของจริง\nเขาหมดสติที่โต๊ะทำงานมาสามวัน\n\nก่อนหมดสติ เขากดโทรแจ้งตำรวจไว้ทัน\nพี่สมชายถูกจับที่ทางเดินหน้าห้องพักผู้ป่วย\n\nข้อความสุดท้ายที่ต๋องส่งถึงบริษัท:\n\"ผมขอลาออกครับ\""],
 }
 
 var view: SubViewport
@@ -85,6 +87,7 @@ var _keypad_pc: Node
 var skip_tut_btn: Button
 var tut_hint: Label
 var beacons: Control   # on-screen markers: what a note revealed, the exit, the tutorial step
+var peephole: TextureRect   # door-viewer vignette (cutscene "peephole" step)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -127,6 +130,9 @@ func _ready() -> void:
 	Game.flash.connect(_on_flash)
 	Game.note_opened.connect(_on_note)
 	Game.code_requested.connect(_on_code_requested)
+	Game.scare_face.connect(_face_slam)
+	Game.fade.connect(func(a, secs): _fade_to(a, secs))
+	Game.overlay.connect(func(kind): peephole.visible = kind == "peephole")
 	show_screen("menu")
 
 # ---------- flow ----------
@@ -235,6 +241,10 @@ func stop_play() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_load_id += 1   # cancel a start_stage() still waiting on its clock card (or a jumpscare)
 	_clear_scare()
+	bars[0].position.y = -90.0   # an ending keeps its letterbox until here
+	bars[1].position.y = 720.0
+	status.show()
+	peephole.hide()
 	for c in view.get_children():
 		c.queue_free()
 	level = null
@@ -312,6 +322,37 @@ func _jumpscare(npc: Npc) -> void:
 	fade.color.a = 1.0
 	_scare_sound("scare_ring", -6.0)   # ears ringing in the black
 	_clear_scare(true)   # stays silent until play resumes (_on_caught)
+
+# Non-lethal face slam (cutscene "scare" step, "face" scares): their head rushes into the lens with a
+# scream and is gone again. Nothing else happens.
+func _face_slam(preset: String, sfx_name := "") -> void:
+	if _scaring:
+		return
+	scare_face.set_preset(preset)
+	scare_face.scale = Vector2.ONE * 0.4
+	scare_face.zoom = 1.0
+	scare_face.shake = 1.0
+	scare_face.position = SCARE_POS
+	scare_face.show()
+	flash_rect.color = Color(0.35, 0.02, 0.02, 0.85)
+	_scare_sound("scare_slam", 0.0)
+	_scare_sound("gasp", -6.0)
+	if sfx_name != "":
+		_scare_sound(sfx_name, 0.0, 0.7)
+	var z := create_tween()
+	z.tween_property(scare_face, "scale", Vector2.ONE * 1.4, 0.05).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	z.parallel().tween_property(scare_face, "zoom", 2.6, 0.45).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	z.tween_callback(func():
+		if not _scaring:
+			scare_face.hide()
+			scare_face.scale = Vector2.ONE
+		flash_rect.color = Color(0, 0, 0, 0))
+	var t := 0.0
+	while t < 0.5 and scare_face.visible:
+		scare_face.position = SCARE_POS + Vector2(randf_range(-18, 18), randf_range(-18, 18))
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	scare_face.position = SCARE_POS
 
 # Jumpscare audio goes straight to Master: dry (no office reverb), never muffled by a hide spot.
 func _scare_sound(sfx_name: String, db: float, pitch := 1.0) -> void:
@@ -794,6 +835,8 @@ func _on_hidden(kind: String) -> void:
 		hide_view.add_child(c)
 
 func _on_cutscene(on: bool) -> void:
+	if not on and not playing:   # an ending vignette: keep the letterbox and no HUD until it has faded out
+		return
 	status.visible = not on
 	var t := create_tween().set_parallel()
 	t.tween_property(bars[0], "position:y", 0.0 if on else -90.0, 0.4)
@@ -1086,6 +1129,35 @@ func _build_hud() -> void:
 	banner = _label("", 40, YELLOW, hud)
 	banner.position = Vector2(0, 220)
 	banner.size = Vector2(960, 80)
+	peephole = TextureRect.new()   # fish-eye door viewer: a round hole in the black
+	var g := Gradient.new()
+	g.set_color(0, Color(0, 0, 0, 0))
+	g.set_color(1, Color(0, 0, 0, 1))
+	g.add_point(0.62, Color(0, 0, 0, 0.15))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(0.5, 0.0)
+	gt.width = 256
+	gt.height = 256
+	peephole.texture = gt
+	peephole.stretch_mode = TextureRect.STRETCH_SCALE
+	peephole.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	peephole.position = Vector2(120, 0)
+	peephole.size = Vector2(720, 720)
+	peephole.mouse_filter = MOUSE_FILTER_IGNORE
+	peephole.hide()
+	hud.add_child(peephole)
+	hud.move_child(peephole, 0)
+	for r in [Rect2(0, 0, 120, 720), Rect2(840, 0, 120, 720)]:   # the sides beyond the round hole
+		var side := ColorRect.new()
+		side.color = Color.BLACK
+		side.position = r.position
+		side.size = r.size
+		side.mouse_filter = MOUSE_FILTER_IGNORE
+		peephole.add_child(side)
+		side.position = r.position - peephole.position
 	flash_rect = ColorRect.new()
 	flash_rect.color = Color(0, 0, 0, 0)
 	flash_rect.set_anchors_preset(PRESET_FULL_RECT)

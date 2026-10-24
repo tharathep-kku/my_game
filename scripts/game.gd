@@ -16,6 +16,9 @@ signal cutscene_changed(on: bool)
 signal skip_cutscene             # Space held for SKIP_HOLD seconds during a cutscene
 signal phone_message(thread: String, msg: Dictionary)
 signal hidden_changed(kind: String)   # "" = came out
+signal scare_face(preset: String, sfx: String)   # non-lethal face slam (cutscenes, "face" scares)
+signal fade(alpha: float, secs: float)   # cutscene "fade" step: black over the picture
+signal overlay(kind: String)             # "peephole" / "" (main.gd)
 
 const MAX_BATTERY := 100.0
 const HINT_TOTAL := 4           # one guard phone call per stage
@@ -25,7 +28,7 @@ const REVEAL_TIPS := {
 	"hides": "รู้แล้วว่าซ่อนตรงไหนได้ → ดูป้ายสีเขียวบนจอ (40 วินาที)",
 	"npc": "รู้ทางเดินของเขาแล้ว → ลูกศรสีแดงบนจอบอกว่าเขาอยู่ไหน (40 วินาที)",
 }
-const CLUE_TOTAL := 4           # one dream clue per stage
+static var CLUE_TOTAL: int = Story.STAGES.filter(func(d): return d.has("clue_line")).size()   # one dream clue per stage that has one
 const SKIP_HOLD := 3.0          # seconds Space must be held to skip a cutscene
 
 const STAGES := Story.STAGES
@@ -374,13 +377,18 @@ func stage_clear() -> void:
 func is_last_stage() -> bool:
 	return stage >= STAGES.size() - 1
 
-# Ending precedence: B = found every dream clue and never took the guard's phone (it was all a
-# dream); A = took his phone with enough evidence that he's off (answered calls, spotted him,
+# Ending precedence: D (true end) = every dream clue AND his phone with enough evidence: Tong wakes
+# up for real and the police already have him; B = every dream clue, never took the phone (it was
+# all a dream... or was it); A = took his phone with enough evidence (answered calls, spotted him,
 # read the notes about him) and report him; everything else, he follows you home.
 static func resolve_ending(clue_count: int, hint_count: int, took_phone: bool) -> String:
-	if clue_count >= CLUE_TOTAL and not took_phone:
+	var dream := clue_count >= CLUE_TOTAL
+	var proof := took_phone and hint_count >= EVIDENCE_NEEDED
+	if dream and proof:
+		return "D"
+	if dream and not took_phone:
 		return "B"
-	if took_phone and hint_count >= EVIDENCE_NEEDED:
+	if proof:
 		return "A"
 	return "C"
 

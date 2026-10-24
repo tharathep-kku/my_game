@@ -1,0 +1,378 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/stage.gd" id="1_morhn"]
+[ext_resource type="Shader" path="res://shaders/psx.gdshader" id="2_m1slu"]
+[ext_resource type="PackedScene" path="res://assets/models/pottedPlant.glb" id="3_uq8i7"]
+[ext_resource type="PackedScene" path="res://assets/models/bedSingle.glb" id="4_8qtq7"]
+
+[sub_resource type="Environment" id="Environment_1d2a1"]
+background_mode = 1
+background_color = Color(0.01, 0.01, 0.02, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.3, 0.285, 0.25500003, 0.3)
+fog_enabled = true
+fog_light_color = Color(0.02, 0.02, 0.03, 1)
+fog_density = 0.07
+
+[sub_resource type="NavigationMesh" id="NavigationMesh_xfobi"]
+vertices = PackedVector3Array(0.5, 4, 0.5, 0.5, 4, 11.5, 23.5, 4, 11.5, 23.5, 4, 0.5, 7.25, 0.5, 4, 9, 0.5, 3.75, 9, 0.5, 2.75, 3.75, 0.5, 2.75, 3.5, 0.5, 3.75, 3.75, 0.5, 8.5, 3.75, 0.5, 9.5, 7, 0.5, 9.5, 7.25, 0.5, 6, 2.75, 0.5, 3.75, 2.75, 0.5, 8.25, 13.5, 0.5, 7.75, 15.25, 0.5, 7.5, 15.25, 0.5, 6.75, 13.5, 0.5, 6.5, 13.5, 0.5, 9.5, 10.75, 0.5, 6, 10.75, 0.5, 4, 13.5, 0.5, 2.75, 16.75, 0.5, 7.75, 16.75, 0.5, 6.25, 21.5, 0.5, 2.75, 16.75, 0.5, 2.75, 21.5, 0.5, 9.5, 16.75, 0.5, 9.5, 8.25, 1.25, 4.75, 8.25, 1.25, 5.25, 9.75, 1.25, 5.25, 9.75, 1.25, 4.75)
+polygons = [PackedInt32Array(3, 2, 0), PackedInt32Array(0, 2, 1), PackedInt32Array(5, 4, 6), PackedInt32Array(6, 4, 7), PackedInt32Array(7, 4, 8), PackedInt32Array(10, 9, 11), PackedInt32Array(11, 9, 12), PackedInt32Array(8, 4, 13), PackedInt32Array(13, 4, 12), PackedInt32Array(13, 12, 9), PackedInt32Array(13, 9, 14), PackedInt32Array(16, 15, 17), PackedInt32Array(17, 15, 18), PackedInt32Array(15, 19, 20), PackedInt32Array(20, 19, 12), PackedInt32Array(12, 19, 11), PackedInt32Array(5, 6, 21), PackedInt32Array(21, 6, 22), PackedInt32Array(20, 18, 15), PackedInt32Array(20, 21, 18), PackedInt32Array(18, 21, 22), PackedInt32Array(16, 17, 23), PackedInt32Array(23, 17, 24), PackedInt32Array(26, 25, 24), PackedInt32Array(24, 25, 27), PackedInt32Array(27, 28, 23), PackedInt32Array(27, 23, 24), PackedInt32Array(32, 31, 29), PackedInt32Array(29, 31, 30)]
+geometry_parsed_geometry_type = 1
+geometry_collision_mask = 1
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_5kabv"]
+size = Vector3(12, 1, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_u0nv5"]
+size = Vector3(6, 1, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_tx0sl"]
+size = Vector3(12, 1, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ci70y"]
+size = Vector3(6, 1, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_too5i"]
+size = Vector3(20, 1, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_8hooi"]
+size = Vector3(12, 1, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_td0j8"]
+size = Vector3(6, 1, 2)
+
+[sub_resource type="Image" id="Image_jm2hs"]
+data = {
+"data": PackedByteArray(189, 189, 189, 217, 217, 217, 198, 198, 198, 185, 185, 185, 242, 242, 242, 212, 212, 212, 251, 251, 251, 209, 209, 209, 192, 192, 192, 232, 232, 232, 186, 186, 186, 186, 186, 186, 204, 204, 204, 241, 241, 241, 247, 247, 247, 227, 227, 227, 216, 216, 216, 196, 196, 196, 222, 222, 222, 208, 208, 208, 251, 251, 251, 240, 240, 240, 237, 237, 237, 215, 215, 215, 210, 210, 210, 233, 233, 233, 216, 216, 216, 206, 206, 206, 228, 228, 228, 223, 223, 223, 215, 215, 215, 247, 247, 247, 213, 213, 213, 215, 215, 215, 222, 222, 222, 226, 226, 226, 245, 245, 245, 212, 212, 212, 218, 218, 218, 241, 241, 241, 187, 187, 187, 206, 206, 206, 227, 227, 227, 220, 220, 220, 241, 241, 241, 212, 212, 212, 232, 232, 232, 224, 224, 224, 207, 207, 207, 188, 188, 188, 192, 192, 192, 187, 187, 187, 242, 242, 242, 224, 224, 224, 220, 220, 220, 230, 230, 230, 189, 189, 189, 232, 232, 232, 209, 209, 209, 192, 192, 192, 228, 228, 228, 239, 239, 239, 206, 206, 206, 240, 240, 240, 239, 239, 239, 231, 231, 231, 231, 231, 231, 213, 213, 213, 208, 208, 208, 214, 214, 214, 197, 197, 197, 193, 193, 193, 232, 232, 232, 236, 236, 236, 249, 249, 249, 218, 218, 218, 184, 184, 184, 190, 190, 190, 212, 212, 212, 208, 208, 208, 232, 232, 232, 231, 231, 231, 236, 236, 236, 230, 230, 230, 225, 225, 225, 184, 184, 184, 234, 234, 234, 231, 231, 231, 247, 247, 247, 223, 223, 223, 233, 233, 233, 214, 214, 214, 217, 217, 217, 215, 215, 215, 193, 193, 193, 200, 200, 200, 221, 221, 221, 238, 238, 238, 249, 249, 249, 226, 226, 226, 205, 205, 205, 217, 217, 217, 194, 194, 194, 199, 199, 199, 234, 234, 234, 247, 247, 247, 205, 205, 205, 238, 238, 238, 220, 220, 220, 203, 203, 203, 207, 207, 207, 224, 224, 224, 205, 205, 205, 212, 212, 212, 213, 213, 213, 214, 214, 214, 233, 233, 233, 228, 228, 228, 225, 225, 225, 203, 203, 203, 231, 231, 231, 233, 233, 233, 253, 253, 253, 230, 230, 230, 203, 203, 203, 230, 230, 230, 233, 233, 233, 208, 208, 208, 187, 187, 187, 195, 195, 195, 189, 189, 189, 228, 228, 228, 251, 251, 251, 230, 230, 230, 246, 246, 246, 215, 215, 215, 198, 198, 198, 191, 191, 191, 213, 213, 213, 191, 191, 191, 222, 222, 222, 235, 235, 235, 211, 211, 211, 237, 237, 237, 190, 190, 190, 193, 193, 193, 196, 196, 196, 233, 233, 233, 218, 218, 218, 234, 234, 234, 230, 230, 230, 206, 206, 206, 215, 215, 215, 201, 201, 201, 184, 184, 184, 225, 225, 225, 241, 241, 241, 235, 235, 235, 243, 243, 243, 211, 211, 211, 208, 208, 208, 220, 220, 220, 185, 185, 185, 192, 192, 192, 229, 229, 229, 232, 232, 232, 251, 251, 251, 242, 242, 242, 187, 187, 187, 184, 184, 184, 197, 197, 197, 216, 216, 216, 237, 237, 237, 220, 220, 220, 227, 227, 227, 240, 240, 240, 213, 213, 213, 212, 212, 212, 202, 202, 202, 222, 222, 222, 205, 205, 205, 224, 224, 224, 254, 254, 254, 229, 229, 229, 233, 233, 233, 211, 211, 211, 204, 204, 204, 229, 229, 229, 233, 233, 233, 225, 225, 225, 222, 222, 222, 225, 225, 225, 254, 254, 254, 247, 247, 247, 250, 250, 250, 245, 245, 245, 232, 232, 232, 199, 199, 199, 227, 227, 227, 194, 194, 194, 233, 233, 233, 223, 223, 223, 210, 210, 210, 232, 232, 232, 186, 186, 186, 222, 222, 222, 207, 207, 207, 224, 224, 224, 250, 250, 250, 253, 253, 253, 214, 214, 214, 223, 223, 223, 184, 184, 184, 199, 199, 199, 190, 190, 190, 203, 203, 203, 252, 252, 252, 226, 226, 226, 210, 210, 210, 217, 217, 217, 203, 203, 203, 204, 204, 204, 215, 215, 215, 234, 234, 234, 205, 205, 205, 245, 245, 245, 231, 231, 231, 235, 235, 235, 188, 188, 188, 203, 203, 203, 229, 229, 229, 229, 229, 229, 209, 209, 209, 245, 245, 245, 208, 208, 208, 231, 231, 231, 212, 212, 212, 206, 206, 206, 186, 186, 186, 206, 206, 206, 226, 226, 226, 224, 224, 224, 222, 222, 222, 224, 224, 224, 190, 190, 190, 209, 209, 209, 209, 209, 209, 218, 218, 218, 207, 207, 207, 251, 251, 251, 220, 220, 220, 226, 226, 226, 203, 203, 203, 208, 208, 208, 211, 211, 211, 224, 224, 224),
+"format": "RGB8",
+"height": 16,
+"mipmaps": false,
+"width": 16
+}
+
+[sub_resource type="ImageTexture" id="ImageTexture_k1uby"]
+image = SubResource("Image_jm2hs")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_o4811"]
+render_priority = 0
+shader = ExtResource("2_m1slu")
+shader_parameter/albedo = Color(0.75, 0.8, 0.8, 1)
+shader_parameter/albedo_tex = SubResource("ImageTexture_k1uby")
+shader_parameter/snap_res = null
+shader_parameter/world_uv = true
+shader_parameter/world_uv_scale = null
+shader_parameter/emission = Vector3(0, 0, 0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_a14y1"]
+size = Vector2(24, 12)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kb0ou"]
+size = Vector3(24, 0.5, 12)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_xltt2"]
+size = Vector3(24, 3, 2)
+
+[sub_resource type="Image" id="Image_ttapc"]
+data = {
+"data": PackedByteArray(252, 252, 252, 230, 230, 230, 232, 232, 232, 235, 235, 235, 236, 236, 236, 231, 231, 231, 231, 231, 231, 236, 236, 236, 249, 249, 249, 236, 236, 236, 233, 233, 233, 239, 239, 239, 231, 231, 231, 235, 235, 235, 229, 229, 229, 231, 231, 231, 250, 250, 250, 238, 238, 238, 230, 230, 230, 239, 239, 239, 235, 235, 235, 239, 239, 239, 234, 234, 234, 230, 230, 230, 249, 249, 249, 234, 234, 234, 232, 232, 232, 232, 232, 232, 231, 231, 231, 239, 239, 239, 236, 236, 236, 231, 231, 231, 248, 248, 248, 239, 239, 239, 239, 239, 239, 232, 232, 232, 232, 232, 232, 233, 233, 233, 232, 232, 232, 238, 238, 238, 247, 247, 247, 230, 230, 230, 233, 233, 233, 230, 230, 230, 235, 235, 235, 230, 230, 230, 231, 231, 231, 235, 235, 235, 249, 249, 249, 237, 237, 237, 232, 232, 232, 233, 233, 233, 236, 236, 236, 230, 230, 230, 238, 238, 238, 231, 231, 231, 248, 248, 248, 236, 236, 236, 239, 239, 239, 232, 232, 232, 231, 231, 231, 232, 232, 232, 231, 231, 231, 233, 233, 233, 255, 255, 255, 239, 239, 239, 233, 233, 233, 229, 229, 229, 236, 236, 236, 230, 230, 230, 234, 234, 234, 231, 231, 231, 251, 251, 251, 237, 237, 237, 234, 234, 234, 231, 231, 231, 230, 230, 230, 233, 233, 233, 232, 232, 232, 232, 232, 232, 253, 253, 253, 230, 230, 230, 236, 236, 236, 234, 234, 234, 239, 239, 239, 233, 233, 233, 239, 239, 239, 230, 230, 230, 255, 255, 255, 237, 237, 237, 232, 232, 232, 238, 238, 238, 234, 234, 234, 237, 237, 237, 235, 235, 235, 238, 238, 238, 255, 255, 255, 232, 232, 232, 233, 233, 233, 235, 235, 235, 238, 238, 238, 236, 236, 236, 238, 238, 238, 234, 234, 234, 254, 254, 254, 235, 235, 235, 235, 235, 235, 232, 232, 232, 235, 235, 235, 239, 239, 239, 229, 229, 229, 236, 236, 236, 255, 255, 255, 234, 234, 234, 230, 230, 230, 233, 233, 233, 237, 237, 237, 233, 233, 233, 232, 232, 232, 234, 234, 234, 249, 249, 249, 231, 231, 231, 233, 233, 233, 234, 234, 234, 236, 236, 236, 229, 229, 229, 235, 235, 235, 230, 230, 230, 254, 254, 254, 232, 232, 232, 237, 237, 237, 230, 230, 230, 234, 234, 234, 232, 232, 232, 231, 231, 231, 232, 232, 232, 250, 250, 250, 235, 235, 235, 231, 231, 231, 230, 230, 230, 239, 239, 239, 232, 232, 232, 235, 235, 235, 237, 237, 237, 249, 249, 249, 231, 231, 231, 232, 232, 232, 236, 236, 236, 233, 233, 233, 238, 238, 238, 231, 231, 231, 237, 237, 237, 250, 250, 250, 238, 238, 238, 231, 231, 231, 234, 234, 234, 238, 238, 238, 235, 235, 235, 238, 238, 238, 236, 236, 236, 250, 250, 250, 238, 238, 238, 234, 234, 234, 233, 233, 233, 233, 233, 233, 229, 229, 229, 229, 229, 229, 238, 238, 238, 248, 248, 248, 233, 233, 233, 231, 231, 231, 233, 233, 233, 231, 231, 231, 229, 229, 229, 238, 238, 238, 239, 239, 239, 252, 252, 252, 234, 234, 234, 231, 231, 231, 234, 234, 234, 237, 237, 237, 231, 231, 231, 230, 230, 230, 238, 238, 238, 253, 253, 253, 229, 229, 229, 231, 231, 231, 235, 235, 235, 230, 230, 230, 237, 237, 237, 230, 230, 230, 235, 235, 235, 251, 251, 251, 238, 238, 238, 234, 234, 234, 232, 232, 232, 234, 234, 234, 238, 238, 238, 232, 232, 232, 237, 237, 237, 255, 255, 255, 234, 234, 234, 237, 237, 237, 236, 236, 236, 236, 236, 236, 234, 234, 234, 235, 235, 235, 234, 234, 234, 255, 255, 255, 237, 237, 237, 236, 236, 236, 235, 235, 235, 231, 231, 231, 232, 232, 232, 230, 230, 230, 235, 235, 235, 249, 249, 249, 233, 233, 233, 237, 237, 237, 231, 231, 231, 234, 234, 234, 230, 230, 230, 239, 239, 239, 235, 235, 235, 255, 255, 255, 234, 234, 234, 231, 231, 231, 237, 237, 237, 233, 233, 233, 238, 238, 238, 237, 237, 237, 231, 231, 231, 251, 251, 251, 238, 238, 238, 239, 239, 239, 231, 231, 231, 232, 232, 232, 229, 229, 229, 232, 232, 232, 237, 237, 237, 248, 248, 248, 231, 231, 231, 230, 230, 230, 234, 234, 234, 239, 239, 239, 233, 233, 233, 239, 239, 239, 239, 239, 239, 251, 251, 251, 237, 237, 237, 234, 234, 234, 233, 233, 233, 239, 239, 239, 236, 236, 236, 234, 234, 234, 232, 232, 232),
+"format": "RGB8",
+"height": 16,
+"mipmaps": false,
+"width": 16
+}
+
+[sub_resource type="ImageTexture" id="ImageTexture_ql30y"]
+image = SubResource("Image_ttapc")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_12ryu"]
+render_priority = 0
+shader = ExtResource("2_m1slu")
+shader_parameter/albedo = Color(0.85, 0.9, 0.9, 1)
+shader_parameter/albedo_tex = SubResource("ImageTexture_ql30y")
+shader_parameter/snap_res = null
+shader_parameter/world_uv = true
+shader_parameter/world_uv_scale = null
+shader_parameter/emission = Vector3(0, 0, 0)
+
+[sub_resource type="BoxMesh" id="BoxMesh_5dgs2"]
+size = Vector3(24, 3, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bm24j"]
+size = Vector3(24, 3, 2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_aq4yy"]
+size = Vector3(24, 3, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6w7qu"]
+size = Vector3(2, 3, 8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_vwsbx"]
+size = Vector3(2, 3, 8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_868qc"]
+size = Vector3(2, 3, 4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_a1k0m"]
+size = Vector3(2, 3, 4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bnlit"]
+size = Vector3(2, 3, 2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_kmywy"]
+size = Vector3(2, 3, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ecaar"]
+size = Vector3(2, 3, 8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_haojt"]
+size = Vector3(2, 3, 8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_vpy17"]
+size = Vector3(0.3774693, 0.71941847, 0.435864)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_k8ayv"]
+size = Vector3(1.2562001, 0.82500005, 2.4750001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_5mcec"]
+size = Vector3(0.3774693, 0.71941847, 0.435864)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_8weya"]
+render_priority = 0
+shader = ExtResource("2_m1slu")
+shader_parameter/albedo = Color(1, 0.95, 0.85, 1)
+shader_parameter/snap_res = null
+shader_parameter/world_uv = false
+shader_parameter/world_uv_scale = null
+shader_parameter/emission = Vector3(1.5, 1.425, 1.2750001)
+
+[sub_resource type="BoxMesh" id="BoxMesh_rmy6q"]
+size = Vector3(1.2, 0.04, 0.35)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_1o71c"]
+render_priority = 0
+shader = ExtResource("2_m1slu")
+shader_parameter/albedo = Color(1, 0.95, 0.85, 1)
+shader_parameter/snap_res = null
+shader_parameter/world_uv = false
+shader_parameter/world_uv_scale = null
+shader_parameter/emission = Vector3(1.5, 1.425, 1.2750001)
+
+[sub_resource type="BoxMesh" id="BoxMesh_cjwhh"]
+size = Vector3(1.2, 0.04, 0.35)
+
+[sub_resource type="Image" id="Image_3m3yf"]
+data = {
+"data": PackedByteArray(144, 144, 144, 143, 143, 143, 145, 145, 145, 146, 146, 146, 145, 145, 145, 144, 144, 144, 147, 147, 147, 146, 146, 146, 142, 142, 142, 146, 146, 146, 149, 149, 149, 142, 142, 142, 146, 146, 146, 146, 146, 146, 146, 146, 146, 144, 144, 144, 147, 147, 147, 244, 244, 244, 247, 247, 247, 247, 247, 247, 248, 248, 248, 242, 242, 242, 249, 249, 249, 248, 248, 248, 249, 249, 249, 244, 244, 244, 245, 245, 245, 242, 242, 242, 247, 247, 247, 244, 244, 244, 252, 252, 252, 248, 248, 248, 148, 148, 148, 248, 248, 248, 249, 249, 249, 243, 243, 243, 251, 251, 251, 242, 242, 242, 251, 251, 251, 247, 247, 247, 243, 243, 243, 246, 246, 246, 247, 247, 247, 244, 244, 244, 251, 251, 251, 249, 249, 249, 242, 242, 242, 251, 251, 251, 145, 145, 145, 248, 248, 248, 246, 246, 246, 250, 250, 250, 249, 249, 249, 246, 246, 246, 249, 249, 249, 243, 243, 243, 250, 250, 250, 244, 244, 244, 251, 251, 251, 248, 248, 248, 250, 250, 250, 248, 248, 248, 251, 251, 251, 249, 249, 249, 150, 150, 150, 249, 249, 249, 250, 250, 250, 246, 246, 246, 243, 243, 243, 245, 245, 245, 243, 243, 243, 250, 250, 250, 246, 246, 246, 248, 248, 248, 249, 249, 249, 245, 245, 245, 249, 249, 249, 243, 243, 243, 248, 248, 248, 250, 250, 250, 149, 149, 149, 244, 244, 244, 243, 243, 243, 249, 249, 249, 246, 246, 246, 244, 244, 244, 246, 246, 246, 243, 243, 243, 246, 246, 246, 250, 250, 250, 245, 245, 245, 251, 251, 251, 251, 251, 251, 249, 249, 249, 245, 245, 245, 247, 247, 247, 149, 149, 149, 243, 243, 243, 242, 242, 242, 251, 251, 251, 243, 243, 243, 243, 243, 243, 250, 250, 250, 244, 244, 244, 246, 246, 246, 246, 246, 246, 250, 250, 250, 249, 249, 249, 245, 245, 245, 242, 242, 242, 247, 247, 247, 245, 245, 245, 150, 150, 150, 244, 244, 244, 248, 248, 248, 246, 246, 246, 250, 250, 250, 247, 247, 247, 244, 244, 244, 249, 249, 249, 249, 249, 249, 247, 247, 247, 250, 250, 250, 246, 246, 246, 244, 244, 244, 248, 248, 248, 246, 246, 246, 250, 250, 250, 149, 149, 149, 249, 249, 249, 242, 242, 242, 250, 250, 250, 245, 245, 245, 247, 247, 247, 246, 246, 246, 252, 252, 252, 246, 246, 246, 248, 248, 248, 243, 243, 243, 242, 242, 242, 243, 243, 243, 249, 249, 249, 243, 243, 243, 248, 248, 248, 146, 146, 146, 246, 246, 246, 252, 252, 252, 249, 249, 249, 246, 246, 246, 252, 252, 252, 250, 250, 250, 250, 250, 250, 246, 246, 246, 248, 248, 248, 251, 251, 251, 243, 243, 243, 250, 250, 250, 244, 244, 244, 249, 249, 249, 244, 244, 244, 148, 148, 148, 242, 242, 242, 245, 245, 245, 242, 242, 242, 242, 242, 242, 248, 248, 248, 243, 243, 243, 248, 248, 248, 246, 246, 246, 246, 246, 246, 247, 247, 247, 249, 249, 249, 243, 243, 243, 252, 252, 252, 247, 247, 247, 250, 250, 250, 143, 143, 143, 250, 250, 250, 245, 245, 245, 251, 251, 251, 251, 251, 251, 249, 249, 249, 243, 243, 243, 245, 245, 245, 250, 250, 250, 244, 244, 244, 248, 248, 248, 244, 244, 244, 242, 242, 242, 243, 243, 243, 246, 246, 246, 243, 243, 243, 146, 146, 146, 249, 249, 249, 247, 247, 247, 245, 245, 245, 243, 243, 243, 249, 249, 249, 249, 249, 249, 249, 249, 249, 246, 246, 246, 248, 248, 248, 246, 246, 246, 251, 251, 251, 250, 250, 250, 251, 251, 251, 249, 249, 249, 248, 248, 248, 143, 143, 143, 242, 242, 242, 247, 247, 247, 248, 248, 248, 244, 244, 244, 249, 249, 249, 245, 245, 245, 249, 249, 249, 248, 248, 248, 251, 251, 251, 247, 247, 247, 251, 251, 251, 250, 250, 250, 252, 252, 252, 251, 251, 251, 246, 246, 246, 147, 147, 147, 243, 243, 243, 247, 247, 247, 246, 246, 246, 252, 252, 252, 250, 250, 250, 251, 251, 251, 242, 242, 242, 244, 244, 244, 251, 251, 251, 243, 243, 243, 251, 251, 251, 245, 245, 245, 247, 247, 247, 247, 247, 247, 248, 248, 248, 143, 143, 143, 248, 248, 248, 252, 252, 252, 249, 249, 249, 245, 245, 245, 247, 247, 247, 244, 244, 244, 249, 249, 249, 249, 249, 249, 244, 244, 244, 246, 246, 246, 244, 244, 244, 250, 250, 250, 242, 242, 242, 242, 242, 242, 252, 252, 252),
+"format": "RGB8",
+"height": 16,
+"mipmaps": false,
+"width": 16
+}
+
+[sub_resource type="ImageTexture" id="ImageTexture_f8h88"]
+image = SubResource("Image_3m3yf")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_tydml"]
+render_priority = 0
+shader = ExtResource("2_m1slu")
+shader_parameter/albedo = Color(0.8, 0.8, 0.78, 1)
+shader_parameter/albedo_tex = SubResource("ImageTexture_f8h88")
+shader_parameter/snap_res = null
+shader_parameter/world_uv = true
+shader_parameter/world_uv_scale = null
+shader_parameter/emission = Vector3(0, 0, 0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_axv6y"]
+size = Vector2(24, 12)
+
+[node name="EndingD" type="Node3D" unique_id=601669598]
+script = ExtResource("1_morhn")
+ending_id = "D"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=367647201]
+environment = SubResource("Environment_1d2a1")
+
+[node name="NavRegion" type="NavigationRegion3D" parent="." unique_id=900323716]
+navigation_mesh = SubResource("NavigationMesh_xfobi")
+
+[node name="Floor" type="StaticBody3D" parent="NavRegion" unique_id=828639905]
+
+[node name="@CollisionShape3D@91" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=146665090]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, -0.5, 3)
+shape = SubResource("BoxShape3D_5kabv")
+
+[node name="@CollisionShape3D@92" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=818615801]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, -0.5, 3)
+shape = SubResource("BoxShape3D_u0nv5")
+
+[node name="@CollisionShape3D@93" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=1035596884]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, -0.5, 5)
+shape = SubResource("BoxShape3D_tx0sl")
+
+[node name="@CollisionShape3D@94" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=953177487]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, -0.5, 5)
+shape = SubResource("BoxShape3D_ci70y")
+
+[node name="@CollisionShape3D@95" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=1367160311]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, -0.5, 7)
+shape = SubResource("BoxShape3D_too5i")
+
+[node name="@CollisionShape3D@96" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=1885337963]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, -0.5, 9)
+shape = SubResource("BoxShape3D_8hooi")
+
+[node name="@CollisionShape3D@97" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=99256094]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, -0.5, 9)
+shape = SubResource("BoxShape3D_td0j8")
+
+[node name="FloorMesh" type="MeshInstance3D" parent="NavRegion/Floor" unique_id=213716166]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 6)
+material_override = SubResource("ShaderMaterial_o4811")
+mesh = SubResource("PlaneMesh_a14y1")
+
+[node name="Ceiling" type="StaticBody3D" parent="NavRegion" unique_id=71745904]
+
+[node name="@CollisionShape3D@98" type="CollisionShape3D" parent="NavRegion/Ceiling" unique_id=175446393]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 3.25, 6)
+shape = SubResource("BoxShape3D_kb0ou")
+
+[node name="Wall" type="StaticBody3D" parent="NavRegion" unique_id=845569359]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.5, 1)
+
+[node name="@CollisionShape3D@99" type="CollisionShape3D" parent="NavRegion/Wall" unique_id=1551127466]
+shape = SubResource("BoxShape3D_xltt2")
+
+[node name="@MeshInstance3D@100" type="MeshInstance3D" parent="NavRegion/Wall" unique_id=177909934]
+material_override = SubResource("ShaderMaterial_12ryu")
+mesh = SubResource("BoxMesh_5dgs2")
+
+[node name="@StaticBody3D@103" type="StaticBody3D" parent="NavRegion" unique_id=2025703224]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.5, 11)
+
+[node name="@CollisionShape3D@101" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@103" unique_id=1668414287]
+shape = SubResource("BoxShape3D_bm24j")
+
+[node name="@MeshInstance3D@102" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@103" unique_id=276872796]
+material_override = SubResource("ShaderMaterial_12ryu")
+mesh = SubResource("BoxMesh_aq4yy")
+
+[node name="@StaticBody3D@106" type="StaticBody3D" parent="NavRegion" unique_id=25322157]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1.5, 6)
+
+[node name="@CollisionShape3D@104" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@106" unique_id=1854353892]
+shape = SubResource("BoxShape3D_6w7qu")
+
+[node name="@MeshInstance3D@105" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@106" unique_id=1765500819]
+material_override = SubResource("ShaderMaterial_12ryu")
+mesh = SubResource("BoxMesh_vwsbx")
+
+[node name="@StaticBody3D@109" type="StaticBody3D" parent="NavRegion" unique_id=357182635]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 1.5, 4)
+
+[node name="@CollisionShape3D@107" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@109" unique_id=1670357148]
+shape = SubResource("BoxShape3D_868qc")
+
+[node name="@MeshInstance3D@108" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@109" unique_id=1146391704]
+material_override = SubResource("ShaderMaterial_12ryu")
+mesh = SubResource("BoxMesh_a1k0m")
+
+[node name="@StaticBody3D@112" type="StaticBody3D" parent="NavRegion" unique_id=1576723393]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 1.5, 9)
+
+[node name="@CollisionShape3D@110" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@112" unique_id=364609935]
+shape = SubResource("BoxShape3D_bnlit")
+
+[node name="@MeshInstance3D@111" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@112" unique_id=597845817]
+material_override = SubResource("ShaderMaterial_12ryu")
+mesh = SubResource("BoxMesh_kmywy")
+
+[node name="@StaticBody3D@115" type="StaticBody3D" parent="NavRegion" unique_id=2027109374]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23, 1.5, 6)
+
+[node name="@CollisionShape3D@113" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@115" unique_id=1067261186]
+shape = SubResource("BoxShape3D_ecaar")
+
+[node name="@MeshInstance3D@114" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@115" unique_id=2094424689]
+material_override = SubResource("ShaderMaterial_12ryu")
+mesh = SubResource("BoxMesh_haojt")
+
+[node name="PottedPlant" type="StaticBody3D" parent="NavRegion" unique_id=1190859114]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
+
+[node name="pottedPlant" type="Node3D" parent="NavRegion/PottedPlant" unique_id=1967169370 instance=ExtResource("3_uq8i7")]
+transform = Transform3D(2.2, 0, 0, 0, 2.2, 0, 0, 0, 2.2, 0, 0, 0)
+
+[node name="@CollisionShape3D@116" type="CollisionShape3D" parent="NavRegion/PottedPlant" unique_id=1373321868]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35970923, 0)
+shape = SubResource("BoxShape3D_vpy17")
+
+[node name="BedSingle" type="StaticBody3D" parent="NavRegion" unique_id=687787594]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 9, 0, 5)
+
+[node name="bedSingle" type="Node3D" parent="NavRegion/BedSingle" unique_id=1812208613 instance=ExtResource("4_8qtq7")]
+transform = Transform3D(2.2, 0, 0, 0, 2.2, 0, 0, 0, 2.2, -1.4751002, -7.2858915e-14, 1.2375001)
+
+[node name="@CollisionShape3D@117" type="CollisionShape3D" parent="NavRegion/BedSingle" unique_id=691678682]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.41250002, 0)
+shape = SubResource("BoxShape3D_k8ayv")
+
+[node name="@StaticBody3D@120" type="StaticBody3D" parent="NavRegion" unique_id=1348286479]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 9)
+
+[node name="pottedPlant" type="Node3D" parent="NavRegion/@StaticBody3D@120" unique_id=1658625903 instance=ExtResource("3_uq8i7")]
+transform = Transform3D(2.2, 0, 0, 0, 2.2, 0, 0, 0, 2.2, 0, 0, 0)
+
+[node name="@CollisionShape3D@119" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@120" unique_id=68788883]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35970923, 0)
+shape = SubResource("BoxShape3D_5mcec")
+
+[node name="Items" type="Node3D" parent="." unique_id=1754382082]
+
+[node name="Lights" type="Node3D" parent="." unique_id=1497648413]
+
+[node name="CeilingLight" type="OmniLight3D" parent="Lights" unique_id=1403100459]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 2.7, 3)
+light_color = Color(1, 0.95, 0.85, 1)
+light_energy = 1.4
+omni_range = 9.0
+omni_attenuation = 1.2
+
+[node name="Panel" type="MeshInstance3D" parent="Lights/CeilingLight" unique_id=1995952942]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.27, 0)
+material_override = SubResource("ShaderMaterial_8weya")
+mesh = SubResource("BoxMesh_rmy6q")
+
+[node name="@OmniLight3D@118" type="OmniLight3D" parent="Lights" unique_id=1856011655]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 2.7, 5)
+light_color = Color(1, 0.95, 0.85, 1)
+light_energy = 1.4
+omni_range = 9.0
+omni_attenuation = 1.2
+
+[node name="Panel" type="MeshInstance3D" parent="Lights/@OmniLight3D@118" unique_id=754819332]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.27, 0)
+material_override = SubResource("ShaderMaterial_1o71c")
+mesh = SubResource("BoxMesh_cjwhh")
+
+[node name="Emergency" type="Node3D" parent="." unique_id=1421905823]
+
+[node name="Signs" type="Node3D" parent="." unique_id=393048479]
+
+[node name="Triggers" type="Node3D" parent="." unique_id=104046448]
+
+[node name="Scares" type="Node3D" parent="." unique_id=1973232557]
+
+[node name="Markers" type="Node3D" parent="." unique_id=98923157]
+
+[node name="Route" type="Node3D" parent="Markers" unique_id=1119155345]
+
+[node name="Cameos" type="Node3D" parent="." unique_id=1528220702]
+
+[node name="Coworkers" type="Node3D" parent="." unique_id=1818174911]
+
+[node name="Windows" type="Node3D" parent="." unique_id=1431902672]
+
+[node name="CeilingMesh" type="MeshInstance3D" parent="." unique_id=1480570082]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 12, 3, 6)
+material_override = SubResource("ShaderMaterial_tydml")
+mesh = SubResource("PlaneMesh_axv6y")

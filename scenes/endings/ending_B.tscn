@@ -149,142 +149,146 @@ shader_parameter/emission = Vector3(0, 0, 0)
 [sub_resource type="PlaneMesh" id="PlaneMesh_bkfqd"]
 size = Vector2(18, 10)
 
-[node name="EndingB" type="Node3D" unique_id=281860894]
+[node name="EndingB" type="Node3D" unique_id=260925379]
 script = ExtResource("1_sqsdw")
 ending_id = "B"
 
-[node name="@WorldEnvironment@2278" type="WorldEnvironment" parent="." unique_id=1598108998]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1901684723]
 environment = SubResource("Environment_ecpso")
 
-[node name="NavRegion" type="NavigationRegion3D" parent="." unique_id=825224897]
+[node name="NavRegion" type="NavigationRegion3D" parent="." unique_id=1508719842]
 navigation_mesh = SubResource("NavigationMesh_01ydt")
 
-[node name="Floor" type="StaticBody3D" parent="NavRegion" unique_id=680744045]
+[node name="Floor" type="StaticBody3D" parent="NavRegion" unique_id=75697677]
 
-[node name="@CollisionShape3D@2279" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=484291970]
+[node name="@CollisionShape3D@35" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=1958984343]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, -0.5, 3)
 shape = SubResource("BoxShape3D_54eod")
 
-[node name="@CollisionShape3D@2280" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=934259637]
+[node name="@CollisionShape3D@36" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=2001702150]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, -0.5, 5)
 shape = SubResource("BoxShape3D_6psup")
 
-[node name="@CollisionShape3D@2281" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=1319166824]
+[node name="@CollisionShape3D@37" type="CollisionShape3D" parent="NavRegion/Floor" unique_id=637807748]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, -0.5, 7)
 shape = SubResource("BoxShape3D_f88sh")
 
-[node name="FloorMesh" type="MeshInstance3D" parent="NavRegion/Floor" unique_id=176233385]
+[node name="FloorMesh" type="MeshInstance3D" parent="NavRegion/Floor" unique_id=1461194708]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, 5)
 material_override = SubResource("ShaderMaterial_qoj4n")
 mesh = SubResource("PlaneMesh_lme2l")
 
-[node name="Ceiling" type="StaticBody3D" parent="NavRegion" unique_id=882434675]
+[node name="Ceiling" type="StaticBody3D" parent="NavRegion" unique_id=63683010]
 
-[node name="@CollisionShape3D@2282" type="CollisionShape3D" parent="NavRegion/Ceiling" unique_id=366163470]
+[node name="@CollisionShape3D@38" type="CollisionShape3D" parent="NavRegion/Ceiling" unique_id=1506650237]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 3.25, 5)
 shape = SubResource("BoxShape3D_o1y25")
 
-[node name="Wall" type="StaticBody3D" parent="NavRegion" unique_id=988430591]
+[node name="Wall" type="StaticBody3D" parent="NavRegion" unique_id=1274778759]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 1.5, 1)
 
-[node name="@CollisionShape3D@2283" type="CollisionShape3D" parent="NavRegion/Wall" unique_id=1315560529]
+[node name="@CollisionShape3D@39" type="CollisionShape3D" parent="NavRegion/Wall" unique_id=441000866]
 shape = SubResource("BoxShape3D_fgq43")
 
-[node name="@MeshInstance3D@2284" type="MeshInstance3D" parent="NavRegion/Wall" unique_id=1598779806]
+[node name="@MeshInstance3D@40" type="MeshInstance3D" parent="NavRegion/Wall" unique_id=2117238493]
 material_override = SubResource("ShaderMaterial_wq0xf")
 mesh = SubResource("BoxMesh_ue5bh")
 
-[node name="@StaticBody3D@2287" type="StaticBody3D" parent="NavRegion" unique_id=1752273268]
+[node name="@StaticBody3D@43" type="StaticBody3D" parent="NavRegion" unique_id=868329210]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 1.5, 9)
 
-[node name="@CollisionShape3D@2285" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@2287" unique_id=192029437]
+[node name="@CollisionShape3D@41" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@43" unique_id=1883465939]
 shape = SubResource("BoxShape3D_o6tsg")
 
-[node name="@MeshInstance3D@2286" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@2287" unique_id=673085445]
+[node name="@MeshInstance3D@42" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@43" unique_id=1408679792]
 material_override = SubResource("ShaderMaterial_wq0xf")
 mesh = SubResource("BoxMesh_d6oct")
 
-[node name="@StaticBody3D@2290" type="StaticBody3D" parent="NavRegion" unique_id=1403671931]
+[node name="@StaticBody3D@46" type="StaticBody3D" parent="NavRegion" unique_id=975356800]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1.5, 5)
 
-[node name="@CollisionShape3D@2288" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@2290" unique_id=2090506226]
+[node name="@CollisionShape3D@44" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@46" unique_id=782628988]
 shape = SubResource("BoxShape3D_hty0f")
 
-[node name="@MeshInstance3D@2289" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@2290" unique_id=15151640]
+[node name="@MeshInstance3D@45" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@46" unique_id=923112908]
 material_override = SubResource("ShaderMaterial_wq0xf")
 mesh = SubResource("BoxMesh_dme5s")
 
-[node name="@StaticBody3D@2293" type="StaticBody3D" parent="NavRegion" unique_id=1521773522]
+[node name="@StaticBody3D@49" type="StaticBody3D" parent="NavRegion" unique_id=1382263869]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 1.5, 5)
 
-[node name="@CollisionShape3D@2291" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@2293" unique_id=306111123]
+[node name="@CollisionShape3D@47" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@49" unique_id=1763793668]
 shape = SubResource("BoxShape3D_47roa")
 
-[node name="@MeshInstance3D@2292" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@2293" unique_id=1744686585]
+[node name="@MeshInstance3D@48" type="MeshInstance3D" parent="NavRegion/@StaticBody3D@49" unique_id=1712247619]
 material_override = SubResource("ShaderMaterial_wq0xf")
 mesh = SubResource("BoxMesh_71qnr")
 
-[node name="PottedPlant" type="StaticBody3D" parent="NavRegion" unique_id=227196956]
+[node name="PottedPlant" type="StaticBody3D" parent="NavRegion" unique_id=664662411]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
 
-[node name="pottedPlant" type="Node3D" parent="NavRegion/PottedPlant" unique_id=1735896314 instance=ExtResource("3_4mwwm")]
+[node name="pottedPlant" type="Node3D" parent="NavRegion/PottedPlant" unique_id=1967169370 instance=ExtResource("3_4mwwm")]
 transform = Transform3D(2.2, 0, 0, 0, 2.2, 0, 0, 0, 2.2, 0, 0, 0)
 
-[node name="@CollisionShape3D@2294" type="CollisionShape3D" parent="NavRegion/PottedPlant" unique_id=1892775187]
+[node name="@CollisionShape3D@50" type="CollisionShape3D" parent="NavRegion/PottedPlant" unique_id=880678887]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35970923, 0)
 shape = SubResource("BoxShape3D_nwgsq")
 
-[node name="@StaticBody3D@2296" type="StaticBody3D" parent="NavRegion" unique_id=1814493099]
+[node name="@StaticBody3D@52" type="StaticBody3D" parent="NavRegion" unique_id=226780674]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, 3)
 
-[node name="pottedPlant" type="Node3D" parent="NavRegion/@StaticBody3D@2296" unique_id=132492177 instance=ExtResource("3_4mwwm")]
+[node name="pottedPlant" type="Node3D" parent="NavRegion/@StaticBody3D@52" unique_id=1189913177 instance=ExtResource("3_4mwwm")]
 transform = Transform3D(2.2, 0, 0, 0, 2.2, 0, 0, 0, 2.2, 0, 0, 0)
 
-[node name="@CollisionShape3D@2295" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@2296" unique_id=1191927023]
+[node name="@CollisionShape3D@51" type="CollisionShape3D" parent="NavRegion/@StaticBody3D@52" unique_id=1602064220]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35970923, 0)
 shape = SubResource("BoxShape3D_ahsr2")
 
-[node name="BedSingle" type="StaticBody3D" parent="NavRegion" unique_id=967820716]
+[node name="BedSingle" type="StaticBody3D" parent="NavRegion" unique_id=1876726938]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 9, 0, 5)
 
-[node name="bedSingle" type="Node3D" parent="NavRegion/BedSingle" unique_id=1522256305 instance=ExtResource("4_q3wjr")]
+[node name="bedSingle" type="Node3D" parent="NavRegion/BedSingle" unique_id=1812208613 instance=ExtResource("4_q3wjr")]
 transform = Transform3D(2.2, 0, 0, 0, 2.2, 0, 0, 0, 2.2, -1.4751002, -7.2858915e-14, 1.2375001)
 
-[node name="@CollisionShape3D@2297" type="CollisionShape3D" parent="NavRegion/BedSingle" unique_id=313850644]
+[node name="@CollisionShape3D@53" type="CollisionShape3D" parent="NavRegion/BedSingle" unique_id=1455140863]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.41250002, 0)
 shape = SubResource("BoxShape3D_4p8e6")
 
-[node name="Items" type="Node3D" parent="." unique_id=655618387]
+[node name="Items" type="Node3D" parent="." unique_id=1922094403]
 
-[node name="Lights" type="Node3D" parent="." unique_id=823583935]
+[node name="Lights" type="Node3D" parent="." unique_id=1035943673]
 
-[node name="CeilingLight" type="OmniLight3D" parent="Lights" unique_id=2103166744]
+[node name="CeilingLight" type="OmniLight3D" parent="Lights" unique_id=1399922974]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 2.7, 3)
 light_color = Color(0.9, 1, 1, 1)
 light_energy = 1.4
 omni_range = 9.0
 omni_attenuation = 1.2
 
-[node name="Panel" type="MeshInstance3D" parent="Lights/CeilingLight" unique_id=2003946470]
+[node name="Panel" type="MeshInstance3D" parent="Lights/CeilingLight" unique_id=1489423738]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.27, 0)
 material_override = SubResource("ShaderMaterial_8nm22")
 mesh = SubResource("BoxMesh_np511")
 
-[node name="Emergency" type="Node3D" parent="." unique_id=383036935]
+[node name="Emergency" type="Node3D" parent="." unique_id=1416265981]
 
-[node name="Signs" type="Node3D" parent="." unique_id=491776320]
+[node name="Signs" type="Node3D" parent="." unique_id=203059070]
 
-[node name="Triggers" type="Node3D" parent="." unique_id=1395324503]
+[node name="Triggers" type="Node3D" parent="." unique_id=1568836414]
 
-[node name="Scares" type="Node3D" parent="." unique_id=1890836986]
+[node name="Scares" type="Node3D" parent="." unique_id=816360622]
 
-[node name="Markers" type="Node3D" parent="." unique_id=1997404124]
+[node name="Markers" type="Node3D" parent="." unique_id=893881128]
 
-[node name="Route" type="Node3D" parent="Markers" unique_id=1315920031]
+[node name="Route" type="Node3D" parent="Markers" unique_id=1859448764]
 
-[node name="Cameos" type="Node3D" parent="." unique_id=380326794]
+[node name="Cameos" type="Node3D" parent="." unique_id=2139487982]
 
-[node name="CeilingMesh" type="MeshInstance3D" parent="." unique_id=1431876448]
+[node name="Coworkers" type="Node3D" parent="." unique_id=890146183]
+
+[node name="Windows" type="Node3D" parent="." unique_id=27065282]
+
+[node name="CeilingMesh" type="MeshInstance3D" parent="." unique_id=963615968]
 transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 9, 3, 5)
 material_override = SubResource("ShaderMaterial_xnr0x")
 mesh = SubResource("PlaneMesh_bkfqd")
