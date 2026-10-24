@@ -16,24 +16,29 @@ from the ghosts, real jump scares, scarier models, and fix the ending cutscenes 
 - Ending B: "turn left" swung the camera past the doctor into the wall.
 
 ## Steps
-- [ ] S1 Endings: keep the last shot until the fade is done, HUD stays hidden; restage A/B/C (door +
+- [x] S1 Endings: keep the last shot until the fade is done, HUD stays hidden; restage A/B/C (door +
       peephole in C, B camera framing, A police lights); ending D (true end)
-- [ ] S2 Scarier models (Blender script, run with the `bpy` module): night versions of the four
+- [x] S2 Scarier models (Blender script, run with the `bpy` module): night versions of the four
       coworkers + doctor + faceless night staff, glowing eyes through the PSX shader; the tutorial's
       daytime coworkers keep the normal models (`*_day` presets)
-- [ ] S3 Cutscene steps for chases: `run`, `npc_go`, `shake`, `scare` (face slam), `extra`; scare kinds
-      `rush` (charges at you, gone at arm's length), `face` (full-screen face + scream), `peek`;
-      mid-stage cutscenes (`goal_scenes`, `rage_scene`)
-- [ ] S4 New stages (each with its own mechanic, intro chase cutscene, notes, scares, clue):
+- [x] S3 Cutscene steps for chases: `run`, `move`, `turn`, `gone`, `neck`, `part`, `shake`, `scare`
+      (face slam), `fade`, `peephole`, `tint`, `warp`; scare kinds `rush`, `face`, `peek`, `crawl`;
+      mid-stage cutscenes (`item_scenes`, `rage_scene`, `goal_scares`)
+- [x] S4 New stages (each with its own mechanic, intro chase cutscene, notes, scares, clue):
       - HR & meeting room: พี่แหม่ม HR calls Tong's name over the PA; when the chime ends she knows
         where you are unless you are hidden
       - Fire stairs: the corridor loops; spot what changed, turn back if anything is wrong, 8 clean
         loops to get out (anomalies, some of them come at you)
       - Hospital (the dream): the doctor hears your heartbeat; running and fear make it louder,
         hiding and holding your breath calm it
-- [ ] S5 Story: more texts/notes/triggers/scares in the old stages, clue/evidence totals follow the
+- [x] S5 Story: more texts/notes/triggers/scares in the old stages, clue/evidence totals follow the
       stage list, endings text, true ending D
 - [ ] S6 Tests green, README / EDITING / ASSETS, web build in `docs/`, commit + push
+
+## Notes
+- Tests run headless need a renderer for screenshots: `xvfb-run ... --rendering-driver opengl3`. The
+  "runs at N fps" checks fail on a software renderer only.
+- New models were built with the `bpy` pip module (Blender 5.2) from `tools/blender/build_characters.py`.
 
 ## Stage order (v4)
 0 บทนำ · 1 แผนกบัญชี · 2 โถงทางเดิน · 3 ฝ่ายบุคคล & ห้องประชุม (new) · 4 ห้องเซิร์ฟเวอร์ ·
