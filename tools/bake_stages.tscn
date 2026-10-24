@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bd7ii3ehfca1j"]
+
+[ext_resource type="Script" uid="uid://frdy2yoohya1" path="res://tools/bake_stages.gd" id="1"]
+
+[node name="BakeStages" type="Node" unique_id=1418970152]
+script = ExtResource("1")

@@ -1,0 +1,1521 @@
+# Game tests. Runs as a scene so the Game autoload exists:
+#   Godot_v4.7-stable_win64.exe --path . res://tests/tests.tscn
+# Saves a screenshot of every stage to user://stage_N.png. Exit code 0 = all pass.
+extends Node
+
+func stage_scene(i: int) -> Node3D:   # the real, editor-editable stage
+	return load("res://scenes/stages/stage_%d.tscn" % (i + 1)).instantiate()
+var fails := 0
+
+func _ready() -> void:
+	Game.save_path = "user://test_save.cfg"   # never touch the player's real save/settings
+	Game.settings_path = "user://test_settings.cfg"
+	Game.skip_cutscenes = true
+	var only := OS.get_cmdline_user_args()   # quick run of one test: ... tests.tscn -- t_notes
+	if only.size() > 0 and has_method(only[0]):
+		await call(only[0])
+		print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
+		get_tree().quit(1 if fails else 0)
+		return
+	await t_rules()
+	await t_cutscene()
+	await t_builder()
+	await t_hide()
+	await t_noise()
+	await t_phone()
+	await t_audio()
+	await t_cameo()
+	await t_endings()
+	await t_save()
+	await t_perf()
+	await t_no_dupes()
+	await t_hide_teardown()
+	await t_jumpscare()
+	await t_debug()
+	await t_keys_uncaptured()
+	await t_models()
+	await t_notes()
+	await t_power()
+	await t_rage()
+	await t_finale()
+	await t_fuse()
+	await t_scares()
+	await t_guard_dark()
+	await t_guard_room()
+	await t_tutorial()
+	await t_tutorial_phone()
+	await t_room_lock()
+	await t_vhs()
+	await t_real_notes()
+	await t_real_chase()
+	await t_floor_still()
+	await t_still_screen()
+	await t_stages()
+	await t_reach()
+	await t_vision()
+	await t_catch()
+	await t_guard()
+	await t_wet()
+	await t_wet_start()
+	await t_goblin_den()
+	await t_goblin_hide()
+	await t_locker()
+	await t_exit()
+	await t_flow()
+	await t_lineup()
+	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
+	get_tree().quit(1 if fails else 0)
+
+func check(ok: bool, what: String) -> void:
+	print(("PASS  " if ok else "FAIL  ") + what)
+	if not ok:
+		fails += 1
+
+func frames(n: int) -> void:
+	for i in n:
+		await get_tree().physics_frame
+
+func pframes(n: int) -> void:   # process frames (cutscenes run on process, not physics)
+	for i in n:
+		await get_tree().process_frame
+
+func make(map: Array, goal := 1, extra := {}) -> Node3D:
+	var d := {"map": map, "goal": goal, "floor": Color.GRAY, "wall": Color.GRAY, "light": Color.WHITE}
+	d.merge(extra)
+	var lvl := StageBuilder.build(d)
+	add_child(lvl)
+	await frames(3)
+	return lvl
+
+func done(lvl: Node3D) -> void:
+	lvl.queue_free()
+	await frames(2)
+	Game.new_game()
+
+func t_rules() -> void:
+	check(Game.resolve_ending(4, 0, false) == "B", "ending B: all 4 dream clues + no phone")
+	check(Game.resolve_ending(3, 5, false) == "C", "3 clues, no phone -> C")
+	check(Game.resolve_ending(4, Game.EVIDENCE_NEEDED, true) == "A", "taking the phone overrides the dream -> A (if enough evidence)")
+	check(Game.resolve_ending(0, Game.EVIDENCE_NEEDED - 1, true) == "C", "phone but not enough evidence -> C")
+	Game.new_game()
+	Game.heal(50)
+	check(Game.battery == 100.0, "battery clamps at max")
+	var over := []
+	Game.game_over.connect(func(c): over.append(c), CONNECT_ONE_SHOT)
+	Game.damage(30)
+	check(Game.battery == 70.0, "damage reduces battery")
+	Game.damage(500, "x")
+	check(Game.battery == 0.0 and over == ["x"], "battery 0 emits game_over")
+	Game.new_game()
+	check(Game.use("pc") == false, "PC refuses before 3 notes")
+
+func t_stages() -> void:
+	for i in Game.STAGES.size():
+		Game.new_game()
+		Game.stage = i
+		var data: Dictionary = Game.STAGES[i]
+		var w: int = data.map[0].length()
+		check(data.map.all(func(r): return r.length() == w), "stage %d map rows equal width" % (i + 1))
+		var lvl := stage_scene(i)
+		add_child(lvl)
+		check(lvl.npcs.size() == 1 and lvl.npcs[0].route.size() >= 1, "stage %d has its coworker + route" % (i + 1))
+		var goals := lvl.find_children("*", "Area3D", true, false).filter(func(a): return a.get("kind") in ["doc", "note", "pc", "coffee_goal", "scanner", "fuse", "fuse_box"])
+		check(goals.size() == data.goal, "stage %d goal items = %d" % [i + 1, data.goal])
+		check(lvl.exit_open == (data.goal == 0), "stage %d exit locked until goal" % (i + 1))
+		var n: Npc = lvl.npcs[0]
+		var p0 := n.global_position
+		for f in 90:
+			await get_tree().physics_frame
+		check(Game.player.global_position.y > -1.0, "stage %d player stands on floor" % (i + 1))
+		if i < 3:
+			check(n.global_position.distance_to(p0) > 0.3, "stage %d coworker moves" % (i + 1))
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("user://stage_%d.png" % (i + 1))
+		await done(lvl)
+
+func t_vision() -> void:
+	var lvl := await make(["#########", "#M..=..P#", "#########"])
+	var n: Npc = lvl.npcs[0]
+	n.set_physics_process(false)
+	n.view = 20.0
+	lvl.player.crouching = false
+	await frames(30)
+	check(n.sees_player(), "standing player seen over partition")
+	lvl.player.crouching = true
+	await frames(30)
+	check(not n.sees_player(), "crouched player hidden behind partition")
+	n.rotation.y += PI
+	lvl.player.crouching = false
+	await frames(5)
+	check(not n.sees_player(), "player behind NPC is outside vision cone")
+	await done(lvl)
+
+func t_catch() -> void:
+	var lvl := await make(["#######", "#M...P#", "#######"])
+	var n: Npc = lvl.npcs[0]
+	n.cooldown = 0.0
+	lvl.player.global_position = n.global_position + Vector3(0.6, 0, 0)
+	await frames(3)
+	check(Game.times_caught == 1 and Game.battery == 100.0 - n.drain, "touching coworker = caught, battery drained")
+	await done(lvl)
+
+func t_guard() -> void:
+	var lvl := await make(["#########", "#P.....R#", "#########"], 0)
+	var g = lvl.npcs[0]
+	g.wake = 0.0
+	lvl.player.rotation.y = -PI / 2   # look at him (+x)
+	await frames(2)
+	var p0: Vector3 = g.global_position
+	await frames(30)
+	check(g.global_position.distance_to(p0) < 0.05, "guard frozen while watched")
+	lvl.player.rotation.y = PI / 2    # look away
+	await frames(30)
+	check(g.global_position.distance_to(p0) > 0.5, "guard advances when not watched")
+	await done(lvl)
+
+func t_wet() -> void:
+	var lvl := await make(["#######", "#S...P#", "#######"])
+	var s: Npc = lvl.npcs[0]
+	check(s.state == "patrol", "sweeper starts calm")
+	lvl.add_wet(lvl.player.global_position, s)
+	await frames(5)
+	check(s.state == "chase", "stepping on wet floor makes sweeper chase")
+	s.chase_t = 0.01
+	await frames(3)
+	check(s.state == "patrol", "sweeper gives up the chase after a while")
+	await done(lvl)
+
+# Stage 2 is wet from the first second: puddles all over the floor, never where Tong can't get round them.
+func t_wet_start() -> void:
+	var lvl := await make(["###############", "#P............#", "#.............#", "#.............#", "#.......S.....#", "#.............#", "#############X#"], 0, {"wet_start": 8})
+	var s: Npc = lvl.npcs[0]
+	s.set_physics_process(false)   # no mopped trail in the count
+	await frames(4)
+	var wet := get_tree().get_nodes_in_group("wet")
+	check(wet.size() == 8, "wet_start scatters that many puddles (%d)" % wet.size())
+	check(wet.all(func(w): return w.global_position.distance_to(lvl.spawn) > 5.0), "...none on Tong's first steps")
+	check(wet.all(func(w): return w.find_children("*", "Timer", false, false).is_empty()), "...and they don't dry up")
+	lvl.player.global_position = wet[0].global_position
+	await frames(5)
+	check(s.state == "chase", "stepping in one angers ป้าพร")
+	await done(lvl)
+	Game.new_game()
+	Game.stage = 1
+	lvl = stage_scene(1)
+	add_child(lvl)
+	await frames(6)
+	wet = get_tree().get_nodes_in_group("wet")
+	var items: Array = lvl.get_node("Items").get_children().filter(func(it): return it.get("kind") != "hide")
+	check(wet.size() >= 25, "real stage 2 starts with puddles all over (%d)" % wet.size())
+	check(wet.all(func(w): return items.all(func(it): return w.global_position.distance_to(it.global_position) > 1.5)), "...none right on something Tong has to walk up to")
+	wet.sort_custom(func(a, b): return a.global_position.distance_to(lvl.spawn) < b.global_position.distance_to(lvl.spawn))
+	var to: Vector3 = wet[0].global_position - lvl.player.global_position   # look at the nearest one from where he starts
+	lvl.player.rotation.y = atan2(-to.x, -to.z)
+	lvl.player.cam.rotation.x = -0.25
+	await frames(3)
+	await shot("stage2_wet.png")
+	await done(lvl)
+
+# เต้ crawls to a desk, squats under it; creeping past crouched is safe, walking up gets your legs grabbed.
+func t_goblin_den() -> void:
+	var lvl := await make(["###########", "#.....D...#", "#.........#", "#G.......P#", "###########"])
+	var g: Goblin = lvl.npcs[0]
+	g.cooldown = 0.0
+	g.view = 0.5   # only the desk ambush is under test, not spotting you across the room
+	var t := 0.0
+	while not g.under and t < 15.0:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+	await get_tree().create_timer(0.6).timeout   # finish slipping under
+	check(g.under and g.global_position.distance_to(Vector3(g.den.inside.x, g.global_position.y, g.den.inside.z)) < 0.2, "goblin crawls to a desk and hides under it")
+	var pl = lvl.player
+	var out: Vector3 = (g.den.front - g.den.inside).normalized()
+	pl.crouching = true
+	pl.global_position = g.global_position + out * 1.8
+	await get_tree().create_timer(0.5).timeout
+	check(g.under and g.state == "patrol", "creeping past crouched doesn't wake him")
+	pl.crouching = false
+	pl.global_position = g.global_position + out * 2.0
+	await frames(3)
+	check(g.state == "ambush", "walking up to his desk: he scrambles out")
+	await get_tree().create_timer(2.0).timeout
+	check(Game.times_caught == 1, "...and grabs your legs (caught)")
+	await done(lvl)
+
+# Hiding from เต้ works: he looks once, finds nothing while you hold your breath, and goes back to his desks.
+func t_goblin_hide() -> void:
+	for kind in ["locker", "desk"]:
+		var lvl := await make(["###########", "#P.%s......#" % ("H" if kind == "locker" else "D"), "#.........#", "#......G..#", "#.......DD#", "###########"])
+		var g: Goblin = lvl.npcs[0]
+		var spot = kinds(lvl, "hide").filter(func(h): return h.hide_type == kind)[0]
+		spot.interact()
+		g.search(spot)   # he saw you get in
+		Input.action_press("breath")
+		await get_tree().create_timer(8.0).timeout
+		check(g.state == "patrol" and Game.times_caught == 0, "%s: เต้ searches, finds nothing, gives up" % kind)
+		await get_tree().create_timer(3.0).timeout
+		Input.action_release("breath")
+		check(g.state == "patrol" and g.global_position.distance_to(spot.front) > 3.0, "%s: ...and leaves instead of camping on it" % kind)
+		await get_tree().create_timer(1.5).timeout
+		check(lvl.player.hidden and Game.times_caught == 0, "%s: you got away with it" % kind)
+		await done(lvl)
+
+# Lockers dropped into a stage by hand (assets/models/locker.tscn) are hide spots with no setup.
+func t_locker() -> void:
+	Game.new_game()
+	Game.stage = 2
+	var lvl := stage_scene(2)
+	add_child(lvl)
+	await frames(10)
+	for n in lvl.npcs:
+		n.set_physics_process(false)
+	lvl.restore_power()   # stage 3 starts blacked out: light it for the screenshots
+	var map := lvl.get_world_3d().navigation_map
+	NavigationServer3D.map_force_update(map)
+	var spots := get_tree().get_nodes_in_group("hide_spot")
+	check(spots.size() >= 3, "stage 3: hand-placed lockers are hide spots (%d)" % spots.size())
+	var pl = lvl.player
+	for s in spots:
+		var who: String = s.get_parent().name
+		var q := NavigationServer3D.map_get_closest_point(map, s.front)
+		check(Vector2(q.x - s.front.x, q.z - s.front.z).length() < 0.6, "%s opens onto walkable floor" % who)
+		pl.global_position = s.front
+		pl.rotation.y = atan2(s.look.x, s.look.z)   # standing in front of it, facing it
+		await frames(3)
+		await shot("locker%s.png" % who)
+		s.interact()
+		await frames(2)
+		check(pl.hidden and pl.spot == s, "%s: E hides you inside" % who)
+		pl.unhide()
+		await frames(2)
+	await done(lvl)
+
+func t_exit() -> void:
+	var lvl := await make(["#####", "#P.dX", "#####"], 1)
+	check(not lvl.exit_open and is_instance_valid(lvl.door), "exit starts locked")
+	var doc = lvl.find_children("*", "Area3D", true, false).filter(func(a): return a.get("kind") == "doc")[0]
+	doc.interact()
+	await frames(2)
+	check(lvl.exit_open and not is_instance_valid(lvl.door), "collecting goal unlocks exit")
+	var cleared := []
+	Game.stage_cleared.connect(func(): cleared.append(1), CONNECT_ONE_SHOT)
+	lvl.player.global_position = lvl.cell_pos(Vector2i(4, 1))
+	await frames(5)
+	check(cleared.size() == 1, "walking into open exit clears stage")
+	await done(lvl)
+
+func shot(file: String) -> void:
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("user://" + file)
+
+func t_flow() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	check(main.screens.menu.visible, "menu shown on boot")
+	await shot("menu.png")
+	main.start_game()
+	await get_tree().create_timer(1.0).timeout
+	check(main.view.size == Vector2i(320, 240), "3D renders at 320x240")
+	check(Game.tutorial and main.level != null and main.level.has_node("Tutorial") and main.hud.visible, "new game starts with the tutorial (stage 0)")
+	await shot("tutorial.png")
+	Game.stage_clear()
+	await get_tree().create_timer(1.5).timeout
+	check(not Game.tutorial and Game.stage == 0 and main.level.npcs.size() == 1, "finishing the tutorial starts stage 1")
+	Game.say("หัวหน้าธนา: งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ~?")
+	await shot("hud.png")
+	for i in 3:
+		Game.stage_clear()
+		await get_tree().create_timer(1.5).timeout
+		check(Game.stage == i + 1 and main.level.npcs.size() == 1, "advanced to stage %d" % (i + 2))
+	await shot("stage4_main.png")
+	Game.phone_taken = true
+	Game.hints = Game.EVIDENCE_NEEDED
+	Game.stage_clear()
+	await get_tree().create_timer(1.5).timeout
+	check(main.screens.ending.visible and main.end_labels.letter.text.begins_with("A"), "exit with phone + hints shows ending A")
+	await shot("ending.png")
+	main.start_game()
+	await get_tree().create_timer(1.0).timeout
+	Game.damage(500, "test cause")
+	await get_tree().create_timer(2.0).timeout
+	check(main.screens.over.visible and main.over_cause.text == "test cause", "battery 0 shows game over")
+	await shot("gameover.png")
+	main.queue_free()
+	await frames(2)
+
+# Character lineup screenshot (for review / report), not an assertion-heavy test.
+func t_lineup() -> void:
+	var lvl := await make(["###########", "#.........#", "#.M.S.G.R.#", "#..L...L..#", "#.........#", "#....P....#", "###########"])
+	for n in lvl.npcs:
+		n.set_physics_process(false)
+		n.face(lvl.player.global_position - n.global_position)
+		n.body.pose(0.0, "idle")
+	lvl.player.rotation.y = 0.0
+	lvl.player.set_physics_process(false)
+	lvl.player.cam.position.y = 1.5
+	await frames(5)
+	check(lvl.npcs.size() == 4, "all four coworkers build")
+	await shot("lineup.png")
+	await done(lvl)
+
+func kinds(lvl: Node3D, k: String) -> Array:
+	return lvl.find_children("*", "Area3D", true, false).filter(func(a): return a.get("kind") == k)
+
+func t_builder() -> void:
+	var map: Array = Game.STAGES[0].map
+	var hashes := 0
+	for r in map:
+		hashes += r.count("#")
+	var lvl := await make(map, 3)
+	check(lvl.wall_nodes * 10 <= hashes * 4, "walls merged into runs (%d nodes for %d cells)" % [lvl.wall_nodes, hashes])
+	await done(lvl)
+	lvl = await make(["##########", "#P.H.W.s.#", "#.e.Z.!.z#", "#r...g...#", "##########"], 1, {"signs": ["ห้องทดสอบ"], "notes": [{"title": "หัวข้อ", "text": "เนื้อหา"}]})
+	var hides := kinds(lvl, "hide")
+	check(hides.size() == 2 and hides.any(func(h): return h.hide_type == "locker") and hides.any(func(h): return h.hide_type == "stall"), "locker + stall hide spots")
+	check(kinds(lvl, "throwable").size() == 1 and kinds(lvl, "clue").size() == 1 and kinds(lvl, "powerbank").size() == 1, "throwable, clue, power bank built")
+	check(lvl.cameos.size() == 1, "guard cameo spot recorded")
+	var opened := []
+	Game.note_opened.connect(func(t, _b, _tip): opened.append(t), CONNECT_ONE_SHOT)
+	kinds(lvl, "read")[0].interact()
+	check(opened == ["หัวข้อ"], "reading a note opens it")
+	kinds(lvl, "clue")[0].interact()
+	check(Game.clues.size() == 1, "dream clue collected")
+	var fired := []
+	Game.story_event.connect(func(t): fired.append(t), CONNECT_ONE_SHOT)
+	lvl.player.global_position = lvl.cell_pos(Vector2i(6, 2))
+	await frames(5)
+	check(Game.fired.size() == 1 and fired.size() == 1, "walking into ! fires its story trigger")
+	var labels := lvl.find_children("*", "Label3D", true, false).filter(func(l): return l.text == "ห้องทดสอบ")
+	check(labels.size() == 1, "room sign shows its text")
+	await done(lvl)
+
+func t_cutscene() -> void:
+	Game.skip_cutscenes = false
+	var lvl := await make(["#######", "#P.M..#", "#######"])
+	var steps := [["cam", Vector3(1, 1.6, 1), Vector3(3, 1.6, 1), 0.0], ["say", "ทดสอบ", 0.2], ["text", "แม่", "กลับกี่โมงลูก"], ["wait", 0.2]]
+	var cs := Cutscene.new()
+	var run := func(): await cs.play(lvl, steps)
+	run.call()
+	await frames(2)
+	check(Game.in_cutscene and not lvl.player.cam.current, "cutscene takes the camera")
+	await get_tree().create_timer(0.8).timeout
+	check(not Game.in_cutscene and lvl.player.cam.current, "cutscene ends and returns the camera")
+	check(Game.threads.get("แม่", []).size() == 1, "cutscene can send a phone text")
+	var cs2 := Cutscene.new()
+	var run2 := func(): await cs2.play(lvl, [["wait", 30.0]])
+	run2.call()
+	await frames(2)
+	cs2.skipping = true
+	await pframes(3)
+	check(not Game.in_cutscene, "skipping ends a cutscene immediately")
+	# a tap of E / Space / Esc does nothing; Space held for Game.SKIP_HOLD seconds skips
+	var cs3 := Cutscene.new()
+	var run3 := func(): await cs3.play(lvl, [["wait", 30.0]])
+	run3.call()
+	await frames(2)
+	for a in ["interact", "breath", "pause"]:
+		Input.action_press(a)
+	await frames(3)
+	for a in ["interact", "breath", "pause"]:
+		Input.action_release(a)
+	await get_tree().create_timer(0.3).timeout
+	check(Game.in_cutscene and Game.skip_hold == 0.0, "a tap of E / Space / Esc doesn't skip a cutscene")
+	Input.action_press("breath")
+	await get_tree().create_timer(Game.SKIP_HOLD * 0.6).timeout
+	check(Game.in_cutscene and Game.skip_hold > Game.SKIP_HOLD * 0.4, "holding Space fills the skip bar")
+	await get_tree().create_timer(Game.SKIP_HOLD * 0.5).timeout
+	check(not Game.in_cutscene, "holding Space for %.0f s skips the cutscene" % Game.SKIP_HOLD)
+	var cs4 := Cutscene.new()   # still holding from the last skip: this one isn't skipped
+	var run4 := func(): await cs4.play(lvl, [["wait", 30.0]])
+	run4.call()
+	await get_tree().create_timer(Game.SKIP_HOLD + 0.3).timeout
+	check(Game.in_cutscene, "Space still held from a skip doesn't skip the next cutscene too")
+	Input.action_release("breath")
+	cs4.skipping = true
+	await pframes(3)
+	# walk: ends exactly on the spot, level (bob settled); player: ends in Tong's own eyes
+	var cs5 := Cutscene.new()
+	var run5 := func(): await cs5.play(lvl, [["cam", Vector3(1, 1.6, 1), Vector3(5, 1.6, 1), 0.0],
+		["walk", Vector3(2.5, 1.6, 1), Vector3(5, 1.6, 1), 0.5], ["wait", 0.6], ["player", 0.3], ["wait", 0.6]])
+	run5.call()
+	await get_tree().create_timer(0.8).timeout
+	check(cs5.cam.global_position.distance_to(Cutscene.cell(Vector3(2.5, 1.6, 1))) < 0.01, "walk ends on its spot")
+	await get_tree().create_timer(0.7).timeout
+	check(cs5.cam.global_transform.is_equal_approx(lvl.player.cam.global_transform), "player step hands over in Tong's own eyes")
+	cs5.skipping = true
+	await pframes(3)
+	Game.skip_cutscenes = true
+	await done(lvl)
+
+func hide_map() -> Node3D:
+	return await make(["###########", "#P.H......#", "#.........#", "#.......M.#", "###########"])
+
+func t_hide() -> void:
+	var lvl := await hide_map()
+	var pl = lvl.player
+	var n: Npc = lvl.npcs[0]
+	n.set_physics_process(false)
+	Input.action_press("move_forward")
+	Input.action_press("sprint")
+	await frames(40)
+	Input.action_release("sprint")
+	Input.action_release("move_forward")
+	check(pl.stamina < 90.0, "sprinting drains stamina")
+	await done(lvl)
+
+	# hidden unseen: coworker right in front can't see you; lingering there finds you
+	lvl = await hide_map()
+	pl = lvl.player
+	n = lvl.npcs[0]
+	n.set_physics_process(false)
+	n.rotation.y = 0.0   # facing away (-z wall)
+	var locker = kinds(lvl, "hide")[0]
+	locker.interact()
+	await frames(2)
+	check(pl.hidden and n.state == "patrol", "hiding unseen: nobody searches")
+	n.global_position = locker.front + Vector3(0.5, 0, 0.5)
+	n.face(locker.front - n.global_position + Vector3(0, 0, 1))
+	check(not n.sees_player(true), "hidden player can't be seen")
+	Input.action_press("breath")
+	await get_tree().create_timer(1.8).timeout
+	check(Game.times_caught == 0, "holding breath: not found while stamina lasts")
+	pl.stamina = 5.0
+	await get_tree().create_timer(0.8).timeout
+	Input.action_release("breath")
+	check(Game.times_caught == 1, "running out of breath next to a coworker = found")
+	await done(lvl)
+
+	lvl = await hide_map()
+	n = lvl.npcs[0]
+	n.set_physics_process(false)
+	n.rotation.y = PI
+	kinds(lvl, "hide")[0].interact()
+	await get_tree().create_timer(0.3).timeout
+	n.global_position = kinds(lvl, "hide")[0].front + Vector3(0.6, 0, 0)
+	await get_tree().create_timer(2.0).timeout
+	check(Game.times_caught == 1, "breathing normally next to a coworker = found")
+	await done(lvl)
+
+	# seen getting in: coworker walks over and searches; standing there unmasked gives you away
+	lvl = await hide_map()
+	n = lvl.npcs[0]
+	n.view = 20.0
+	n.face(lvl.player.global_position - n.global_position)
+	n.set_physics_process(false)
+	kinds(lvl, "hide")[0].interact()
+	check(n.state == "search", "coworker that saw you hide starts searching")
+	n.set_physics_process(true)
+	await get_tree().create_timer(6.0).timeout
+	check(Game.times_caught == 1, "search finds the player (caught)")
+	await done(lvl)
+
+	# เต้ checks under-desk spots
+	lvl = await make(["###########", "#P.D......#", "#.........#", "#.......G.#", "###########"])
+	var desk = kinds(lvl, "hide")[0]
+	check(desk.hide_type == "desk", "desk is a hide spot")
+	desk.interact()
+	await frames(3)
+	check(lvl.npcs[0].state == "search", "goblin searches an occupied desk")
+	await done(lvl)
+
+func t_noise() -> void:
+	var lvl := await make(["#############", "#P.s........#", "#...........#", "#.........M.#", "#############"])
+	var n: Npc = lvl.npcs[0]
+	n.rotation.y = 0.0
+	var home := n.global_position
+	Game.noise(lvl.cell_pos(Vector2i(6, 2)), 12.0)
+	check(n.state == "investigate", "noise nearby -> coworker investigates")
+	await get_tree().create_timer(2.5).timeout
+	check(n.global_position.distance_to(lvl.cell_pos(Vector2i(6, 2))) < home.distance_to(lvl.cell_pos(Vector2i(6, 2))) - 3.0, "coworker walks toward the noise")
+	await done(lvl)
+
+	lvl = await make(["#############", "#P.s........#", "#...........#", "#.........M.#", "#############"])
+	n = lvl.npcs[0]
+	n.rotation.y = 0.0
+	kinds(lvl, "throwable")[0].interact()
+	check(lvl.player.held, "picked up a throwable")
+	lvl.player.rotation.y = -PI / 2 - 0.3   # toward the coworker side
+	lvl.player.throw()
+	await get_tree().create_timer(1.5).timeout
+	check(n.state == "investigate", "thrown object lands -> coworker investigates")
+	await get_tree().create_timer(2.0).timeout
+	check(kinds(lvl, "throwable").filter(func(a): return a.usable()).size() == 1, "thrown object can be picked up again")
+	await done(lvl)
+
+	lvl = await make(["#########", "#P......#", "#....M..#", "#########"])
+	n = lvl.npcs[0]
+	n.rotation.y = 0.0
+	n.set_physics_process(false)
+	lvl.player.crouching = true
+	lvl.player.rotation.y = -PI / 2
+	Input.action_press("move_forward")
+	await frames(90)
+	Input.action_release("move_forward")
+	check(n.state == "patrol", "crouch-walking makes no noise")
+	await done(lvl)
+
+func t_phone() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)   # stage 1 (start_game plays the tutorial)
+	await get_tree().create_timer(0.5).timeout
+	Game.text("แม่", "กลับกี่โมงลูก")
+	Game.story_event.emit({"text": ["เบอร์ไม่รู้จัก", "ยังไม่กลับอีกเหรอครับ"]})
+	check(Game.threads.has("เบอร์ไม่รู้จัก") and main.unread == 2, "story trigger texts arrive + unread count")
+	main.open_phone()
+	await frames(3)
+	check(main.phone.visible and main.phone_app == "" and main.phone_home.visible, "phone opens on the app picker")
+	main._show_app("chat")
+	await frames(3)
+	check(main.phone_tabs.get_child_count() == 2 and main.phone_list.get_child_count() == 1, "chat app lists threads and messages")
+	await shot("phone.png")
+	main._show_app("gps")
+	await frames(3)
+	check(main.phone_gps.visible and not main.phone_chat.visible, "gps app shown, chat hidden")
+	check(not main._gps_target().is_empty(), "gps points at an unfinished objective")
+	main._show_app("docs")
+	await frames(3)
+	check(main.phone_docs.visible and not main.phone_gps.visible, "docs app shown, gps hidden")
+	main.close_phone()
+	var pl = main.level.player
+	pl.toggle_flashlight()
+	check(pl.flashlight.visible, "flashlight turns on")
+	Game.phone_battery = 0.3
+	await get_tree().create_timer(1.0).timeout
+	check(not pl.flashlight.visible and Game.phone_battery == 0.0, "flashlight drains phone battery and dies at 0")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+func t_audio() -> void:
+	for b in ["SFX", "Amb", "Tension"]:
+		check(AudioServer.get_bus_index(b) >= 0, "audio bus %s exists" % b)
+	var sfx_bus := AudioServer.get_bus_index("SFX")
+	var lp := AudioServer.get_bus_effect_count(sfx_bus) - 1
+	Game.set_hidden("locker")
+	check(AudioServer.is_bus_effect_enabled(sfx_bus, lp), "hiding muffles sound")
+	Game.set_hidden("")
+	check(not AudioServer.is_bus_effect_enabled(sfx_bus, lp), "coming out un-muffles")
+	for s in ["heartbeat", "breathing", "drone", "door_slam", "elevator_ding", "chair_creak", "printer", "whisper", "knock", "footsteps_far"]:
+		check(Game.stream(s) != null, "sound %s loads" % s)
+	for s in ["squeak", "hum", "mutter", "techspeak", "guard_talk", "sting", "gasp"]:   # coworkers sound human, not synth tones
+		check(Game.stream(s) is AudioStreamOggVorbis, "coworker sound %s is a real recording" % s)
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)   # stage 1 (start_game plays the tutorial)
+	await get_tree().create_timer(0.5).timeout
+	var n: Npc = main.level.npcs[0]
+	n.set_physics_process(false)
+	n.global_position = Game.player.global_position + Vector3(14, 0, 0)
+	var far: float = main.tension().x
+	n.global_position = Game.player.global_position + Vector3(3, 0, 0)
+	var near: float = main.tension().x
+	check(near > far, "heartbeat rises as a coworker gets close (%.2f > %.2f)" % [near, far])
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# Every objective/item on the big maps is reachable from the spawn, and intro "act" steps exist.
+func t_reach() -> void:
+	for i in Game.STAGES.size():
+		Game.new_game()
+		Game.stage = i
+		var data: Dictionary = Game.STAGES[i]
+		var lvl := stage_scene(i)
+		add_child(lvl)
+		await frames(10)   # region swap needs a few physics frames to reach the navigation map
+		var map := lvl.get_world_3d().navigation_map
+		NavigationServer3D.map_force_update(map)   # previous stage's region was just removed: sync now
+		var bad := []
+		for t in lvl.find_children("*", "Area3D", true, false):
+			var p: Vector3 = t.front if t.get("kind") == "hide" else t.global_position
+			var q := NavigationServer3D.map_get_closest_point(map, p)
+			var path := NavigationServer3D.map_get_path(map, lvl.spawn, q, true)
+			if Vector2(q.x - p.x, q.z - p.z).length() > 1.8 or path.is_empty() or path[path.size() - 1].distance_to(q) > 0.3:
+				bad.append("%s@%.0f,%.0f" % [t.name, p.x, p.z])
+		check(bad.is_empty(), "stage %d: every item/exit reachable %s" % [i + 1, bad])
+		var n: Npc = lvl.npcs[0]
+		var missing: Array = data.get("intro", []).filter(func(st): return st[0] == "act" and not n.has_method(st[1]))
+		check(missing.is_empty(), "stage %d: intro actions exist on %s" % [i + 1, n.display_name])
+		check(data.get("signs", []).size() == data.map.reduce(func(a, r): return a + r.count("r"), 0), "stage %d: one sign text per r" % (i + 1))
+		check(data.get("notes", []).size() == data.map.reduce(func(a, r): return a + r.count("e"), 0), "stage %d: one note per e" % (i + 1))
+		check(data.get("triggers", []).size() == data.map.reduce(func(a, r): return a + r.count("!"), 0), "stage %d: one trigger per !" % (i + 1))
+		check(data.get("scares", []).size() == data.map.reduce(func(a, r): return a + r.count("J"), 0), "stage %d: one scare per J" % (i + 1))
+		check(data.get("postits", []).size() == data.map.reduce(func(a, r): return a + r.count("n"), 0), "stage %d: one post-it text per n" % (i + 1))
+		var notes := kinds(lvl, "read")
+		check(notes.all(func(nt): return nt.title != "" and nt.text != "") and notes.any(func(nt): return nt.reveal != "none" or nt.evidence), "stage %d: notes have text and give something" % (i + 1))
+		check(data.map.reduce(func(a, r): return a + r.count("Z"), 0) == 1, "stage %d: one dream clue" % (i + 1))
+		await done(lvl)
+	# play each intro for a moment, then skip: control returns
+	Game.skip_cutscenes = false
+	for i in Game.STAGES.size():
+		Game.new_game()
+		Game.stage = i
+		var lvl := stage_scene(i)
+		add_child(lvl)
+		var cs := Cutscene.new()
+		var run := func(): await cs.play(lvl, Game.STAGES[i].intro)
+		run.call()
+		await get_tree().create_timer(3.0).timeout
+		await shot("intro_%d.png" % (i + 1))
+		check(Game.in_cutscene, "stage %d intro is playing" % (i + 1))
+		cs.skipping = true
+		await pframes(3)
+		check(not Game.in_cutscene and lvl.player.cam.current, "stage %d intro skip returns control" % (i + 1))
+		await done(lvl)
+	Game.skip_cutscenes = true
+
+func t_cameo() -> void:
+	var lvl := await make(["###########", "#P.......g#", "#.........#", "###########"])
+	check(lvl.cameos.size() == 1, "guard cameo spawned")
+	lvl.player.rotation.y = -PI / 2   # look at him
+	await get_tree().create_timer(1.0).timeout
+	check(Game.hints == 1 and not is_instance_valid(lvl.cameos[0].body), "looking at a cameo = hint noticed, he vanishes")
+	await done(lvl)
+	lvl = await make(["###########", "#P.......g#", "#.........#", "###########"])
+	lvl.player.rotation.y = PI / 2    # never looks
+	await get_tree().create_timer(1.0).timeout
+	check(Game.hints == 0 and is_instance_valid(lvl.cameos[0].body), "unseen cameo stays, no hint")
+	await done(lvl)
+
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)   # stage 1 (start_game plays the tutorial)
+	await get_tree().create_timer(0.5).timeout
+	Game.story_event.emit({"photo": true, "text": ["เบอร์ไม่รู้จัก", "ถ่ายมุมนี้หล่อดีนะครับ"]})
+	await get_tree().create_timer(0.5).timeout
+	var msgs: Array = Game.threads.get("เบอร์ไม่รู้จัก", [])
+	var img: Texture2D = msgs.back().img if not msgs.is_empty() else null
+	check(img != null and img.get_width() == 200, "photo message arrives with an image")
+	if img:
+		var im := img.get_image()
+		var a := im.get_pixel(20, 20)
+		var varied := false
+		for p in [Vector2i(100, 75), Vector2i(180, 130), Vector2i(100, 30), Vector2i(60, 120)]:
+			varied = varied or not im.get_pixel(p.x, p.y).is_equal_approx(a)
+		check(varied, "photo has actual content")
+		im.save_png("user://photo.png")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+func t_endings() -> void:
+	Game.skip_cutscenes = false
+	for id in ["A", "B", "C"]:
+		var lvl: Node3D = load("res://scenes/endings/ending_%s.tscn" % id).instantiate()
+		add_child(lvl)
+		var data: Dictionary = lvl.data
+		var missing: Array = data.steps.filter(func(st): return st[0] == "body" and not Story.BODIES.has(st[1]))
+		check(missing.is_empty(), "ending %s: all extras defined" % id)
+		var cs := Cutscene.new()
+		var done_flag := [false]
+		var run := func():
+			await cs.play(lvl, data.steps)
+			done_flag[0] = true
+		run.call()
+		await get_tree().create_timer(4.5).timeout
+		await shot("ending_%s.png" % id)
+		cs.skipping = true
+		await pframes(3)
+		check(done_flag[0] and not Game.in_cutscene, "ending %s scene plays and finishes" % id)
+		lvl.queue_free()
+		await frames(2)
+	Game.skip_cutscenes = true
+	Game.new_game()
+
+func t_save() -> void:
+	Game.new_game()
+	Game.stage = 2
+	Game.times_caught = 3
+	Game.notice("call_0")
+	Game.clues[0] = true
+	Game.phone_taken = true
+	Game.save_progress()
+	Game.new_game()
+	check(Game.load_progress() and Game.stage == 2 and Game.times_caught == 3 and Game.hints == 1 and Game.clues.size() == 1 and Game.phone_taken, "save/continue restores progress")
+	Game.clear_save()
+	check(not Game.has_save(), "save cleared after an ending")
+	Game.sensitivity = 1.5
+	Game.save_settings()
+	Game.sensitivity = 1.0
+	Game.load_settings()
+	check(Game.sensitivity == 1.5, "settings persist")
+	Game.sensitivity = 1.0
+	Game.volume = 0.8
+	Game.save_settings()
+	Game.new_game()
+
+# Frame rate on each 2x stage through the real 1/3-res pipeline.
+func t_perf() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	for i in Game.STAGES.size():
+		Game.new_game()
+		Game.stage = i
+		main.start_stage()
+		await get_tree().create_timer(1.0).timeout
+		var t0 := Time.get_ticks_msec()
+		var f0 := Engine.get_frames_drawn()
+		await get_tree().create_timer(2.0).timeout
+		var fps := (Engine.get_frames_drawn() - f0) * 1000.0 / (Time.get_ticks_msec() - t0)
+		check(fps >= 50.0, "stage %d runs at %.0f fps" % [i + 1, fps])
+		await shot("play_%d.png" % (i + 1))
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.clear_save()
+	Game.new_game()
+
+# Regression: Start/Retry pressed again during the clock card built a 2nd level (2 managers).
+func t_no_dupes() -> void:
+	Game.skip_cutscenes = false
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)   # stage 1 (start_game plays the tutorial)
+	await get_tree().create_timer(0.3).timeout
+	check(not main.screens.menu.visible, "menu hides as soon as Start is pressed")
+	check(main.card.visible and main.card.text == Game.STAGES[0].story[0], "stage story text plays on black before the clock card")
+	main.start_stage()   # impatient second press
+	await get_tree().create_timer(4.0).timeout
+	check(main.view.find_children("*", "Npc", true, false).size() == 1, "double Start -> still exactly one coworker")
+	Game.damage(500, "x")
+	await get_tree().create_timer(2.5).timeout
+	Game.reset_stage()
+	main.start_stage()
+	await get_tree().create_timer(0.3).timeout
+	main.start_stage()   # double Retry
+	await get_tree().create_timer(4.0).timeout
+	check(main.view.find_children("*", "Npc", true, false).size() == 1 and main.view.get_child_count() == 1, "double Retry -> one level, one coworker")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.skip_cutscenes = true
+	Game.clear_save()
+	Game.new_game()
+
+# Each coworker's death jumpscare: lunge (screenshot), face slam (screenshot), then respawn;
+# with an empty battery it ends on the game-over screen instead.
+func t_jumpscare() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	for i in 4:
+		Game.new_game()
+		Game.stage = i
+		main.start_stage()
+		await get_tree().create_timer(0.5).timeout
+		var n: Npc = main.level.npcs[0]
+		var pl = main.level.player
+		pl.global_position = n.global_position - n.global_basis.z * 1.0   # on its open path, like a catch
+		await frames(2)
+		Game.catch(n)
+		var dur: float = [0.5, 0.45, 0.5, 0.75][i]   # what each mob's jumpscare() returns
+		await get_tree().create_timer(dur - 0.05).timeout
+		await shot("scare_%d_lunge.png" % (i + 1))
+		await get_tree().create_timer(0.15).timeout
+		check(main.scare_face.visible and main._scaring and AudioServer.is_bus_mute(AudioServer.get_bus_index("Amb")), "stage %d %s: face slam shows (ambience cut to silence)" % [i + 1, n.display_name])
+		await shot("scare_%d_slam.png" % (i + 1))
+		await get_tree().create_timer(2.4).timeout
+		check(not Game.busy and not pl.frozen and not main.scare_face.visible and not AudioServer.is_bus_mute(AudioServer.get_bus_index("Amb")), "stage %d: jumpscare ends -> respawn, play + ambience resume" % (i + 1))
+		check(n.body.parts.Neck.rotation == Vector3.ZERO and n.body.scale == Vector3.ONE and pl.cam.h_offset == 0.0, "stage %d: coworker + camera reset after jumpscare" % (i + 1))
+		if i == 3:   # lights[0] is the dying tube that flickers on its own
+			check(main.level.lights.slice(1).all(func(l): return l.visible), "stage 4: guard's blackout restores the lights")
+	Game.battery = 10.0
+	Game.catch(main.level.npcs[0])
+	await get_tree().create_timer(4.5).timeout
+	check(main.screens.over.visible, "battery-emptying catch: jumpscare then game over")
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# Debug menu: wrong password stays locked, 1234 unlocks the stage list, picking one loads it.
+func t_debug() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main.show_screen("debug")
+	main.debug_pw.text = "0000"
+	main._debug_unlock()
+	check(not main.debug_list.visible and main.debug_err.text != "", "debug: wrong password stays locked")
+	main.debug_pw.text = "1234"
+	main._debug_unlock()
+	check(main.debug_list.visible and not main.debug_pw.visible, "debug: 1234 unlocks the stage list")
+	main.show_screen("menu")
+	main.show_screen("debug")
+	check(not main.debug_list.visible and main.debug_pw.text == "", "debug: locks again when reopened")
+	main._debug_start(2)
+	await get_tree().create_timer(1.0).timeout
+	check(Game.stage == 2 and main.level != null and main.level.npcs[0] is Goblin and main.hud.visible, "debug: jump straight to stage 3")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# Regression: found while hiding -> game over -> retry left the slit overlay + muffle on.
+func t_hide_teardown() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)   # stage 1 (start_game plays the tutorial)
+	await get_tree().create_timer(0.5).timeout
+	kinds(main.level, "hide")[0].interact()
+	await get_tree().create_timer(0.2).timeout
+	Game.battery = 10.0
+	main.level.npcs[0].found_player()
+	await get_tree().create_timer(2.5).timeout
+	Game.reset_stage()
+	main.start_stage()
+	await get_tree().create_timer(1.0).timeout
+	var bus := AudioServer.get_bus_index("SFX")
+	check(main.hide_view.get_child_count() == 0 and not AudioServer.is_bus_effect_enabled(bus, AudioServer.get_bus_effect_count(bus) - 1), "game over while hidden: overlay + muffle cleared on retry")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.clear_save()
+	Game.new_game()
+
+func press(key: Key) -> void:
+	var e := InputEventKey.new()
+	e.physical_keycode = key
+	e.pressed = true
+	Input.parse_input_event(e)
+	await pframes(2)
+	e = e.duplicate()
+	e.pressed = false
+	Input.parse_input_event(e)
+	await pframes(2)
+
+# Regression (web): the browser drops mouse capture (Esc, focus). Keys must still work,
+# e.g. E to climb out from under a desk. Uses real key events through main + SubViewport.
+func t_keys_uncaptured() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)   # stage 1 (start_game plays the tutorial)
+	await get_tree().create_timer(0.5).timeout
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE   # browser never granted / dropped capture
+	await pframes(2)
+	get_tree().paused = false   # (the capture-loss auto-pause is tested below)
+	main.show_screen("")
+	main._was_captured = false
+	var pl = main.level.player
+	kinds(main.level, "hide")[0].interact()
+	check(pl.hidden, "hid (setup)")
+	await press(KEY_E)
+	check(not pl.hidden, "E gets you out of a hide spot even when the mouse isn't captured")
+	var c0: bool = pl.crouching
+	await press(KEY_C)
+	check(pl.crouching != c0, "C crouches even when the mouse isn't captured")
+	main._was_captured = true   # as if the browser just dropped pointer lock (Esc)
+	await pframes(2)
+	check(get_tree().paused and main.screens.pause.visible, "losing mouse capture mid-play opens the pause menu")
+	get_tree().paused = false
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.clear_save()
+	Game.new_game()
+
+# ---------- v3: models, notes, power, chases, scares, tutorial ----------
+
+# Blender models: every preset builds with the parts the animations and jumpscares drive.
+func t_models() -> void:
+	for p in Story.BODIES:
+		var b := Body.new()
+		add_child(b)
+		b.build(Story.BODIES[p])
+		var ok := ["LegL", "LegR", "ArmL", "ArmR", "Torso", "Neck", "NeckMesh", "Head"].all(func(k): return b.parts.has(k) and b.parts[k] is Node3D)
+		check(ok and b.head_top() > 1.7 and b.head_top() < 3.2, "model %s builds with all parts (head top %.2f m)" % [p, b.head_top()])
+		b.queue_free()
+	await frames(1)
+
+# Notes: reader gets the text + a tip, the reveal marks goals, evidence counts once.
+func t_notes() -> void:
+	var lvl := await make(["#########", "#P.e.e.d#", "#.......#", "#########"], 1, {"notes": [
+		{"title": "รายการเอกสาร", "text": "แฟ้มอยู่สุดห้อง", "reveal": "goals"},
+		{"title": "สมุดเวร", "text": "...", "evidence": true}]})
+	var got := []
+	var on_note := func(t, b, tip): got.append([t, b, tip])
+	Game.note_opened.connect(on_note)
+	var notes := kinds(lvl, "read")
+	notes[0].interact()
+	var doc = kinds(lvl, "doc")[0]
+	check(got.size() == 1 and got[0][1] == "แฟ้มอยู่สุดห้อง" and got[0][2] != "", "note reader gets the text and what it gave you")
+	check(doc.find_children("RevealMarker", "", true, false).size() == 1, "reveal=goals marks the goal through walls")
+	notes[1].interact()
+	notes[1].interact()
+	check(Game.hints == 1 and notes[1].usable(), "evidence note counts once and stays readable")
+	Game.note_opened.disconnect(on_note)
+	await done(lvl)
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)
+	await get_tree().create_timer(0.5).timeout
+	kinds(main.level, "read")[0].interact()
+	await frames(2)
+	check(main.note_panel.visible and main.note_labels.body.text != "", "note reader shows on screen")
+	await shot("note.png")
+	main.level.player.global_position += Vector3(2, 0, 0)
+	await pframes(3)   # _process closes it (physics frames can bunch up while the stage loads)
+	check(not main.note_panel.visible, "walking away closes the note")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# Stage 3 mechanics: power out -> breaker; post-its -> keypad; wrong code is loud.
+func t_power() -> void:
+	var lvl := await make(["###########", "#P.n.n.n..#", "#..Y..K...#", "#.L...u..M#", "###########"], 4,
+		{"dark_start": true, "pc_code": "4471", "postits": [{"title": "1", "text": "4___"}, {"title": "2", "text": "_47_"}, {"title": "3", "text": "___1"}]})
+	check(lvl.dark and lvl.lights.all(func(l): return not l.visible) and lvl.get_node("Emergency").get_child(0).visible, "dark_start: lights off, emergency light on")
+	var pc = kinds(lvl, "pc")[0]
+	check(pc.code == "4471", "pc gets its code from stage data")
+	var asked := []
+	var on_ask := func(p): asked.append(p)
+	Game.code_requested.connect(on_ask)
+	for n in kinds(lvl, "note"):
+		n.interact()
+	pc.interact()
+	check(asked.is_empty() and Game.goal_count == 3, "PC won't boot without power")
+	var dark_mult: float = lvl.sight_mult()
+	kinds(lvl, "breaker")[0].interact()
+	check(not lvl.dark and lvl.lights.all(func(l): return l.visible) and lvl.sight_mult() > dark_mult, "breaker brings the lights back (and you're easier to see)")
+	check(lvl.npcs[0].state == "investigate", "flipping the breaker is loud: the coworker comes to look")
+	lvl.npcs[0].reset()
+	pc.interact()
+	check(asked.size() == 1, "with power + 3 post-its the PC asks for the code")
+	Game.code_requested.disconnect(on_ask)
+	Game.submit_code(pc, "1234")
+	check(Game.goal_count == 3 and lvl.npcs[0].state == "investigate", "wrong code: alarm beep draws the coworker")
+	Game.submit_code(pc, "4471")
+	check(Game.goal_count == 4 and lvl.exit_open, "right code logs in and opens the exit")
+	lvl.player.flashlight.visible = true
+	check(lvl.sight_mult() > 1.0, "a lit flashlight makes you visible from farther")
+	lvl.player.flashlight.visible = false
+	await done(lvl)
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(2)
+	await get_tree().create_timer(0.5).timeout
+	check(main.level.dark, "stage 3 starts in a blackout")
+	var early_target: Dictionary = main._gps_target()
+	check(not early_target.is_empty() and early_target.label != main.level.GOAL_NAMES.pc, "gps points at a post-it/breaker before the PC is even usable")
+	await shot("stage3_dark.png")
+	main.level.restore_power()
+	Game.goal_count = 3
+	var real_pc = kinds(main.level, "pc")[0]
+	real_pc.interact()
+	await frames(2)
+	check(main.keypad.visible and main.level.player.frozen, "keypad opens on screen")
+	await shot("keypad.png")
+	main._submit_code("4471")
+	check(not main.keypad.visible and not main.level.player.frozen and Game.goal_count == 4, "typing the post-it code logs in")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# Stage 2 mechanic: coffee done -> she comes for you, even after a catch.
+func t_rage() -> void:
+	var lvl := await make(["###############", "#S...........C#", "#.............#", "#P............#", "###############"], 1,
+		{"rage_on_goal": true, "rage_line": "ป้าพร: !!"})
+	var s: Npc = lvl.npcs[0]
+	lvl.player.global_position = lvl.cell_pos(Vector2i(12, 2))
+	kinds(lvl, "coffee_goal")[0].interact()
+	check(lvl.exit_open and lvl.raging and lvl.spawn.distance_to(lvl.cell_pos(Vector2i(12, 2))) < 0.5, "coffee: exit opens, chase starts, checkpoint here")
+	await get_tree().create_timer(1.8).timeout
+	check(s.raging and s.state == "chase", "she comes for you after a beat")
+	lvl.respawn()
+	await get_tree().create_timer(1.8).timeout
+	check(s.raging and s.state == "chase", "caught mid-chase: the chase resumes")
+	await done(lvl)
+
+# Stage 4 mechanic: holding the scanner brings everyone; the scan opens the exit.
+func t_finale() -> void:
+	var lvl := await make(["##############", "#P..........R#", "#..F.........#", "#............#", "##############"], 1, {"finale": true})
+	var pl = lvl.player
+	var sc = kinds(lvl, "scanner")[0]
+	pl.global_position = lvl.cell_pos(Vector2i(3, 3))
+	pl.rotation.y = 0.0   # face -z: the scanner is one cell north
+	pl.cam.rotation.x = -0.35
+	await frames(3)
+	check(pl.focus() == sc, "looking at the scanner (setup)")
+	sc.interact()
+	check(Game.goal_count == 0, "a tap doesn't scan: you have to hold")
+	Input.action_press("interact")
+	await get_tree().create_timer(0.3).timeout
+	check(lvl.extras.size() == 3 and lvl.npcs.all(func(n): return n.raging), "scanning wakes everyone: 3 more coworkers come")
+	for n in lvl.npcs:
+		n.set_physics_process(false)   # (they'd catch you in a room this small)
+	await get_tree().create_timer(3.0).timeout
+	Input.action_release("interact")
+	check(Game.goal_count == 1 and lvl.exit_open, "held scan completes and opens the exit")
+	lvl.respawn()
+	check(lvl.extras.is_empty() and lvl.npcs.size() == 1 and not lvl.raging, "caught: the finale resets")
+	await done(lvl)
+
+# Stage 4: the scanner is dead until the fuse (security room) is in the panel (mail room).
+func t_fuse() -> void:
+	var lvl := await make(["#########", "#P......#", "#.f.p.F.#", "#########"], 3)
+	var fu = kinds(lvl, "fuse")[0]
+	var fb = kinds(lvl, "fuse_box")[0]
+	check(not lvl.scanner_powered(), "scanner is dead before the fuse is in")
+	fb.interact()
+	check(not fb.used and Game.goal_count == 0, "panel refuses without the fuse")
+	fu.interact()
+	check(Game.has_fuse and Game.goal_count == 1, "fuse picked up")
+	fb.interact()
+	check(fb.used and not Game.has_fuse and Game.goal_count == 2, "fuse goes into the panel")
+	check(lvl.scanner_powered() and lvl.dark and lvl.fuse_dark, "scanner powered; the floor goes dark")
+	await get_tree().create_timer(3.0).timeout
+	lvl.respawn()
+	check(lvl.dark, "...and stays dark until the exit (even after being caught)")
+	Game.phone_battery = 100.0
+	lvl.player.flashlight.visible = true
+	await get_tree().create_timer(1.0).timeout
+	lvl.player.flashlight.visible = false
+	var used := 100.0 - Game.phone_battery
+	check(used > 0.4 and used < 0.75, "flashlight drains slower in the fuse blackout (%.2f%%/s)" % used)
+	await done(lvl)
+
+# Scare nodes: lights_out, behind, figure.
+func t_scares() -> void:
+	var lvl := await make(["###########", "#P.J.J.J.L#", "#.........#", "###########"], 1, {"scares": [
+		{"kind": "lights_out", "secs": 0.5, "sfx": "whisper"},
+		{"kind": "behind", "preset": "guard", "secs": 3.0},
+		{"kind": "figure", "preset": "manager", "at": Vector2i(9, 2), "secs": 3.0}]})
+	var sc := lvl.get_node("Scares").get_children()
+	check(sc.size() == 3 and sc[2].has_node("At"), "scare nodes built (figure has a draggable At marker)")
+	sc[0].fire()
+	check(lvl.dark, "lights_out scare kills the lights")
+	await get_tree().create_timer(0.8).timeout
+	check(not lvl.dark, "...and they come back")
+	lvl.player.rotation.y = -PI / 2   # facing +x
+	sc[1].fire()
+	var behind: Node3D = lvl.cameos.back().body
+	check(is_instance_valid(behind) and (behind.global_position - lvl.player.global_position).dot(Vector3.RIGHT) < 0.0, "behind scare appears behind you")
+	lvl.player.rotation.y = PI / 2   # turn around
+	await get_tree().create_timer(0.8).timeout
+	check(not is_instance_valid(behind), "turn around: it lunges and is gone")
+	sc[2].fire()
+	sc[2].fire()
+	check(lvl.cameos.filter(func(c): return c.id == "" and is_instance_valid(c.body)).size() == 1, "a scare fires once")
+	await done(lvl)
+	# hallucinations at low Social Battery
+	lvl = await make(["###################", "#P................#", "#.................#", "###################"], 1)
+	lvl.player.rotation.y = -PI / 2
+	Game.battery = 10.0
+	lvl._phantom_t = 0.0
+	await frames(2)
+	check(lvl.cameos.size() == 1, "low Social Battery: a phantom coworker appears in view")
+	await done(lvl)
+
+# พี่สมชาย in the dark: watching him doesn't work unless your flashlight is on.
+func t_guard_dark() -> void:
+	var lvl := await make(["#########", "#P.....R#", "#########"], 0)
+	var g = lvl.npcs[0]
+	g.wake = 0.0
+	lvl.player.rotation.y = -PI / 2
+	lvl.set_dark(true)
+	var p0: Vector3 = g.global_position
+	await frames(30)
+	check(g.global_position.distance_to(p0) > 0.3, "lights out: he moves even while you look")
+	lvl.player.flashlight.visible = true
+	await frames(2)
+	p0 = g.global_position
+	await frames(30)
+	check(g.global_position.distance_to(p0) < 0.05, "flashlight on him: frozen again")
+	lvl.player.flashlight.visible = false
+	await done(lvl)
+
+# Stage 4: พี่สมชาย waits in the security room, at his CCTV wall, until the dark or his phone going missing.
+func t_guard_room() -> void:
+	Game.new_game()
+	Game.stage = 3
+	var lvl := stage_scene(3)
+	add_child(lvl)
+	await frames(10)
+	lvl.flicker = Vector2.ZERO   # no random blackout mid-test
+	var g: Guard = lvl.npcs[0]
+	var pl = lvl.player
+	var p0: Vector3 = g.global_position
+	check(g.waiting and Vector2(p0.x - 11.0, p0.z - 36.3).length() < 0.5, "stage 4: guard starts in the security room, waiting")
+	g.wake = 0.0
+	await frames(40)   # Tong is up in the lobby, not looking at him
+	check(g.global_position.distance_to(p0) < 0.05, "...and stays at his monitors while the lights are on")
+	pl.global_position = Vector3(11, pl.global_position.y, 31)   # in the doorway, looking in
+	pl.rotation.y = PI
+	await frames(3)
+	await shot("guard_room.png")
+	pl.global_position = Vector3(9.5, pl.global_position.y, 35)   # his bed corner
+	pl.rotation.y = PI / 2
+	await frames(3)
+	await shot("guard_room_bed.png")
+	lvl.set_dark(true)
+	await frames(3)
+	lvl.set_dark(false)
+	pl.global_position = lvl.spawn
+	await frames(40)
+	check(not g.waiting and g.global_position.distance_to(p0) > 0.5, "first blackout: he is up and coming")
+	lvl.respawn()
+	await frames(2)
+	check(g.waiting and g.global_position.distance_to(p0) < 0.05, "caught -> respawn: back at the monitors")
+	kinds(lvl, "guard_phone")[0].interact()
+	g.wake = 0.0
+	await frames(40)
+	check(not g.waiting and g.global_position.distance_to(p0) > 0.5, "taking his phone gets him up too")
+	await done(lvl)
+
+func wait_phase(tut: Node, phase: String, secs: float) -> void:
+	var t := 0.0
+	while tut.phase != phase and t < secs:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+
+func read_all(tut: Node) -> void:   # phone open until the stranger has sent everything
+	var t := 0.0
+	while not tut.pending.is_empty() and t < 30.0:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+
+func walk_dist(pl: Node3D, n: int) -> float:
+	var p0: Vector3 = pl.global_position
+	Input.action_press("move_forward")
+	await frames(n)
+	Input.action_release("move_forward")
+	return pl.global_position.distance_to(p0)
+
+# Tutorial: a bright afternoon with everyone at work -> the stranger's texts hold Tong still until
+# read -> talk to everyone -> night falls and they leave -> the rumour texts -> the mirror ends it.
+func t_tutorial() -> void:
+	Game.new_game()
+	Game.tutorial = true
+	var lvl: Node3D = load("res://scenes/stages/tutorial.tscn").instantiate()
+	add_child(lvl)
+	await frames(5)
+	var tut: Node = lvl.get_node("Tutorial")
+	var pl = lvl.player
+	var crew: Array = tut.coworkers()
+	check(lvl.npcs.is_empty() and crew.size() == 4 and crew.all(func(c): return c.lines.size() > 0), "tutorial: four friendly coworkers with something to say, nobody hunting")
+	check(lvl.gloom == 0.0 and lvl._env.fog_density == 0.0 and Game.clock == tut.day_clock, "tutorial starts as a bright afternoon (%s)" % Game.clock)
+	await shot("tutorial_day.png")
+	var sweeper: Node3D = crew[0]
+	var s0 := sweeper.global_position
+	await wait_phase(tut, "read1", 4.0)
+	await get_tree().create_timer(2.5).timeout
+	check(sweeper.global_position.distance_to(s0) > 0.5, "coworkers get on with their work (ป้าพร mops along)")
+	check(Game.phone_lock and Game.threads.get(tut.sender, []).size() == 1, "the stranger's first text arrives and holds Tong still; the rest wait for the phone")
+	check(await walk_dist(pl, 20) < 0.05, "can't walk until the phone has been read")
+	Game.event.emit("phone")   # what main.gd open_phone / close_phone do
+	await get_tree().create_timer(3.4).timeout
+	var got: int = Game.threads[tut.sender].size()
+	check(got >= 2 and got < tut.controls.size() and Game.typing, "phone open: the texts come one at a time (%d so far), still typing" % got)
+	Game.phone_lock = false
+	Game.event.emit("phone_read")
+	await frames(2)
+	check(Game.phone_lock and tut.phase == "read1", "closed before the last text: still held")
+	Game.event.emit("phone")
+	await read_all(tut)
+	check(Game.threads[tut.sender].size() == tut.controls.size() and not Game.typing, "all %d texts in, nothing more being typed" % tut.controls.size())
+	Game.phone_lock = false
+	Game.event.emit("phone_read")
+	await frames(2)
+	check(tut.phase == "meet" and await walk_dist(pl, 20) > 0.3, "read it: free to walk, go and say hello")
+	var said := []
+	Game.message.connect(func(text, _secs): said.append(text))
+	for c in crew:
+		check(c.usable() and c.prompt().contains(c.display_name), "%s can be talked to" % c.display_name)
+		c.interact()
+	check(said.size() == 4 and said[0] == sweeper.lines[0], "each coworker answers with their own line")
+	await frames(3)
+	check(tut.phase == "dusk", "said hello to everyone: the afternoon starts to go")
+	tut.dusk_secs = 2.0
+	await wait_phase(tut, "night", 20.0)
+	check(lvl.gloom == 1.0 and lvl._env.fog_density > 0.0 and tut.coworkers().is_empty() and Game.clock == tut.night_clock, "night (%s): lights down, fog in, everyone gone home" % Game.clock)
+	await get_tree().create_timer(0.6).timeout   # the lights blink as the last one goes
+	await shot("tutorial_night.png")
+	await wait_phase(tut, "read2", 6.0)
+	Game.event.emit("phone")
+	await read_all(tut)
+	check(Game.phone_lock and Game.threads[tut.sender].size() == tut.controls.size() + tut.rumour.size(), "alone at night: the rumour texts hold him again")
+	Game.phone_lock = false
+	Game.event.emit("phone_read")
+	await frames(2)
+	check(tut.phase == "mirror", "read: off to the washroom mirror")
+	# the mirror: Tong's reflection, then the ending
+	var plane: Node3D = tut.plane
+	pl.global_position = plane.global_position - plane.global_basis.z * 4.5 + Vector3(1.0, 0.1, 0.0)   # inside the door, short of the spot
+	pl.rotation.y = atan2(-plane.global_basis.z.x, -plane.global_basis.z.z)
+	await frames(5)
+	var back: Vector3 = plane.to_local(tut._reflection.global_position)
+	check(tut._reflection.visible and absf(back.z - 4.5) < 0.1 and absf(back.x - 1.0) < 0.1, "Tong's reflection stands as far behind the glass as he is in front")
+	check(tut.phase == "mirror", "nothing happens until he walks up to it")
+	Game.skip_cutscenes = false
+	tut.hold_secs = 0.5
+	var cleared := []
+	Game.stage_cleared.connect(func(): cleared.append(1), CONNECT_ONE_SHOT)
+	pl.global_position = tut.spot.global_position - Vector3.UP * 0.9
+	await wait_phase(tut, "end", 2.0)
+	check(tut.phase == "end" and Game.in_cutscene, "at the mirror: the ending cutscene takes over")
+	await get_tree().create_timer(1.3).timeout
+	var behind := func() -> Array: return lvl.get_children().filter(func(b): return b is Body and b != tut._reflection)
+	check(behind.call().is_empty(), "first it's just Tong and the mirror")
+	await shot("tutorial_mirror.png")
+	await get_tree().create_timer(tut.HIT_AT - 0.3).timeout   # hold + music, up to just before the hit
+	check(behind.call().size() == 4 and behind.call().all(func(b): return b.visible and plane.to_local(b.global_position).z > 2.0), "the four of them have faded in behind his reflection")
+	check(absf(pl.cam.rotation.x) < 0.02 and plane.to_local(pl.global_position).z < -1.0, "Tong is held in front of the glass, looking straight in")
+	await shot("tutorial_behind.png")
+	var t := 0.0
+	while cleared.is_empty() and t < 6.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	check(cleared.size() == 1, "cut to black, then the tutorial is over")
+	Game.skip_cutscenes = true
+	await done(lvl)
+	check(not Game.in_cutscene and not Game.phone_lock and Game.clock == "", "tutorial leaves nothing switched on behind it")
+	Game.tutorial = false
+
+# The same opening through main.gd: the HUD says to read the phone, and closing the phone is what
+# frees Tong.
+func t_tutorial_phone() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main.start_game()
+	await get_tree().create_timer(1.0).timeout
+	var tut: Node = main.level.get_node("Tutorial")
+	await wait_phase(tut, "read1", 4.0)
+	await get_tree().create_timer(2.5).timeout
+	check(main.lock_hint.visible and main.clock_text() == tut.day_clock and main.drone.volume_db < -50.0, "HUD: read-your-phone prompt, afternoon clock, no dread drone by day")
+	await shot("tutorial_lock.png")
+	main.open_phone()
+	await pframes(3)
+	check(main.phone_foot.text.begins_with("กำลังพิมพ์"), "phone shows the stranger is still typing")
+	await read_all(tut)
+	await pframes(4)
+	check(Game.phone_lock and not main.lock_hint.visible and main.phone_thread == tut.sender and main.phone_list.get_child_count() == tut.controls.size(), "phone opens on the stranger's texts; Tong is still held while reading")
+	await shot("tutorial_phone.png")
+	main.close_phone()
+	await pframes(3)
+	check(not Game.phone_lock and tut.phase == "meet" and not main.lock_hint.visible, "closing the phone frees Tong")
+	var guard: Node3D = tut.coworkers()[3]
+	var pl = main.level.player
+	pl.global_position = guard.global_position + Vector3(-1.8, 0.1, 0)
+	pl.rotation.y = -PI / 2   # facing +x: him
+	await frames(20)
+	check(pl.focus() == guard and main.prompt.text.contains(guard.display_name), "look at a coworker: [E] talk prompt")
+	await shot("tutorial_meet.png")
+	var day: String = tut.day_clock
+	main.skip_tutorial()
+	await get_tree().create_timer(1.0).timeout
+	check(not Game.tutorial and Game.stage == 0 and not Game.phone_lock and main.clock_text() != day, "skipping the tutorial from the pause menu starts stage 1 clean")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+# Regression: a room-locked mob (home_radius) must give up at the edge of its territory instead
+# of parking there mid-chase - else a doorway it got lured past stays permanently blocked.
+func t_room_lock() -> void:
+	var lvl := await make(["##############", "#N...........#", "#...........P#", "##############"])
+	var n: Npc = lvl.npcs[0]
+	n.home_radius = 6.0
+	var pl = lvl.player
+	pl.global_position = n.home + Vector3(2, 0, 0)   # well inside its own room
+	n.spot()
+	await frames(5)
+	check(n.state == "chase", "spotted: dummy gives chase")
+	pl.global_position = lvl.cell_pos(Vector2i(12, 2)) + Vector3.UP * 0.1   # far end, well outside home_radius
+	var t := 0.0
+	var max_d := 0.0
+	while n.state == "chase" and t < 3.0:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+		max_d = maxf(max_d, Vector2(n.global_position.x - n.home.x, n.global_position.z - n.home.z).length())
+	check(n.state == "patrol" and n.alert == 0.0, "player runs out of the room: dummy gives up the chase instead of camping the doorway")
+	check(max_d <= n.home_radius + 0.5, "dummy never leaves its own room while chasing (max %.1fm from home)" % max_d)
+	await done(lvl)
+# The screen falls apart as Social Battery drops.
+func t_vhs() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)
+	await get_tree().create_timer(0.5).timeout
+	var calm: float = main.fear()
+	Game.battery = 8.0
+	await get_tree().create_timer(2.5).timeout
+	check(main.fear() > calm + 0.5 and main.screen_fx.get_shader_parameter("fear") > 0.5, "low Social Battery: screen distortion ramps up")
+	await shot("fear.png")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# ---------- real scenes, played like a player: walk up, look, press the real E key ----------
+
+# Stand in front of an item and look at it (as if the player walked up to it).
+func face_item(pl: Node3D, item: Node3D, dist := 1.3) -> void:
+	var map := pl.get_world_3d().navigation_map
+	var best := Vector3.ZERO
+	var best_d := INF
+	for a in 16:   # an open floor spot around the item, at about `dist`
+		var dir := Vector3(cos(a * TAU / 16), 0, sin(a * TAU / 16))
+		var p := NavigationServer3D.map_get_closest_point(map, item.global_position + dir * dist)
+		var d := absf(Vector2(p.x - item.global_position.x, p.z - item.global_position.z).length() - dist)
+		var q := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 1.55, item.global_position, 1)
+		if d < best_d and pl.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			best_d = d
+			best = p
+	pl.global_position = Vector3(best.x, 0.05, best.z)
+	var to: Vector3 = item.global_position - (pl.global_position + Vector3.UP * 1.55)
+	pl.rotation.y = atan2(-to.x, -to.z)
+	pl.cam.rotation.x = atan2(to.y, Vector2(to.x, to.z).length())
+
+# Stage 1: the IT ticket says where the 3 documents are -> you can see it on screen.
+func t_real_notes() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)
+	await get_tree().create_timer(1.0).timeout
+	main.show_screen("")
+	get_tree().paused = false
+	var pl = main.level.player
+	for n in main.level.npcs:
+		n.set_physics_process(false)
+	var ticket = kinds(main.level, "read").filter(func(n): return n.reveal == "goals")[0]
+	face_item(pl, ticket)
+	await frames(3)
+	check(pl.focus() == ticket and main.prompt.text.contains("อ่าน"), "real stage 1: standing at the IT ticket shows the [E] prompt")
+	await shot("real_note_0_prompt.png")
+	await press(KEY_E)
+	await pframes(2)
+	check(main.note_panel.visible and main.note_labels.title.text == ticket.title, "real stage 1: E opens the note on screen")
+	await shot("real_note_1_open.png")
+	var docs := kinds(main.level, "doc")
+	check(docs.all(func(d): return d.find_children("RevealMarker", "", true, false).size() == 1), "real stage 1: all 3 documents get a marker")
+	var doc: Node3D = docs[0]
+	face_item(pl, doc, 6.0)   # walk off and look toward a document
+	await pframes(4)
+	check(not main.note_panel.visible, "real stage 1: note closes when you walk away")
+	await shot("real_note_2_marker.png")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# Stage 2: brew the coffee -> ป้าพร comes for you; the way out is shown.
+func t_real_chase() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(1)
+	await get_tree().create_timer(1.0).timeout
+	main.show_screen("")
+	get_tree().paused = false
+	var pl = main.level.player
+	var s: Npc = main.level.npcs[0]
+	var coffee = kinds(main.level, "coffee_goal")[0]
+	face_item(pl, coffee)
+	await frames(3)
+	check(pl.focus() == coffee, "real stage 2: standing at the coffee machine (setup)")
+	await press(KEY_E)
+	await pframes(2)
+	check(main.level.exit_open and main.level.raging, "real stage 2: brewing the coffee starts the chase")
+	await shot("real_chase_0_brew.png")
+	var d0 := s.global_position.distance_to(pl.global_position)
+	await get_tree().create_timer(3.0).timeout
+	var d1 := s.global_position.distance_to(pl.global_position)
+	check(s.raging and s.state == "chase" and d1 < d0 - 3.0, "real stage 2: ป้าพร runs at you (%.0f m -> %.0f m)" % [d0, d1])
+	var to: Vector3 = s.global_position - pl.global_position
+	pl.rotation.y = atan2(-to.x, -to.z)
+	pl.cam.rotation.x = 0.0
+	await pframes(3)
+	await shot("real_chase_1_coming.png")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# Floor must not swim: creep forward 2 cm per frame, measure how much the floor (lower part of the
+# screen) changes frame to frame. With per-vertex snapping on the floor quads this jumped around.
+func t_floor_still() -> void:
+	var lvl := stage_scene(0)
+	add_child(lvl)
+	lvl.set_process(false)   # the dying tube's random flicker isn't the swim being measured
+	for n in lvl.npcs:
+		n.set_physics_process(false)
+	var pl = lvl.player
+	pl.set_physics_process(false)
+	pl.cam.rotation.x = -0.5   # look at the floor
+	await frames(10)
+	var prev: Image = null
+	var diffs := []
+	for i in 12:
+		pl.global_position += -pl.global_basis.z * 0.02
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		img.convert(Image.FORMAT_L8)
+		var w := img.get_width()
+		var h := img.get_height()
+		if prev:
+			var d := 0.0
+			for y in range(int(h * 0.6), h, 4):
+				for x in range(0, w, 4):
+					d += absf(img.get_pixel(x, y).r - prev.get_pixel(x, y).r)
+			diffs.append(d / ((h * 0.4 / 4) * (w / 4)))
+		prev = img
+	diffs.sort()
+	print("FLOOR frame diff median=%.4f max=%.4f" % [diffs[diffs.size() / 2], diffs.back()])
+	check(diffs.back() < 0.004, "floor doesn't swim when you move a little (max frame diff %.4f)" % diffs.back())
+	await done(lvl)
+
+# Standing still in the real game screen (VHS overlay on, calm): the floor should be still too.
+func t_still_screen() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)
+	await get_tree().create_timer(5.0).timeout   # banner gone
+	main.show_screen("")
+	get_tree().paused = false
+	for n in main.level.npcs:
+		n.set_physics_process(false)
+	main.level.lights[0].visible = true
+	main.level.set_process(false)   # (no dying-tube flicker / scares: only the screen effect counts)
+	var pl = main.level.player
+	pl.cam.rotation.x = -0.5
+	await pframes(10)
+	var prev: Image = null
+	var diffs := []
+	for i in 12:
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		img.convert(Image.FORMAT_L8)
+		var w := img.get_width()
+		var h := img.get_height()
+		if prev:
+			var d := 0.0
+			for y in range(int(h * 0.55), int(h * 0.85), 3):
+				for x in range(0, w, 3):
+					d += absf(img.get_pixel(x, y).r - prev.get_pixel(x, y).r)
+			diffs.append(d / ((h * 0.3 / 3) * (w / 3)))
+		prev = img
+	diffs.sort()
+	print("STILL frame diff median=%.4f max=%.4f" % [diffs[diffs.size() / 2], diffs.back()])
+	check(diffs.back() < 0.004, "standing still, calm: the screen is still (max frame diff %.4f)" % diffs.back())
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()

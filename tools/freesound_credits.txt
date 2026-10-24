@@ -1,0 +1,21 @@
+heartbeat.ogg | https://freesound.org/people/Cloud-10/sounds/688735/ | Cloud-10 | CC0
+chase.ogg | https://freesound.org/people/Fission9/sounds/490958/ | Fission9 | CC0
+drone.ogg | https://freesound.org/people/CVLTIV8R/sounds/799354/ | CVLTIV8R | CC0
+door_slam.ogg | https://freesound.org/people/tlcolbe/sounds/406635/ | tlcolbe | CC0
+elevator_ding.ogg | https://freesound.org/people/XfiXy8/sounds/467299/ | XfiXy8 | CC0
+chair_creak.ogg | https://freesound.org/people/nayahnaidoo/sounds/656038/ | nayahnaidoo | CC0
+printer.ogg | https://freesound.org/people/Kleber_KGF/sounds/529987/ | Kleber_KGF | CC0
+whisper.ogg | https://freesound.org/people/BFMGames/sounds/171102/ | BFMGames | CC0
+knock.ogg | https://freesound.org/people/Ligidium/sounds/193873/ | Ligidium | CC0
+footsteps_far.ogg | https://freesound.org/people/DigPro120/sounds/811940/ | DigPro120 | CC0
+squeak.ogg | https://freesound.org/people/baidonovan/sounds/187343/ | baidonovan | CC0 | Rubber Shoe Squeak.wav
+hum.ogg | https://freesound.org/people/PSsoundproject/sounds/183565/ | PSsoundproject | CC0 | woman humming
+mutter.ogg | https://freesound.org/people/sickfin/sounds/711358/ | sickfin | CC0 | Nervous Old Man or Middle-aged Man
+techspeak.ogg | https://freesound.org/people/Lancemartin/sounds/817526/ | Lancemartin | CC0 | Man going crazy. gibberish talk
+guard_talk.ogg | https://freesound.org/people/szegvari/sounds/540060/ | szegvari | CC0 | Whispering Man
+breathing.ogg | https://freesound.org/people/Nox_Sound/sounds/554906/ | Nox_Sound | CC0 | Male_Breath_Scared_Frozen_Loop_Stereo.wav
+gasp.ogg | https://freesound.org/people/jayfrosting/sounds/333402/ | jayfrosting | CC0 | Gasp 5.wav
+sting.ogg | https://freesound.org/people/egomassive/sounds/536757/ | egomassive | CC0 | GaspM.ogg
+tools/jumpscare_src/impact_1b.ogg | https://freesound.org/people/MathewHenry/sounds/636880/ | MathewHenry | CC0 | Impact 1b
+tools/jumpscare_src/cinematic_impact.ogg | https://freesound.org/people/Johnnie_Holiday/sounds/671375/ | Johnnie_Holiday | CC0 | FX Cinematic Impact.wav
+tools/jumpscare_src/monster_scream.ogg | https://freesound.org/people/DavidJohnson2019/sounds/794212/ | DavidJohnson2019 | CC0 | Monster Scream
