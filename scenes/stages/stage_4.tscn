@@ -1458,7 +1458,7 @@ size = Vector3(1.8, 2, 1.8)
 
 [node name="Stage4" type="Node3D" unique_id=1570813945]
 script = ExtResource("1_omewy")
-stage_index = 3
+stage_index = 6
 flicker = Vector2(22, 38)
 finale = true
 

@@ -23,6 +23,8 @@
 #         ["peephole", on]           door-viewer vignette
 #         ["tint", color]            every ceiling light takes this colour
 #         ["part", who, part, rot]   set a body part's rotation (Vector3, radians): "Head", "ArmL"...
+#         ["warp", cell, look_cell]  put Tong there (mid-stage scenes: play picks up where he ran to)
+# A stage cutscene starts in Tong's own eyes, so a mid-stage one can begin with "look"/"walk".
 # Extras spawned in a stage intro are removed when it ends; in an ending they stay (and so does the
 # last shot, until the ending fades out: an ending has no player camera to go back to).
 class_name Cutscene
@@ -54,6 +56,8 @@ func play(lvl: Node3D, steps: Array) -> void:
 	cam.fov = 60
 	cam.near = 0.05
 	lvl.add_child(cam)
+	if lvl.get("player") and is_instance_valid(lvl.player):
+		cam.global_transform = lvl.player.cam.global_transform
 	cam.current = true
 	Game.in_cutscene = true
 	Game.cutscene_changed.emit(true)
@@ -194,6 +198,14 @@ func _run(st: Array) -> void:
 		"tint":
 			for l in level.lights:
 				l.light_color = st[1]
+		"warp":
+			var p: Node3D = level.player
+			if is_instance_valid(p):
+				p.global_position = cell(Vector3(st[1].x, 0.0, st[1].z))
+				var d := cell(st[2]) - p.global_position
+				p.rotation.y = atan2(-d.x, -d.z)
+				p.cam.rotation.x = 0.0
+				p.velocity = Vector3.ZERO
 		"part":
 			var w := _who(st[1])
 			var b: Body = w if w is Body else (w.body if w else null)

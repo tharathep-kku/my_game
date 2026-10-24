@@ -5,9 +5,13 @@
 #   figure      `preset` stands at At staring at Tong; gone when looked at (or after `secs`)
 #   behind      `preset` appears right behind Tong; turn around in time and it lunges, then gone
 #   sound       play `sfx` at At (a door slams down the hall, a knock inside a locker...)
+#   rush        `preset` stands at At... then sprints straight at Tong and is gone at arm's length
+#   face        their face slams full screen with a scream (nothing else happens)
+#   peek        `preset` leans out at At, head on its side; gone when looked at
+#   crawl       `preset` scuttles on all fours from At to the child marker "To", then gone
 extends Area3D
 
-@export_enum("lights_out", "figure", "behind", "sound") var kind := "sound"
+@export_enum("lights_out", "figure", "behind", "sound", "rush", "face", "peek", "crawl") var kind := "sound"
 ## Who appears (Story.BODIES key: guard, manager, sweeper, goblin, dummy, tong...)
 @export var preset := "guard"
 ## Sound name from assets/sfx (no extension). Plays with every kind.
@@ -29,6 +33,10 @@ func _ready() -> void:
 func at() -> Vector3:
 	var m := get_node_or_null("At")
 	return m.global_position if m else global_position
+
+func to() -> Vector3:
+	var m := get_node_or_null("To")
+	return m.global_position if m else at()
 
 func fire() -> void:
 	if done or Game.in_cutscene or Game.busy or not is_instance_valid(Game.level):

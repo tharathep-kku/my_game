@@ -88,6 +88,7 @@ var skip_tut_btn: Button
 var tut_hint: Label
 var beacons: Control   # on-screen markers: what a note revealed, the exit, the tutorial step
 var peephole: TextureRect   # door-viewer vignette (cutscene "peephole" step)
+var heart_label: Label      # heart rate (stages with "heartbeat": the doctor hears it)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -188,7 +189,7 @@ func start_stage() -> void:
 		if my_load != _load_id:
 			return
 		card.hide()
-	level = load("res://scenes/stages/tutorial.tscn" if Game.tutorial else "res://scenes/stages/stage_%d.tscn" % (Game.stage + 1)).instantiate()
+	level = load(Game.scene_path()).instantiate()
 	tut_hint.visible = Game.tutorial
 	view.add_child(level)
 	Game.save_progress()
@@ -416,7 +417,7 @@ func _ending_scene(id: String) -> void:
 	stop_play()
 
 func _on_flash(kind: String) -> void:
-	var colors: Array = {"hospital": [Color(0.9, 1.0, 1.0, 0.85)], "holy": [Color(0.55, 0.8, 1.0, 0.5)], "rage": [Color(0.8, 0.0, 0.0, 0.55)], "police": [Color(1, 0.1, 0.1, 0.5), Color(0.1, 0.2, 1, 0.5)]}.get(kind, [Color.WHITE])
+	var colors: Array = {"hospital": [Color(0.9, 1.0, 1.0, 0.85)], "holy": [Color(0.55, 0.8, 1.0, 0.5)], "rage": [Color(0.8, 0.0, 0.0, 0.55)], "police": [Color(1, 0.1, 0.1, 0.5), Color(0.1, 0.2, 1, 0.5)], "pa": [Color(0.6, 0.0, 0.05, 0.25), Color(0, 0, 0, 0), Color(0.6, 0.0, 0.05, 0.25)]}.get(kind, [Color.WHITE])
 	var t := create_tween()
 	for c in colors:
 		t.tween_property(flash_rect, "color", c, 0.05)
@@ -499,6 +500,8 @@ func clock_text() -> String:
 	if Game.clock != "":   # tutorial: the afternoon runs on into the night
 		return Game.clock
 	var start: String = Game.stage_data().get("clock", "23:47")
+	if "?" in start:   # the dream: no time there
+		return start
 	var mins := int(start.get_slice(":", 0)) * 60 + int(start.get_slice(":", 1)) + int(stage_time / 10.0)
 	return "%02d:%02d" % [(mins / 60) % 24, mins % 60]
 
@@ -712,7 +715,7 @@ func _gps_target() -> Dictionary:
 			best_d = d
 			best = it
 	if best:
-		return {"pos": best.global_position, "label": level.GOAL_NAMES[best.kind]}
+		return {"pos": best.global_position, "label": level.goal_name(best)}
 	return {}
 
 # Note reader: the paper's text + what reading it gave you. Walk away (or Esc/Tab) to close.
@@ -772,8 +775,17 @@ func _process(dt: float) -> void:
 		fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	if playing:
 		var t := tension()
-		heartbeat.volume_db = lerpf(heartbeat.volume_db, lerpf(-40.0, 0.0, t.x) if t.x > 0.0 else -60.0, dt * 3.0)
-		heartbeat.pitch_scale = 1.0 + 0.4 * t.y
+		var listening: bool = is_instance_valid(level) and level.data.get("heartbeat", false)
+		heart_label.visible = listening
+		if listening:   # the doctor's stage: you hear (and see) your own heart, the way he does
+			var bpm := 60 + int(Game.heart)
+			heart_label.text = "♥ %d BPM%s" % [bpm, "  — เขาได้ยิน!" if Game.heart > 65.0 else ""]
+			heart_label.add_theme_color_override("font_color", Color(1, 0.25, 0.25) if Game.heart > 65.0 else Color(1, 0.7, 0.7))
+			heartbeat.volume_db = lerpf(heartbeat.volume_db, lerpf(-24.0, 2.0, Game.heart / 100.0), dt * 3.0)
+			heartbeat.pitch_scale = 0.8 + Game.heart / 100.0 * 0.9
+		else:
+			heartbeat.volume_db = lerpf(heartbeat.volume_db, lerpf(-40.0, 0.0, t.x) if t.x > 0.0 else -60.0, dt * 3.0)
+			heartbeat.pitch_scale = 1.0 + 0.4 * t.y
 		chase_loop.volume_db = lerpf(chase_loop.volume_db, -4.0 if t.y > 0.0 else -60.0, dt * 2.0)
 		drone.volume_db = lerpf(-60.0, -12.0, level.gloom if is_instance_valid(level) else 1.0)   # no dread by daylight (tutorial)
 		var f: float = screen_fx.get_shader_parameter("fear")
@@ -837,6 +849,10 @@ func _on_hidden(kind: String) -> void:
 func _on_cutscene(on: bool) -> void:
 	if not on and not playing:   # an ending vignette: keep the letterbox and no HUD until it has faded out
 		return
+	if on:   # a mid-stage scene can start while he's reading something
+		close_phone()
+		note_panel.hide()
+		_close_keypad()
 	status.visible = not on
 	var t := create_tween().set_parallel()
 	t.tween_property(bars[0], "position:y", 0.0 if on else -90.0, 0.4)
@@ -994,6 +1010,10 @@ func _build_hud() -> void:
 	stamina_bar.position = sback.position
 	stamina_bar.size = sback.size
 	status.add_child(stamina_bar)
+	heart_label = _label("", 18, Color(1, 0.6, 0.6), status)
+	heart_label.position = Vector2(92, 86)
+	heart_label.size = Vector2(240, 26)
+	heart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	beacons = Control.new()
 	beacons.set_anchors_preset(PRESET_FULL_RECT)
 	beacons.mouse_filter = MOUSE_FILTER_IGNORE

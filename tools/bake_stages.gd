@@ -11,7 +11,7 @@ func _ready() -> void:
 	var only := args.filter(func(a): return a != "--force")
 	var jobs := []
 	for i in Story.STAGES.size():
-		jobs.append(["res://scenes/stages/stage_%d.tscn" % (i + 1), Story.STAGES[i], {"stage_index": i}, true])
+		jobs.append(["res://scenes/stages/%s.tscn" % Story.STAGES[i].scene, Story.STAGES[i], {"stage_index": i}, true])
 	jobs.append(["res://scenes/stages/tutorial.tscn", Story.TUTORIAL, {"stage_index": -2}, true])
 	for id in Story.ENDING_SCENES:
 		var d: Dictionary = Story.ENDING_SCENES[id].duplicate()

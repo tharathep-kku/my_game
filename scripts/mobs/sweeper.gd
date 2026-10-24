@@ -64,6 +64,18 @@ func cut_sprinkle() -> void:
 		t.tween_property(body.parts.ArmL, "rotation:x", -2.2, 0.15)
 	t.tween_callback(func(): Game.sfx("splash", self))
 
+# Cutscene: her back to you... and her head turns all the way round to look at you, joints cracking.
+func cut_unscrew() -> void:
+	body.pose(0.0, "idle")
+	var t := create_tween()
+	for i in 3:
+		t.tween_callback(Game.sfx.bind("creak%d" % (i + 1), self, 0.0, 0.6))
+		t.tween_property(body.parts.Head, "rotation:y", PI * (i + 1) / 3.0, 0.32).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+		t.tween_interval(0.12)
+	t.tween_property(body.parts.Head, "rotation:z", 0.35, 0.2)
+	t.tween_property(body.parts.ArmL, "rotation:x", -3.0, 0.15)
+	t.parallel().tween_property(body.parts.ArmR, "rotation:x", -2.6, 0.15)
+
 func anger() -> void:
 	if state != "chase" and not Game.busy:
 		spot()

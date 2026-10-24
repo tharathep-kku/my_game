@@ -83,6 +83,14 @@ func cut_pop() -> void:
 		Game.sfx("techspeak", self)
 		Game.sfx("sting", self, -6.0))
 
+# Cutscene: drops down onto all fours.
+func cut_crawl() -> void:
+	_stop_writhe()
+	_free_twin()
+	body.parts.Head.position.x = 0.0
+	_posture(false)
+	Game.sfx("techspeak", self, 0.0, 0.6)
+
 var _writhe: Tween    # cut_writhe's twitch loop
 var _twin: Node3D     # cut_split's second head
 

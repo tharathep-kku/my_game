@@ -4,7 +4,13 @@
 extends Node
 
 func stage_scene(i: int) -> Node3D:   # the real, editor-editable stage
-	return load("res://scenes/stages/stage_%d.tscn" % (i + 1)).instantiate()
+	return load("res://scenes/stages/%s.tscn" % Game.STAGES[i].scene).instantiate()
+
+func idx(scene: String) -> int:   # stage index of a scene file (the order in story.gd can change)
+	for i in Game.STAGES.size():
+		if Game.STAGES[i].scene == scene:
+			return i
+	return -1
 var fails := 0
 
 func _ready() -> void:
@@ -63,6 +69,11 @@ func _ready() -> void:
 	await t_exit()
 	await t_flow()
 	await t_lineup()
+	await t_loop()
+	await t_hr()
+	await t_heart()
+	await t_new_scares()
+	await t_mid_scenes()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -120,16 +131,17 @@ func t_stages() -> void:
 		check(data.map.all(func(r): return r.length() == w), "stage %d map rows equal width" % (i + 1))
 		var lvl := stage_scene(i)
 		add_child(lvl)
-		check(lvl.npcs.size() == 1 and lvl.npcs[0].route.size() >= 1, "stage %d has its coworker + route" % (i + 1))
-		var goals := lvl.find_children("*", "Area3D", true, false).filter(func(a): return a.get("kind") in ["doc", "note", "pc", "coffee_goal", "scanner", "fuse", "fuse_box"])
-		check(goals.size() == data.goal, "stage %d goal items = %d" % [i + 1, data.goal])
+		var looping: bool = data.has("loop")   # fire stairs: nobody hunts you there, the corridor itself does
+		check(lvl.npcs.size() == (0 if looping else 1) and (looping or lvl.npcs[0].route.size() >= 1), "stage %d has its coworker + route" % (i + 1))
+		var goals := lvl.find_children("*", "Area3D", true, false).filter(func(a): return a.get("kind") in ["doc", "note", "pc", "coffee_goal", "scanner", "fuse", "fuse_box", "file"])
+		check(goals.size() == (0 if looping else data.goal), "stage %d goal items = %d" % [i + 1, data.goal])
 		check(lvl.exit_open == (data.goal == 0), "stage %d exit locked until goal" % (i + 1))
-		var n: Npc = lvl.npcs[0]
-		var p0 := n.global_position
+		var n: Npc = null if looping else lvl.npcs[0]
+		var p0 := n.global_position if n else Vector3.ZERO
 		for f in 90:
 			await get_tree().physics_frame
 		check(Game.player.global_position.y > -1.0, "stage %d player stands on floor" % (i + 1))
-		if i < 3:
+		if n and not n is Guard:   # the guard waits at his monitors for the dark
 			check(n.global_position.distance_to(p0) > 0.3, "stage %d coworker moves" % (i + 1))
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png("user://stage_%d.png" % (i + 1))
@@ -265,8 +277,8 @@ func t_goblin_hide() -> void:
 # Lockers dropped into a stage by hand (assets/models/locker.tscn) are hide spots with no setup.
 func t_locker() -> void:
 	Game.new_game()
-	Game.stage = 2
-	var lvl := stage_scene(2)
+	Game.stage = idx("stage_3")
+	var lvl := stage_scene(Game.stage)
 	add_child(lvl)
 	await frames(10)
 	for n in lvl.npcs:
@@ -326,10 +338,10 @@ func t_flow() -> void:
 	check(not Game.tutorial and Game.stage == 0 and main.level.npcs.size() == 1, "finishing the tutorial starts stage 1")
 	Game.say("หัวหน้าธนา: งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ~?")
 	await shot("hud.png")
-	for i in 3:
+	for i in Game.STAGES.size() - 1:
 		Game.stage_clear()
 		await get_tree().create_timer(1.5).timeout
-		check(Game.stage == i + 1 and main.level.npcs.size() == 1, "advanced to stage %d" % (i + 2))
+		check(Game.stage == i + 1 and main.level.npcs.size() == (0 if Game.stage_data().has("loop") else 1), "advanced to stage %d" % (i + 2))
 	await shot("stage4_main.png")
 	Game.phone_taken = true
 	Game.hints = Game.EVIDENCE_NEEDED
@@ -641,16 +653,21 @@ func t_reach() -> void:
 			if Vector2(q.x - p.x, q.z - p.z).length() > 1.8 or path.is_empty() or path[path.size() - 1].distance_to(q) > 0.3:
 				bad.append("%s@%.0f,%.0f" % [t.name, p.x, p.z])
 		check(bad.is_empty(), "stage %d: every item/exit reachable %s" % [i + 1, bad])
-		var n: Npc = lvl.npcs[0]
-		var missing: Array = data.get("intro", []).filter(func(st): return st[0] == "act" and not n.has_method(st[1]))
-		check(missing.is_empty(), "stage %d: intro actions exist on %s" % [i + 1, n.display_name])
+		var n: Npc = lvl.npcs[0] if not lvl.npcs.is_empty() else null
+		var scenes: Array = data.get("intro", []) + data.get("rage_scene", [])
+		for k in data.get("item_scenes", {}):
+			scenes += data.item_scenes[k]
+		var missing: Array = scenes.filter(func(st): return st[0] == "act" and not (n and n.has_method(st[1])))
+		check(missing.is_empty(), "stage %d: intro actions exist on %s" % [i + 1, n.display_name if n else "-"])
 		check(data.get("signs", []).size() == data.map.reduce(func(a, r): return a + r.count("r"), 0), "stage %d: one sign text per r" % (i + 1))
 		check(data.get("notes", []).size() == data.map.reduce(func(a, r): return a + r.count("e"), 0), "stage %d: one note per e" % (i + 1))
 		check(data.get("triggers", []).size() == data.map.reduce(func(a, r): return a + r.count("!"), 0), "stage %d: one trigger per !" % (i + 1))
 		check(data.get("scares", []).size() == data.map.reduce(func(a, r): return a + r.count("J"), 0), "stage %d: one scare per J" % (i + 1))
 		check(data.get("postits", []).size() == data.map.reduce(func(a, r): return a + r.count("n"), 0), "stage %d: one post-it text per n" % (i + 1))
 		var notes := kinds(lvl, "read")
-		check(notes.all(func(nt): return nt.title != "" and nt.text != "") and notes.any(func(nt): return nt.reveal != "none" or nt.evidence), "stage %d: notes have text and give something" % (i + 1))
+		check(notes.all(func(nt): return nt.title != "" and nt.text != "") and (data.has("loop") or notes.any(func(nt): return nt.reveal != "none" or nt.evidence)), "stage %d: notes have text and give something" % (i + 1))
+		check(data.get("items", []).size() == data.map.reduce(func(a, r): return a + r.count("y"), 0), "stage %d: one item per y" % (i + 1))
+		check(kinds(lvl, "file").all(func(it): return it.title != ""), "stage %d: goal items have names" % (i + 1))
 		check(data.map.reduce(func(a, r): return a + r.count("Z"), 0) == 1, "stage %d: one dream clue" % (i + 1))
 		await done(lvl)
 	# play each intro for a moment, then skip: control returns
@@ -810,7 +827,9 @@ func t_jumpscare() -> void:
 	var main: Control = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
 	await frames(2)
-	for i in 4:
+	for i in Game.STAGES.size():
+		if Game.STAGES[i].has("loop"):
+			continue
 		Game.new_game()
 		Game.stage = i
 		main.start_stage()
@@ -820,7 +839,7 @@ func t_jumpscare() -> void:
 		pl.global_position = n.global_position - n.global_basis.z * 1.0   # on its open path, like a catch
 		await frames(2)
 		Game.catch(n)
-		var dur: float = [0.5, 0.45, 0.5, 0.75][i]   # what each mob's jumpscare() returns
+		var dur: float = {"Manager": 0.5, "Sweeper": 0.45, "Goblin": 0.5, "Guard": 0.75, "Hr": 0.45, "Doctor": 0.4}[n.get_script().get_global_name()]   # what each mob's jumpscare() returns
 		await get_tree().create_timer(dur - 0.05).timeout
 		await shot("scare_%d_lunge.png" % (i + 1))
 		await get_tree().create_timer(0.15).timeout
@@ -829,8 +848,8 @@ func t_jumpscare() -> void:
 		await get_tree().create_timer(2.4).timeout
 		check(not Game.busy and not pl.frozen and not main.scare_face.visible and not AudioServer.is_bus_mute(AudioServer.get_bus_index("Amb")), "stage %d: jumpscare ends -> respawn, play + ambience resume" % (i + 1))
 		check(n.body.parts.Neck.rotation == Vector3.ZERO and n.body.scale == Vector3.ONE and pl.cam.h_offset == 0.0, "stage %d: coworker + camera reset after jumpscare" % (i + 1))
-		if i == 3:   # lights[0] is the dying tube that flickers on its own
-			check(main.level.lights.slice(1).all(func(l): return l.visible), "stage 4: guard's blackout restores the lights")
+		if n is Guard:   # lights[0] is the dying tube that flickers on its own
+			check(main.level.lights.slice(1).all(func(l): return l.visible), "guard's blackout restores the lights")
 	Game.battery = 10.0
 	Game.catch(main.level.npcs[0])
 	await get_tree().create_timer(4.5).timeout
@@ -854,9 +873,9 @@ func t_debug() -> void:
 	main.show_screen("menu")
 	main.show_screen("debug")
 	check(not main.debug_list.visible and main.debug_pw.text == "", "debug: locks again when reopened")
-	main._debug_start(2)
+	main._debug_start(idx("stage_3"))
 	await get_tree().create_timer(1.0).timeout
-	check(Game.stage == 2 and main.level != null and main.level.npcs[0] is Goblin and main.hud.visible, "debug: jump straight to stage 3")
+	check(Game.stage == idx("stage_3") and main.level != null and main.level.npcs[0] is Goblin and main.hud.visible, "debug: jump straight to the server room")
 	main.stop_play()
 	main.queue_free()
 	await frames(2)
@@ -1008,7 +1027,7 @@ func t_power() -> void:
 	var main: Control = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
 	await frames(2)
-	main._debug_start(2)
+	main._debug_start(idx("stage_3"))
 	await get_tree().create_timer(0.5).timeout
 	check(main.level.dark, "stage 3 starts in a blackout")
 	var early_target: Dictionary = main._gps_target()
@@ -1118,8 +1137,11 @@ func t_scares() -> void:
 	lvl = await make(["###################", "#P................#", "#.................#", "###################"], 1)
 	lvl.player.rotation.y = -PI / 2
 	Game.battery = 10.0
-	lvl._phantom_t = 0.0
-	await frames(2)
+	for f in 20:   # random spots: the navigation map can take a few frames to be ready under load
+		lvl._phantom_t = 0.0
+		await frames(1)
+		if lvl.cameos.size() > 0:
+			break
 	check(lvl.cameos.size() == 1, "low Social Battery: a phantom coworker appears in view")
 	await done(lvl)
 
@@ -1144,8 +1166,8 @@ func t_guard_dark() -> void:
 # Stage 4: พี่สมชาย waits in the security room, at his CCTV wall, until the dark or his phone going missing.
 func t_guard_room() -> void:
 	Game.new_game()
-	Game.stage = 3
-	var lvl := stage_scene(3)
+	Game.stage = idx("stage_4")
+	var lvl := stage_scene(Game.stage)
 	add_child(lvl)
 	await frames(10)
 	lvl.flicker = Vector2.ZERO   # no random blackout mid-test
@@ -1399,6 +1421,7 @@ func t_real_notes() -> void:
 	var ticket = kinds(main.level, "read").filter(func(n): return n.reveal == "goals")[0]
 	face_item(pl, ticket)
 	await frames(3)
+	await pframes(2)   # the prompt label updates on the next drawn frame (slow machines run several physics frames per frame)
 	check(pl.focus() == ticket and main.prompt.text.contains("อ่าน"), "real stage 1: standing at the IT ticket shows the [E] prompt")
 	await shot("real_note_0_prompt.png")
 	await press(KEY_E)
@@ -1520,4 +1543,181 @@ func t_still_screen() -> void:
 	main.stop_play()
 	main.queue_free()
 	await frames(2)
+	Game.new_game()
+
+
+# Fire stairs: right calls count up, a wrong one resets, every anomaly applies and cleans up,
+# the last right call opens the door at the end.
+func t_loop() -> void:
+	var i := idx("stage_stairs")
+	Game.new_game()
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(10)
+	var loop: Node = lvl.get_node("Loop")
+	var fwd: Area3D = loop.get_node("Forward")
+	var back: Area3D = loop.get_node("Back")
+	check(loop.anomaly == "" and loop.counter.text.contains("0 / 8"), "stairs: first time round is normal, counter at 0")
+	var walk_in := func(a: Area3D) -> void:
+		Game.player.global_position = Vector3(20, 0, 5)   # off the landing first, like walking the corridor
+		await frames(3)
+		Game.player.global_position = a.global_position - Vector3.UP
+		await get_tree().create_timer(0.8).timeout
+	await walk_in.call(fwd)
+	check(Game.goal_count == 1 and Game.player.global_position.distance_to(lvl.spawn) < 0.5, "stairs: nothing wrong + went on = right, back at the start")
+	loop._round(true)
+	loop.anomaly = "red"
+	loop._apply("red")
+	check(lvl.lights.all(func(l): return l.light_color.g < 0.2), "stairs: red anomaly tints the lights")
+	await walk_in.call(back)
+	check(Game.goal_count == 2 and lvl.lights.all(func(l): return l.light_color.g > 0.5), "stairs: something wrong + turned back = right, corridor back to normal")
+	loop._round(true)
+	await walk_in.call(back)
+	check(Game.goal_count == 0, "stairs: nothing wrong but turned back = wrong, back to 0")
+	var before := lvl.get_child_count()
+	for a in loop.ANOMALIES:
+		loop._round(true)
+		loop.anomaly = a
+		loop._apply(a)
+		await frames(2)
+	loop._round(true)
+	await frames(3)
+	check(lvl.get_child_count() <= before + 2, "stairs: every anomaly applies and is cleaned up (%d -> %d nodes)" % [before, lvl.get_child_count()])
+	loop._round(true)
+	loop.anomaly = "staff_end"
+	loop._apply("staff_end")
+	await shot("stairs_anomaly.png")
+	loop._round(true)
+	Game.goal_count = loop.laps - 1
+	await walk_in.call(fwd)
+	check(lvl.exit_open and Game.goal_count == loop.laps, "stairs: the last right call opens the exit")
+	await done(lvl)
+
+# HR: the PA call. Out in the open when it ends = she comes for you; hidden = she doesn't know.
+func t_hr() -> void:
+	var lvl := await make(["###########", "#P...H....#", "#.........#", "#.......I.#", "###########"], 1)
+	var hr: Npc = lvl.npcs[0]
+	check(hr is Hr, "HR builds from 'I'")
+	hr.view = 0.5   # can't see: only the PA call can give Tong away
+	hr.call_t = 0.0
+	await frames(3)
+	check(hr.calling > 0.0, "HR: PA call starts")
+	await get_tree().create_timer(hr.warn_secs + 0.4).timeout
+	check(hr.state == "chase", "HR: still in the open when the call ends -> she comes")
+	await done(lvl)
+	lvl = await make(["###########", "#P...H....#", "#.........#", "#.......I.#", "###########"], 1)
+	hr = lvl.npcs[0]
+	hr.view = 0.5
+	hr.call_t = 0.0
+	await frames(3)
+	lvl.player.hide_in(kinds(lvl, "hide")[0])
+	await get_tree().create_timer(hr.warn_secs + 0.4).timeout
+	check(hr.state != "chase", "HR: hidden in time -> she doesn't know where you are")
+	await done(lvl)
+
+# Hospital: running pounds the heart, holding your breath in a hide spot calms it, and a pounding
+# heart in range brings the doctor.
+func t_heart() -> void:
+	var lvl := await make(["#################", "#P..............#", "#...............#", "#H............U.#", "#################"], 1, {"heartbeat": true})
+	var doc: Npc = lvl.npcs[0]
+	check(doc is Doctor, "doctor builds from 'U'")
+	doc.set_physics_process(false)
+	Game.heart = 30.0
+	lvl.player.rotation.y = -PI / 2   # facing down the room (+x)
+	Input.action_press("sprint")
+	Input.action_press("move_forward")
+	await get_tree().create_timer(1.4).timeout
+	Input.action_release("sprint")
+	Input.action_release("move_forward")
+	check(Game.heart > 60.0, "heart: sprinting makes it pound (%.0f)" % Game.heart)
+	lvl.player.hide_in(kinds(lvl, "hide")[0])
+	Input.action_press("breath")
+	await get_tree().create_timer(2.0).timeout
+	Input.action_release("breath")
+	check(Game.heart < 45.0, "heart: holding your breath in a hide spot calms it (%.0f)" % Game.heart)
+	lvl.player.unhide()
+	doc.set_physics_process(true)
+	Game.heart = 95.0
+	doc.global_position = lvl.player.global_position + Vector3(8, 0, 0)
+	doc.listen_t = 0.0
+	await frames(3)
+	check(doc.state == "chase", "heart: pounding within earshot -> the doctor comes")
+	await done(lvl)
+
+# The new scare kinds run and clean up after themselves; "face" slams a face on screen.
+func t_new_scares() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)
+	await get_tree().create_timer(0.8).timeout
+	main.show_screen("")
+	var lvl: Node3D = main.level
+	for n in lvl.npcs:
+		n.set_physics_process(false)
+	var count := lvl.get_child_count()
+	lvl.scare({"kind": "face", "preset": "manager"})
+	await frames(2)
+	check(main.scare_face.visible, "face scare: their face slams on screen")
+	await get_tree().create_timer(0.8).timeout
+	check(not main.scare_face.visible, "face scare: and it's gone again")
+	lvl.scare({"kind": "rush", "preset": "staff"})
+	await frames(2)
+	check(lvl.get_child_count() == count + 1, "rush scare: someone appears ahead")
+	await get_tree().create_timer(3.5).timeout
+	check(lvl.get_child_count() <= count, "rush scare: gone after reaching you")
+	lvl.scare({"kind": "crawl", "preset": "goblin"})
+	lvl.scare({"kind": "peek", "preset": "manager_long", "secs": 0.5})
+	await get_tree().create_timer(2.0).timeout
+	check(lvl.get_child_count() <= count + 1, "crawl + peek scares clean up")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# Mid-stage cutscenes: brewing ป้าพร's coffee plays the chase scene, Tong ends up down the room and
+# the chase is on; flipping the breaker plays เต้'s scene.
+func t_mid_scenes() -> void:
+	Game.skip_cutscenes = false
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	Game.new_game()
+	Game.stage = idx("stage_2")
+	main._story_seen.append(Game.stage)
+	main.start_stage()
+	await get_tree().create_timer(3.0).timeout
+	Game.skip_cutscene.emit()   # past the intro
+	await get_tree().create_timer(1.0).timeout
+	var lvl: Node3D = main.level
+	var coffee = kinds(lvl, "coffee_goal")[0]
+	lvl.player.global_position = coffee.global_position + Vector3(1.2, -1.0, 0)
+	coffee.interact()
+	await get_tree().create_timer(1.5).timeout
+	check(Game.in_cutscene, "coffee: the chase cutscene plays")
+	await get_tree().create_timer(14.0).timeout
+	check(not Game.in_cutscene and lvl.raging, "coffee: after it the chase is on")
+	check(lvl.player.global_position.x > 15.0, "coffee: Tong ran off down the room (warp)")
+	main.stop_play()
+	await frames(2)
+	Game.new_game()
+	Game.stage = idx("stage_3")
+	main._story_seen.append(Game.stage)
+	main.start_stage()
+	await get_tree().create_timer(3.0).timeout
+	Game.skip_cutscene.emit()
+	await get_tree().create_timer(1.0).timeout
+	lvl = main.level
+	var br = kinds(lvl, "breaker")[0]
+	lvl.player.global_position = br.global_position + Vector3(-1.2, -1.2, 0)
+	br.interact()
+	await get_tree().create_timer(1.5).timeout
+	check(Game.in_cutscene, "breaker: เต้'s cutscene plays")
+	Game.skip_cutscene.emit()
+	await get_tree().create_timer(0.5).timeout
+	check(not Game.in_cutscene and not lvl.dark, "breaker: skipping it returns control, lights on")
+	main.queue_free()
+	await frames(2)
+	Game.skip_cutscenes = true
 	Game.new_game()

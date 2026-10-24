@@ -6041,7 +6041,7 @@ size = Vector3(1.8, 2, 1.8)
 
 [node name="Stage3" type="Node3D" unique_id=1180016469]
 script = ExtResource("1_k071u")
-stage_index = 2
+stage_index = 3
 dark_start = true
 
 [node name="@WorldEnvironment@943" type="WorldEnvironment" parent="." unique_id=1611822223]

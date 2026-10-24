@@ -28,7 +28,9 @@ WASD move · Shift sprint (uses stamina) · C / Ctrl crouch (toggle, silent) · 
 - **Hiding:** use lockers (H), toilet stalls (W) and the space under desks. If a coworker saw you get in, they come and open it. If one stands right next to your hiding spot, hold your breath (Space) until your stamina runs out.
 - **Distractions:** pick up a mug or stapler and throw it. Coworkers go to check the noise.
 - **Notes (E to read):** every note has a real use. It can mark the stage's goals (yellow arrows, visible through walls), show hide spots (green boxes), or show where the coworker is (red dot). Notes about พี่สมชาย count as **evidence** for Ending A.
-- **Scripted scares:** lights dying, someone standing at the end of a corridor, someone right behind you, knocking from inside a toilet stall. Placed per stage as `Scares` nodes.
+- **Scripted scares:** lights dying, someone standing at the end of a corridor, someone right behind you, knocking from inside a toilet stall, someone sprinting at your face (`rush`), a face slammed full screen (`face`), a head round a corner (`peek`), something scuttling past on all fours (`crawl`). Placed per stage as `Scares` nodes, plus `goal_scares` (the n-th goal) in `story.gd`.
+- **Story cutscenes mid-stage:** brewing ป้าพร's coffee, flipping the breaker, putting the fuse in: each plays a short scene (the coworker turns on you, Tong runs) and play picks up where he ran to.
+- **Night faces:** after dark every coworker has a night model (glowing eyes, the grin torn to the ears, hair over the face...). By day, in the intro, they look like themselves.
 - **Phone:** chats from แม่, หัวหน้าธนา, the IT group and an unknown number tell the story. The flashlight drains phone battery, and power banks refill it.
 
 ## Stages (each ~30x22 cells = 60x44 m, multi-room)
@@ -36,16 +38,22 @@ WASD move · Shift sprint (uses stamina) · C / Ctrl crouch (toggle, silent) · 
 |---|---|---|---|---|
 | 0 | บทนำ: เย็นวันศุกร์ (the office by day) | all four, friendly | read the texts, talk to everyone, go to the mirror | Day turns to night; nobody hunts you yet |
 | 1 | แผนกบัญชี | หัวหน้าธนา | 3 เอกสารงบดุล | Classic stealth: squeaky shoes = he's close, he stretches his neck over partitions |
-| 2 | โถงทางเดิน & โซนพัก | ป้าพร | กาแฟ 1 แก้ว | Don't step on the wet trail. **The coffee was hers:** once you brew it she chases you, and you run for the elevator (checkpoint at the coffee) |
-| 3 | ห้องเซิร์ฟเวอร์ | เต้ | breaker + 3 post-its + PC | **Whole floor blacked out**, only red emergency lights. Flip the breaker (loud), collect 3 post-its whose digits make the code, type it on the PC keypad. A wrong code sets off an alarm |
-| 4 | ออกจากบริษัท | พี่สมชาย | hold the fingerprint scanner | He only moves when you're not looking, and **the lights die at random** (keep your flashlight on him). **Finale:** holding the scanner (3 s, you have to look away from him) brings everyone down the elevator after you |
+| 2 | โถงทางเดิน & โซนพัก | ป้าพร | กาแฟ 1 แก้ว | Don't step on the wet trail. **The coffee was hers:** her head turns all the way round, then she chases you to the elevator (cutscene, checkpoint) |
+| 3 | ฝ่ายบุคคล & ห้องประชุม (new) | พี่แหม่ม HR | แฟ้มประวัติ · รายงานประชุม · บัตรลิฟต์ | **PA roll call:** the chime, then she calls Tong's name. Not hidden when it ends = she knows where you are. Your HR file says you've been on sick leave for 3 days |
+| 4 | ห้องเซิร์ฟเวอร์ | เต้ | breaker + 3 post-its + PC | **Whole floor blacked out**, only red emergency lights. Flip the breaker (loud, and he's in the doorway), collect 3 post-its whose digits make the code, type it on the PC keypad |
+| 5 | บันไดหนีไฟ (new) | nobody... | 8 laps | **The corridor loops.** Something wrong this time round (18 kinds: a faceless man at the end, red lights, a poster that changed, the clock at 04:44, a door left open...) = turn back; nothing wrong = go on. 8 right in a row. Some of them come at you |
+| 6 | ตึกผู้ป่วย 7 (new, the dream) | หมอ | 3 แฟ้มผู้ป่วย → bed 4 | **The doctor hears your heart.** Running and fear make it pound (♥ BPM on the HUD); creep, hide and hold your breath to calm it |
+| 7 | ออกจากบริษัท | พี่สมชาย | fuse → panel → scanner | He only moves when you're not looking, and **the lights die at random**. **Finale:** holding the scanner brings everyone down the elevator after you |
+
+Rough first-play time: about 2–3 h (the stairs alone take 20–40 min); playing on for all four endings: around 5 h.
 
 ## Endings (how to reach each)
 - **Evidence = noticing พี่สมชาย:** answer a ringing desk phone (one per stage), spot him standing far away in stages 1–3 and keep looking until he vanishes, or read notes about him (building notice, IT ticket, repair log, Admin log, guard log, CCTV log).
 - **Dream clues:** one per stage. Listen for a heart-monitor beep: a hospital wristband, an IV bag, a monitor hidden in a server rack, a get-well card.
-- **B, Dream End:** all 4 dream clues + do NOT take the guard's phone. You wake up in hospital.
-- **A, Good End:** take พี่สมชาย's phone from his booth in stage 4 + **at least 4 evidence**. You report him to the police.
-- **C, Bad End:** anything else, and he follows you home.
+- **D, True End:** every dream clue (one per stage, 7) + พี่สมชาย's phone + **at least 6 evidence**. Tong really wakes up, the police already have him, and Tong quits.
+- **B, Dream End:** every dream clue + do NOT take the guard's phone. You wake up in hospital... and the boss is there.
+- **A, Good End:** take พี่สมชาย's phone from his booth in the last stage + **at least 6 evidence**. You report him to the police.
+- **C, Bad End:** anything else, and he follows you home (door viewer, then he's behind you).
 - **Game Over:** Social Battery reaches 0.
 
 ## Editing (no code needed) → **[EDITING.md](EDITING.md)** (Thai, step by step)
@@ -54,8 +62,8 @@ WASD move · Shift sprint (uses stamina) · C / Ctrl crouch (toggle, silent) · 
 | `scenes/main.tscn` | Menu/HUD/flow (built by `scripts/main.gd`), loads the stages below |
 | `scenes/player.tscn` | ต๋อง: CharacterBody3D + Camera3D + InteractRay + Flashlight |
 | `scenes/mobs/*.tscn` | One scene per coworker (+ practice mannequin). Speed, rage speed, vision, battery drain and lines are in the Inspector |
-| `scenes/stages/tutorial.tscn`, `stage_1..4.tscn` | The maps. Select the root for the stage mechanics (dark start, rage, flicker, finale) |
-| `scenes/endings/ending_A/B/C.tscn` | The 3D ending rooms |
+| `scenes/stages/tutorial.tscn`, `stage_1/2/hr/3/stairs/hospital/4.tscn` | The maps (order = `STAGES` in story.gd, each names its `scene`). Select the root for the stage mechanics (dark start, rage, flicker, finale) |
+| `scenes/endings/ending_A/B/C/D.tscn` | The 3D ending rooms |
 | `assets/characters/*.blend` → `.glb` | Character models (Blender). Export over the `.glb` and Godot reimports it |
 
 Inside a stage scene:
@@ -72,8 +80,9 @@ Cutscenes, timed phone texts, objectives and endings live in `scripts/story.gd`.
 - `scripts/stage.gd`: runtime of a stage scene (spawn, exit, wet floor, cameos, photo, distant sounds, blackouts/power, note reveals, scares, hallucinations, rage chase, finale scanner)
 - `scripts/story_trigger.gd`, `scripts/scare.gd`: the editor-placed story / scare nodes
 - `scripts/tutorial.gd` (stage 0's sequence: texts that lock you, day to night, mirror ending) + `scripts/coworker.gd` (friendly daytime coworker)
-- `scripts/npc.gd` + `scripts/mobs/*.gd`: base coworker AI (patrol, investigate noise, search hide spot, chase, catch; NavigationAgent3D) + the 4 coworkers + a practice mannequin (`dummy.gd`)
+- `scripts/npc.gd` + `scripts/mobs/*.gd`: base coworker AI (patrol, investigate noise, search hide spot, chase, catch; NavigationAgent3D) + the coworkers (manager, sweeper, goblin, guard, hr, doctor) + a practice mannequin (`dummy.gd`)
+- `scripts/loop.gd`: the fire-stairs loop (laps, anomalies)
 - `scripts/player.gd`, `scripts/pickup.gd`, `scripts/body.gd` (@tool, loads the Blender model parts), `scripts/cutscene.gd`, `scripts/main.gd`
 - `scripts/stage_builder.gd` + `tools/bake_stages.tscn`: one-time generator of the stage scenes
-- `tools/blender/build_characters.py`: generates every character .blend/.glb in Blender · `shaders/vhs.gdshader`: fear post-process
+- `tools/blender/build_characters.py`: generates every character .blend/.glb in Blender (or with the `bpy` pip module: `python tools/blender/build_characters.py -- guard_night`) · `shaders/vhs.gdshader`: fear post-process
 - Assets and licenses: `ASSETS.md` · sounds: `tools/fetch_freesound.py` (CC0), `tools/synth_sfx.py`

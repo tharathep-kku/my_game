@@ -9,7 +9,7 @@ extends RefCounted
 
 const CELL := 2.0
 const WALL_H := 3.0
-const SOLID := "#=DBkbodnKCctTXHWeQYFmiO"
+const SOLID := "#=DBkbodnKCctTXHWeQYFmiOy"
 const PSX := preload("res://shaders/psx.gdshader")
 const PICKUP := preload("res://scripts/pickup.gd")
 const STAGE := preload("res://scripts/stage.gd")
@@ -17,7 +17,8 @@ const STORY_TRIGGER := preload("res://scripts/story_trigger.gd")
 const SCARE := preload("res://scripts/scare.gd")
 const TUTORIAL := preload("res://scripts/tutorial.gd")
 const COWORKER := preload("res://scripts/coworker.gd")
-const MOBS := {"M": "manager", "S": "sweeper", "G": "goblin", "R": "guard", "N": "dummy", "V": "dummy"}
+const MOBS := {"M": "manager", "S": "sweeper", "G": "goblin", "R": "guard", "N": "dummy", "V": "dummy", "I": "hr", "U": "doctor"}
+const LOOP := preload("res://scripts/loop.gd")
 # stage-data keys copied onto the stage root's Inspector ("Stage mechanics")
 const ROOT_KEYS := ["dark_start", "rage_on_goal", "rage_line", "rage_objective", "flicker", "finale", "wet_start"]
 
@@ -160,7 +161,17 @@ func _build(stage_data: Dictionary, props: Dictionary, with_player: bool) -> Nod
 					m.position = p
 					m.rotation.y = _spawn_yaw(c)
 					_nodes.Markers.add_child(m)
-				"M", "S", "G", "R", "N", "V":
+				"y":   # this stage's goal item ("items" in reading order: title + what it says)
+					_prop("sideTableDrawers", p, 0.0, 2.0)
+					var it := _item("file", p + Vector3.UP * 0.8, Vector3(0.36, 0.07, 0.28), Color(0.95, 0.8, 0.45))
+					var list: Array = data.get("items", [])
+					var n := _nth("y")
+					if n < list.size():
+						it.title = list[n].get("title", "")
+						it.text = list[n].get("text", "")
+						it.evidence = list[n].get("evidence", false)
+				"v", "w": _loop_trigger(p, ch == "v")
+				"M", "S", "G", "R", "N", "V", "I", "U":
 					var n: Node3D = load("res://scenes/mobs/%s.tscn" % MOBS[ch]).instantiate()
 					n.position = p
 					if ch == "V":
@@ -181,6 +192,8 @@ func _build(stage_data: Dictionary, props: Dictionary, with_player: bool) -> Nod
 		_window(c)
 	if data.has("phone"):
 		_tutorial()
+	if data.has("loop"):
+		_loop_node()
 	for n in root.get_children():   # coworkers start facing the player spawn
 		if n is Npc and _nodes.Markers.has_node("PlayerSpawn"):
 			var d: Vector3 = _nodes.Markers.get_node("PlayerSpawn").position - n.position
@@ -405,7 +418,7 @@ func _rack(p: Vector3) -> void:
 
 # 'O' -> a closed door in a gap of the wall: brown slab across the gap, frame above, a handle.
 func _door(c: Vector2i, p: Vector3) -> void:
-	var along_x := _at(c.x - 1, c.y) == "#" or _at(c.x + 1, c.y) == "#"   # walls left/right: the door runs along x
+	var along_x := _at(c.x - 1, c.y) == "#" and _at(c.x + 1, c.y) == "#"   # walls left and right: the door runs along x
 	var size := Vector3(CELL, 2.2, 0.15) if along_x else Vector3(0.15, 2.2, CELL)
 	var d := _block(p + Vector3.UP * 1.1, size, Color(0.42, 0.26, 0.15), "fabric", "Door")
 	_block(p + Vector3.UP * (2.2 + (WALL_H - 2.2) / 2), Vector3(size.x, WALL_H - 2.2, size.z), data.wall, "wall", "DoorTop")
@@ -571,11 +584,12 @@ func _scare(p: Vector3, id: int) -> void:
 	for k in ["kind", "preset", "sfx", "secs", "line", "chance"]:
 		if d.has(k):
 			s.set(k, d[k])
-	if d.has("at"):
-		var m := Marker3D.new()
-		m.name = "At"
-		m.position = cell_pos(d.at) - s.position   # floor level
-		s.add_child(m)
+	for k in ["at", "to"]:
+		if d.has(k):
+			var m := Marker3D.new()
+			m.name = k.capitalize()
+			m.position = cell_pos(d[k]) - s.position   # floor level
+			s.add_child(m)
 
 # 'e' / 'n' notes: text + what reading gives, from the stage's "notes" / "postits".
 func _note(item: Area3D, list: Array, id: int) -> void:
@@ -721,6 +735,30 @@ func _tutorial() -> void:
 	s.shape = b
 	spot.add_child(s)
 	tut.add_child(spot)
+
+# Fire-stairs loop (loop.gd): 'v' = end of the corridor (went on), 'w' = behind the start (turned back).
+var _loop: Node3D
+func _loop_node() -> Node3D:
+	if not _loop:
+		_loop = LOOP.new()
+		_loop.name = "Loop"
+		root.add_child(_loop)
+		_loop.laps = data.loop.get("laps", 8)
+	return _loop
+
+func _loop_trigger(p: Vector3, forward: bool) -> void:
+	var t := Area3D.new()
+	t.name = "Forward" if forward else "Back"
+	t.collision_layer = 0
+	t.collision_mask = 2
+	t.position = p + Vector3.UP
+	var s := CollisionShape3D.new()
+	s.name = "Shape"
+	var b := BoxShape3D.new()
+	b.size = Vector3(CELL, 2, CELL)
+	s.shape = b
+	t.add_child(s)
+	_loop_node().add_child(t, true)
 
 func _sign(p: Vector3, id: int) -> void:
 	var signs: Array = data.get("signs", [])

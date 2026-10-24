@@ -22,7 +22,7 @@ signal overlay(kind: String)             # "peephole" / "" (main.gd)
 
 const MAX_BATTERY := 100.0
 const HINT_TOTAL := 4           # one guard phone call per stage
-const EVIDENCE_NEEDED := 4      # Ending A: calls answered + cameos spotted + evidence notes read
+const EVIDENCE_NEEDED := 6      # Ending A/D: calls answered + cameos spotted + evidence notes read
 const REVEAL_TIPS := {
 	"goals": "รู้แล้วว่าของที่ต้องเก็บอยู่ไหน → ดูลูกศรสีเหลืองบนจอ (40 วินาที)",
 	"hides": "รู้แล้วว่าซ่อนตรงไหนได้ → ดูป้ายสีเขียวบนจอ (40 วินาที)",
@@ -51,7 +51,7 @@ var _skip_release := false     # just skipped one: let go of Space before the ne
 var skip_cutscenes := false    # tests + settings
 var sensitivity := 1.0         # settings: mouse look multiplier
 var volume := 0.8              # settings: master volume 0..1
-var save_path := "user://save.cfg"          # tests point these elsewhere
+var save_path := "user://save_v4.cfg"       # tests point these elsewhere (v4: 7 stages, old saves do not fit)
 var settings_path := "user://settings.cfg"
 var phone_taken := false
 var has_fuse := false           # stage 4: carrying the fuse from the security room to the panel in the mail room
@@ -60,6 +60,7 @@ var tutorial := false           # playing stage 0 (Story.TUTORIAL) before stage 
 var phone_lock := false         # a text Tong must read first: no moving or acting until the phone has been opened (tutorial.gd)
 var typing := false             # whoever is texting is still typing (phone shows it)
 var clock := ""                 # HUD clock override ("" = stage clock + play time)
+var heart := 30.0               # 0 = calm .. 100 = pounding (stages with "heartbeat": the doctor hears it)
 var player: Node3D
 var level: Node3D
 var _last_cause := ""
@@ -196,12 +197,17 @@ func reset_stage() -> void:
 	busy = false
 	phone_lock = false
 	typing = false
+	heart = 30.0
 	clock = ""
 	fired.clear()
 	battery_changed.emit(battery)
 
 func stage_data() -> Dictionary:
 	return Story.TUTORIAL if tutorial else STAGES[stage]
+
+# The scene file of the current stage (each stage entry in story.gd names its own: "scene").
+func scene_path() -> String:
+	return "res://scenes/stages/%s.tscn" % ("tutorial" if tutorial else STAGES[stage].scene)
 
 # Data of the level actually built (test maps differ from STAGES).
 func level_data() -> Dictionary:
@@ -238,6 +244,8 @@ func collect() -> void:
 	objective_changed.emit(objective_text())
 	if level and goal_count >= level.goal:
 		level.unlock_exit()
+	if is_instance_valid(level) and level.has_method("goal_reached"):
+		level.goal_reached(goal_count)
 
 # Keeps one copy per title - re-reading a "read"-kind note shouldn't pile up duplicates.
 func _log_read(title: String, text: String) -> void:
@@ -249,6 +257,19 @@ func use(kind: String, node: Node = null) -> bool:
 	match kind:
 		"doc":
 			sfx("bookFlip1"); say("ได้เอกสารงบดุลมา 1 ชุด", 2.0); collect()
+		"file":   # this stage's goal item (story.gd "items"): picking it up reads it too
+			sfx("bookFlip1")
+			collect()
+			var tip := "เก็บแล้ว (%d/%d)" % [goal_count, level.goal if is_instance_valid(level) else goal_count]
+			if node.evidence and not noticed.has("file_%d_%s" % [stage, node.name]):
+				notice("file_%d_%s" % [stage, node.name])
+				tip += "\nหลักฐานเรื่องพี่สมชาย +1 (รวม %d)" % hints
+			if node.text != "":
+				_log_read(node.title, node.text)
+				note_opened.emit(node.title, node.text, tip)
+				event.emit("read")
+			else:
+				say("ได้ %s แล้ว — %s" % [node.title, tip], 2.5)
 		"note":   # password post-it: the digits are in its text, the PC keypad wants them
 			sfx("bookFlip1")
 			_log_read(node.title, node.text)   # it gets taken off the wall after this: keep it in the phone

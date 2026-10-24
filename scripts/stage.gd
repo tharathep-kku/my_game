@@ -26,7 +26,7 @@ const DISTANT := ["door_slam", "elevator_ding", "chair_creak", "printer", "whisp
 @export var wet_start := 0
 @export_group("")
 
-const GOAL_KINDS := ["doc", "note", "pc", "coffee_goal", "breaker", "scanner", "fuse", "fuse_box"]
+const GOAL_KINDS := ["doc", "note", "pc", "coffee_goal", "breaker", "scanner", "fuse", "fuse_box", "file"]
 const SCAN_SECS := 3.0
 const MOB_SCENES := ["manager", "sweeper", "goblin"]
 
@@ -169,9 +169,18 @@ func unlock_exit(silent := false) -> void:
 		if trig:   # point the way out (stays up for the whole chase)
 			_marker(trig, Color(0.3, 1, 0.4), 1.2, 9999.0 if (rage_on_goal or finale) else 45.0, "ทางออก")
 		if rage_on_goal and is_instance_valid(player):
-			spawn = player.global_position   # checkpoint: caught mid-chase restarts the run from here
-			spawn_rot = player.rotation.y
-			rage(rage_line)
+			_start_rage()
+
+# The chase: its cutscene first if the stage has one (Tong runs; play picks up where he got to).
+func _start_rage() -> void:
+	if data.has("rage_scene") and not Game.skip_cutscenes:
+		await play_scene(data.rage_scene)
+		await get_tree().process_frame
+	if not is_instance_valid(player):
+		return
+	spawn = player.global_position   # checkpoint: caught mid-chase restarts the run from here
+	spawn_rot = player.rotation.y
+	rage(rage_line)
 
 # Every coworker comes for you, after a beat to start running. Survives being caught (respawn).
 func rage(line := "") -> void:
@@ -265,7 +274,11 @@ func sight_mult() -> float:
 # ---------- notes: show what the note told you ----------
 # What each goal is called on its on-screen marker.
 const GOAL_NAMES := {"doc": "เอกสารงบดุล", "note": "โพสต์อิทรหัส", "pc": "คอมห้อง Admin", "coffee_goal": "เครื่องชงกาแฟ",
-	"breaker": "เบรกเกอร์", "scanner": "เครื่องสแกนนิ้ว", "fuse": "ฟิวส์", "fuse_box": "แผงวงจร"}
+	"breaker": "เบรกเกอร์", "scanner": "เครื่องสแกนนิ้ว", "fuse": "ฟิวส์", "fuse_box": "แผงวงจร", "file": "ของที่ต้องหา"}
+
+# What a goal item is called on markers / the GPS ("file" items have their own name).
+static func goal_name(it: Node) -> String:
+	return it.title if it.kind == "file" and it.title != "" else GOAL_NAMES[it.kind]
 const REVEAL_SECS := 40.0
 
 func reveal(kind: String, secs := REVEAL_SECS) -> void:
@@ -277,7 +290,7 @@ func reveal(kind: String, secs := REVEAL_SECS) -> void:
 		if it.get("used") != false:
 			continue
 		if kind == "goals" and it.kind in GOAL_NAMES:
-			_marker(it, Color(1, 0.85, 0.1), 0.5, secs, GOAL_NAMES[it.kind])
+			_marker(it, Color(1, 0.85, 0.1), 0.5, secs, goal_name(it))
 		elif kind == "hides" and it.kind == "hide" and it.hide_type != "desk":   # desks are everywhere
 			_marker(it, Color(0.3, 1, 0.5), 0.4, secs, "ที่ซ่อน", false)
 
@@ -306,7 +319,14 @@ func _marker(on: Node3D, color: Color, h: float, secs: float, label := "", edge 
 	return m
 
 # ---------- scares (scare.gd nodes) + hallucinations ----------
-func scare(s: Node) -> void:
+# s = a scare.gd node, or a Dictionary from story.gd ("goal_scares"): then it happens straight
+# ahead of wherever Tong is looking.
+func scare(s) -> void:
+	if s is Dictionary:
+		var d := {"kind": "rush", "preset": "guard", "sfx": "", "secs": 3.0, "line": ""}
+		d.merge(s, true)
+		s = d
+	var at_pos: Vector3 = s.at() if s is Node else _ahead()
 	if s.line != "":
 		Game.say(s.line, 3.0)
 	match s.kind:
@@ -314,9 +334,19 @@ func scare(s: Node) -> void:
 			Game.sfx(s.sfx)
 			blackout(s.secs)
 		"sound":
-			_sound_at(s.sfx, s.at())
+			_sound_at(s.sfx, at_pos)
 		"figure":
-			_figure(s.preset, s.at(), s.secs, false, s.sfx)
+			_figure(s.preset, at_pos, s.secs, false, s.sfx)
+		"rush":
+			_rush(s.preset, at_pos, s.sfx)
+		"face":
+			Game.scare_face.emit(s.preset, s.sfx)
+		"peek":
+			var b := _figure(s.preset, at_pos, s.secs, false, s.sfx)
+			b.rotation.z = 0.45   # leaning out from behind something
+			b.parts.Head.rotation.z = 1.1
+		"crawl":
+			_crawl(s.preset, at_pos, s.to() if s is Node else at_pos + player.global_basis.x * 6.0, s.sfx)
 		"behind":
 			var back: Vector3 = player.global_basis.z
 			var p: Vector3 = player.global_position + back * 1.7
@@ -324,6 +354,95 @@ func scare(s: Node) -> void:
 			if not get_world_3d().direct_space_state.intersect_ray(q).is_empty():
 				p = player.global_position + back * 0.9
 			_figure(s.preset, p, s.secs, true, s.sfx)
+
+# A spot on the floor straight ahead of Tong, short of the first wall (at most `far` metres).
+func _ahead(far := 11.0) -> Vector3:
+	var dir: Vector3 = -player.global_basis.z
+	var eye: Vector3 = player.eye()
+	var q := PhysicsRayQueryParameters3D.create(eye, eye + dir * far, 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	var p: Vector3 = (hit.position - dir * 0.8) if not hit.is_empty() else eye + dir * far
+	return Vector3(p.x, 0.0, p.z)
+
+# It stands there a beat, staring... then sprints straight at him (through anything) and is gone
+# at arm's length, with its face in his. Harmless: it's the fright that counts.
+func _rush(preset: String, from: Vector3, sfx_name := "") -> void:
+	var b := Body.new()
+	b.build(Story.BODIES[preset])
+	add_child(b)
+	b.global_position = Vector3(from.x, 0.0, from.z)
+	if sfx_name != "":
+		Game.sfx(sfx_name, b, 0.0, 0.75)
+	var t := 0.0
+	var ran := false
+	while is_instance_valid(b) and is_instance_valid(player) and t < 4.5:
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		t += dt
+		if Game.in_cutscene or Game.busy or not is_instance_valid(b) or not is_instance_valid(player):
+			break
+		var to := player.global_position - b.global_position
+		to.y = 0.0
+		b.rotation.y = atan2(-to.x, -to.z)
+		if t < 0.7:   # the stare
+			continue
+		if not ran:
+			ran = true
+			Game.sfx("scare_riser", null, -4.0)
+		if to.length() < 1.3:
+			Game.scare_face.emit(preset, "")
+			break
+		b.global_position += to.normalized() * minf(10.0 * dt, to.length())
+		b.pose(snappedf(t, 1.0 / 12.0) * 1.8, "walk")
+	if is_instance_valid(b):
+		b.queue_free()
+
+# Scuttles on all fours across his view, then it's gone.
+func _crawl(preset: String, from: Vector3, to: Vector3, sfx_name := "") -> void:
+	var b := Body.new()
+	b.build(Story.BODIES[preset])
+	add_child(b)
+	b.global_position = Vector3(from.x, 0.35, from.z)
+	var d := to - from
+	b.rotation = Vector3(-1.2, atan2(-d.x, -d.z), 0.0)
+	b.parts.Head.rotation.x = 1.2
+	Game.sfx(sfx_name if sfx_name != "" else "creak2", b, 2.0, 0.7)
+	var secs := maxf(Vector2(d.x, d.z).length() / 7.0, 0.4)
+	var t := 0.0
+	while t < secs and is_instance_valid(b):
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		if not is_instance_valid(b):
+			return
+		b.global_position = Vector3(from.x, 0.35, from.z).lerp(Vector3(to.x, 0.35, to.z), minf(t / secs, 1.0))
+		b.pose(snappedf(t, 1.0 / 12.0) * 2.0, "crawl")
+	if is_instance_valid(b):
+		b.queue_free()
+
+# ---------- mid-stage cutscenes (story.gd: "item_scenes", "goal_scares", "rage_scene") ----------
+var _played := {}
+
+func play_scene(steps: Array) -> void:
+	if Game.busy or Game.in_cutscene or not is_instance_valid(player):
+		return
+	player.unhide()
+	await get_tree().create_timer(0.35, false).timeout   # let the pickup sound and subtitle land first
+	if Game.busy or not is_instance_valid(player):
+		return
+	await Cutscene.new().play(self, steps)
+
+# A one-of-a-kind item (breaker, the coffee, the fuse panel) can set off a cutscene.
+func item_used(kind: String) -> void:
+	var scenes: Dictionary = data.get("item_scenes", {})
+	if scenes.has(kind) and not _played.has(kind):
+		_played[kind] = true
+		play_scene(scenes[kind])
+
+# The n-th goal of the stage can set off a scare, wherever Tong happens to be.
+func goal_reached(n: int) -> void:
+	var gs: Dictionary = data.get("goal_scares", {})
+	if gs.has(n) and is_instance_valid(player):
+		scare(gs[n])
 
 func _sound_at(sfx_name: String, pos: Vector3) -> void:
 	var a := AudioStreamPlayer3D.new()

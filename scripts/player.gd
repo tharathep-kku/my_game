@@ -182,6 +182,25 @@ func _hidden_tick(dt: float) -> void:
 	if exposure > 1.0:
 		near.found_player()
 
+# Heart rate (stages with "heartbeat"): what Tong is doing sets where it heads; anyone close by
+# makes it race. Holding your breath in a hide spot calms it fastest.
+func _heart(dt: float) -> void:
+	if not is_instance_valid(Game.level) or not Game.level.data.get("heartbeat", false) or Game.in_cutscene:
+		return
+	var moving := Vector2(velocity.x, velocity.z).length() > 0.3
+	var target := 30.0
+	if hidden:
+		target = 10.0 if holding_breath else 35.0
+	elif moving:
+		target = 92.0 if Vector2(velocity.x, velocity.z).length() > WALK + 0.5 else (24.0 if crouching else 50.0)
+	elif crouching:
+		target = 18.0
+	for n in Game.level.npcs:   # someone close: it races
+		var d: float = n.global_position.distance_to(global_position)
+		if d < 7.0:
+			target = maxf(target, lerpf(90.0, 45.0, d / 7.0) - (25.0 if holding_breath else 0.0))
+	Game.heart = move_toward(Game.heart, clampf(target, 0.0, 100.0), (30.0 if target > Game.heart else (24.0 if holding_breath else 12.0)) * dt)
+
 func _physics_process(dt: float) -> void:
 	if flashlight.visible:   # ~2 minutes of light per full phone battery
 		var save: float = FUSE_LAMP_SAVE if is_instance_valid(Game.level) and Game.level.get("fuse_dark") else 0.0
@@ -189,6 +208,7 @@ func _physics_process(dt: float) -> void:
 		if Game.phone_battery <= 0.0:
 			flashlight.visible = false
 			Game.say("ต๋อง: แบตหมด! ...มืดสนิทเลย", 2.0)
+	_heart(dt)
 	if hidden:
 		if not Game.busy and not Game.in_cutscene:
 			_hidden_tick(dt)
