@@ -98,6 +98,26 @@ var _was_captured := false
 var fps_label: Label
 var flash_rect: ColorRect
 var chase_loop: AudioStreamPlayer
+var chase_music: AudioStreamPlayer   # pounding loop while someone is after you
+var saved_label: Label
+var over_tip: Label
+# HR's advice at the bottom of the warning letter (one at random each time)
+const TIPS := [
+	"ได้ยินเสียงฝีเท้าใกล้ๆ ให้ก้ม (C) แล้วย่อง — ก้มแล้วไม่มีเสียงเท้าเลย",
+	"ขว้างของ (Q) ไปอีกทาง ศัตรูจะเดินไปดูเสียง",
+	"โน้ตทุกใบมีประโยชน์: บอกทางเดินศัตรู ที่ซ่อน หรือของที่ต้องเก็บ",
+	"กาแฟ = Social Battery +40 · พาวเวอร์แบงก์ = แบตมือถือ (ไฟฉาย)",
+	"ในที่มืด ไฟฉายคือเป้าให้ศัตรูเห็นจากไกล ใช้เท่าที่จำเป็น",
+	"ซ่อนอยู่แล้วมีคนมายืนข้างหน้า: กด Space ค้างกลั้นหายใจ",
+	"มือถือ (Tab) → 4 แผนที่: ดูว่าเดินผ่านตรงไหนมาแล้ว · 2 GPS: ชี้ไปของที่ต้องเก็บ",
+	"พี่สมชายขยับเฉพาะตอนที่ไม่มีใครมองเขา",
+	"ป้าพรไม่เห็นคุณ แต่ถ้าเหยียบพื้นเปียกเมื่อไหร่ ป้ามาแน่",
+	"เต้ซ่อนอยู่ใต้โต๊ะ เดินผ่านโต๊ะแบบก้มย่อง เขาจะไม่ทันจับขา",
+	"พี่แหม่มประกาศชื่อเมื่อไหร่ ต้องซ่อนให้ทันก่อนประกาศจบ",
+	"บันไดหนีไฟ: จำโปสเตอร์ นาฬิกา ประตู ต้นไม้ ไว้ให้ดี อะไรเปลี่ยน = เดินกลับ",
+	"หมอฟังเสียงหัวใจ: อย่าวิ่งถ้าไม่จำเป็น ก้มย่องให้ใจเย็น",
+	"เมนูตั้งค่ามีโหมดง่าย ถ้ายากเกินไป ไม่ผิดอะไรเลย",
+]
 var screens := {}
 var over_cause: Label
 var over_count: Label
@@ -134,6 +154,7 @@ var _glitch := 0.0
 var badge_stats: Label
 var menu_osd: Label
 var _osd_secs := 0.0
+var _credit_y := 0.0
 var chapter_grid: GridContainer
 var archive_list: VBoxContainer
 var archive_title: Label
@@ -172,6 +193,11 @@ func _ready() -> void:
 	chase_loop.bus = "Tension"
 	chase_loop.volume_db = -60
 	add_child(chase_loop)
+	chase_music = AudioStreamPlayer.new()
+	chase_music.stream = Game.looped("chase_theme")
+	chase_music.bus = "Tension"
+	chase_music.volume_db = -60
+	add_child(chase_music)
 	menu_music = AudioStreamPlayer.new()
 	menu_music.stream = Game.looped("menu_theme")
 	menu_music.bus = "Music"
@@ -270,8 +296,12 @@ func start_stage() -> void:
 	drone.play()
 	heartbeat.play()
 	chase_loop.play()
+	chase_music.play()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_fade_to(0.0, 0.8)
+	if not Game.tutorial:   # checkpoint: say so
+		saved_label.modulate.a = 1.0
+		create_tween().tween_property(saved_label, "modulate:a", 0.0, 1.0).set_delay(2.5)
 	stage_time = 0.0
 	phone_map.reset()
 	close_phone()
@@ -317,6 +347,7 @@ func stop_play() -> void:
 	drone.stop()
 	heartbeat.stop()
 	chase_loop.stop()
+	chase_music.stop()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_load_id += 1   # cancel a start_stage() still waiting on its clock card (or a jumpscare)
 	_clear_scare()
@@ -463,7 +494,8 @@ func _on_game_over(cause: String) -> void:
 		return
 	stop_play()
 	over_cause.text = cause
-	over_count.text = "บทที่ %d · %s\nโดนจับรวม %d ครั้ง · เวลาในบทนี้ %s" % [Game.stage + 1, Game.stage_data().title, Game.times_caught, _mmss(stage_time)]
+	over_tip.text = "คำแนะนำจาก HR: " + TIPS.pick_random()
+	over_count.text = "%s\nโดนจับรวม %d ครั้ง · เวลาในบทนี้ %s" % [Game.stage_data().title, Game.times_caught, _mmss(stage_time)]
 	show_screen("over")
 	fade.color.a = 0.0
 	_stamp(screens.over.get_meta("stamp"))
@@ -959,6 +991,7 @@ func _process(dt: float) -> void:
 			heartbeat.volume_db = lerpf(heartbeat.volume_db, lerpf(-40.0, 0.0, t.x) if t.x > 0.0 else -60.0, dt * 3.0)
 			heartbeat.pitch_scale = 1.0 + 0.4 * t.y
 		chase_loop.volume_db = lerpf(chase_loop.volume_db, -4.0 if t.y > 0.0 else -60.0, dt * 2.0)
+		chase_music.volume_db = lerpf(chase_music.volume_db, -7.0 if t.y > 0.0 else -60.0, dt * (3.0 if t.y > 0.0 else 0.8))
 		drone.volume_db = lerpf(-60.0, -12.0, level.gloom if is_instance_valid(level) else 1.0)   # no dread by daylight (tutorial)
 		var f: float = screen_fx.get_shader_parameter("fear")
 		screen_fx.set_shader_parameter("fear", lerpf(f, fear(), dt * 2.0))
@@ -1119,6 +1152,8 @@ func show_screen(sname: String) -> void:
 	match sname:
 		"menu":
 			continue_btn.visible = Game.has_save()
+			var at := Game.saved_stage()
+			continue_btn.text = "▶  เล่นต่อ · บทที่ %d %s" % [at + 1, Game.STAGES[at].title.get_slice(" : ", 1)] if at >= 0 and at < Game.STAGES.size() else "▶  เล่นต่อ"
 			_refresh_badge()
 			var f: Button = continue_btn if continue_btn.visible else screens.menu.get_meta("first")
 			f.grab_focus.call_deferred()
@@ -1347,6 +1382,10 @@ func _build_hud() -> void:
 	phone_hint = Kit.label("", 15, Color(0.8, 0.85, 1.0), Kit.UI, status, 4)
 	phone_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_at(phone_hint, Vector2(480, 684), Vector2(464, 26))
+	saved_label = Kit.label("บันทึกจุดเช็คพอยต์แล้ว", 15, Kit.GREEN, Kit.TITLE, status, 4)
+	saved_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_at(saved_label, Vector2(600, 656), Vector2(344, 24))
+	saved_label.modulate.a = 0.0
 	tut_hint = Kit.label("บทนำ · [Esc] แล้วกด \"ข้ามบทนำ\" เพื่อเริ่มบทที่ 1 ทันที", 14, Color(0.7, 0.75, 0.9), Kit.UI, status, 4)
 	_at(tut_hint, Vector2(16, 688), Vector2(460, 24))
 	tut_hint.hide()
@@ -1832,6 +1871,10 @@ func _refresh_badge() -> void:
 
 # Main menu motion: the CCTV clock ticks, and the title glitches now and then.
 func _menu_tick(dt: float) -> void:
+	if screens.has("credits") and screens.credits.visible:
+		_credit_y += dt * 28.0   # roll slowly; the wheel still works
+		credits_scroll.scroll_vertical += int(_credit_y)
+		_credit_y -= int(_credit_y)
 	if not screens.has("menu") or not screens.menu.visible:
 		return
 	_osd_secs += dt
@@ -2111,6 +2154,7 @@ func _build_pause() -> void:
 	p.set_meta("first", resume)
 	Kit.button("ตั้งค่า", func(): _settings_back = "pause"; show_screen("settings"), v, 21)
 	skip_tut_btn = Kit.button("ข้ามบทนำ → บทที่ 1", skip_tutorial, v, 21)
+	Kit.button("เริ่มบทนี้ใหม่", func(): get_tree().paused = false; Game.reset_stage(); start_stage(), v, 21)
 	Kit.button("เมนูหลัก", func(): get_tree().paused = false; stop_play(); show_screen("menu"), v, 21)
 	var paper := Kit.panel(Kit.paper_box(), p)
 	_at(paper, Vector2(450, 70), Vector2(450, 580))
@@ -2147,7 +2191,8 @@ func _build_over() -> void:
 	over_cause = Kit.label("", 19, Kit.INK, Kit.HAND, v)
 	over_count = Kit.label("", 15, Color(0.35, 0.32, 0.3), Kit.BODY, v)
 	Kit.label("\nจึงเรียนมาเพื่อทราบ และกลับไปทำงานต่อโดยด่วน\n— พี่แหม่ม HR", 16, Kit.INK, Kit.BODY, v)
-	var stamp := _stamp_label("พักงาน", o, Vector2(560, 380))
+	over_tip = Kit.label("", 15, Color(0.15, 0.3, 0.5), Kit.HAND, v)
+	var stamp := _stamp_label("พักงาน", o, Vector2(540, 450))
 	o.set_meta("stamp", stamp)
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 16)

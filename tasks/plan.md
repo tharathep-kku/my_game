@@ -12,18 +12,23 @@ company's paperwork frames the results (performance review, HR warning letter, c
 Fonts: Kanit (titles, UI), Sriracha (handwriting on notes and sticky notes), Sarabun (body).
 
 ## Steps
-- [ ] U1 UI kit (`scripts/ui/kit.gd`): theme, fonts, colours, panel/button styles, sounds
-- [ ] U2 Profile (`Game`): chapters reached, endings seen, documents found, best grade per chapter
-- [ ] U3 Main menu: live 3D office behind it, glitch title, Tong's ID badge with progress, chapter
+- [x] U1 UI kit (`scripts/ui/kit.gd`): theme, fonts, colours, panel/button styles, sounds
+- [x] U2 Profile (`Game`): chapters reached, endings seen, documents found, best grade per chapter
+- [x] U3 Main menu: live 3D office behind it, glitch title, Tong's ID badge with progress, chapter
       select, document archive, endings gallery, credits, menu music
-- [ ] U4 HUD: battery widget, stamina, phone battery while the flashlight is on, objective sticky
+- [x] U4 HUD: battery widget, stamina, phone battery while the flashlight is on, objective sticky
       note, subtitles with the speaker's name in colour, key-cap prompt, low-battery vignette,
       first-time tips
-- [ ] U5 Phone: smartphone frame, home screen icons, chat with avatars + times, map app (rooms you
+- [x] U5 Phone: smartphone frame, home screen icons, chat with avatars + times, map app (rooms you
       have walked through), docs
-- [ ] U6 Screens: chapter card as a CCTV feed (typewriter), stage clear = performance review with a
+- [x] U6 Screens: chapter card as a CCTV feed (typewriter), stage clear = performance review with a
       grade stamp, game over = HR warning letter, ending = certificate + endings gallery, pause =
       coffee break (objective, clues, evidence, settings)
-- [ ] U7 Settings: difficulty, brightness, FOV, VHS strength, subtitle size, invert Y, fullscreen
-- [ ] U8 Audio: menu music box, UI hover/click/typewriter/stamp sounds
-- [ ] U9 Tests green, docs, web build, push
+- [x] U7 Settings: difficulty, brightness, FOV, VHS strength, subtitle size, invert Y, fullscreen
+- [x] U8 Audio: menu music box, UI hover/click/typewriter/stamp sounds
+- [x] U9 Tests green, docs, web build, push
+
+## Done (v5)
+- Extra polish: chase music while hunted, "checkpoint saved" note, restart chapter from pause,
+  Continue names the saved chapter, credits roll, a random HR tip on the warning letter.
+- Stage titles now read "บทที่ N : ..." everywhere.

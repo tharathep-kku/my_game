@@ -56,6 +56,15 @@ Rough first-play time: about 2–3 h (the stairs alone take 20–40 min); playin
 - **C, Bad End:** anything else, and he follows you home (door viewer, then he's behind you).
 - **Game Over:** Social Battery reaches 0.
 
+## Menus & UI
+- **Look:** someone is watching. Chapter cards are a CCTV feed (REC, CAM, timestamp, typewriter), results are company paperwork: a performance review with a grade stamp (S–D) when a chapter is cleared, an HR warning letter on Game Over, a certificate at an ending. Fonts: Kanit (titles/UI), Sriracha (handwriting), Sarabun (body).
+- **Main menu:** the office lives behind it (a 3D camera pans, lights flicker, a coworker appears and vanishes), glitching title, Tong's staff ID with your progress, menu music. Continue names the saved chapter.
+- **Profile** (`user://profile.cfg`, kept across runs): chapter select (chapters you reached), document archive (every note you read), endings gallery, best grade per chapter.
+- **HUD:** battery widget with Tong's face, stamina, phone battery while the flashlight is on, objective sticky note, coloured speaker names in subtitles, key-cap prompts, first-time tips, low-battery vignette, chase music while hunted.
+- **Phone (Tab):** home screen with apps: 1 chat (avatars, times), 2 GPS, 3 documents, 4 map (rooms you walked through).
+- **Pause = coffee break:** objective, collectibles, controls; resume, settings, restart chapter, main menu.
+- **Settings:** difficulty (easy/normal/hard: battery drain and coworker speed), mouse sensitivity, volume (all/music), brightness, FOV, VHS strength, subtitle size, invert Y, fullscreen, skip cutscenes.
+
 ## Editing (no code needed) → **[EDITING.md](EDITING.md)** (Thai, step by step)
 | Scene / file | What's in it |
 |---|---|
@@ -82,7 +91,8 @@ Cutscenes, timed phone texts, objectives and endings live in `scripts/story.gd`.
 - `scripts/tutorial.gd` (stage 0's sequence: texts that lock you, day to night, mirror ending) + `scripts/coworker.gd` (friendly daytime coworker)
 - `scripts/npc.gd` + `scripts/mobs/*.gd`: base coworker AI (patrol, investigate noise, search hide spot, chase, catch; NavigationAgent3D) + the coworkers (manager, sweeper, goblin, guard, hr, doctor) + a practice mannequin (`dummy.gd`)
 - `scripts/loop.gd`: the fire-stairs loop (laps, anomalies)
+- `scripts/ui/kit.gd` (colours, fonts, button/panel styles, UI sounds: change the look here), `scripts/ui/menu_bg.gd` (live office behind the menu), `scripts/ui/phone_map.gd` (map app), `scripts/ui/app_icon.gd`, `shaders/crt.gdshader` (screen overlay)
 - `scripts/player.gd`, `scripts/pickup.gd`, `scripts/body.gd` (@tool, loads the Blender model parts), `scripts/cutscene.gd`, `scripts/main.gd`
 - `scripts/stage_builder.gd` + `tools/bake_stages.tscn`: one-time generator of the stage scenes
 - `tools/blender/build_characters.py`: generates every character .blend/.glb in Blender (or with the `bpy` pip module: `python tools/blender/build_characters.py -- guard_night`) · `shaders/vhs.gdshader`: fear post-process
-- Assets and licenses: `ASSETS.md` · sounds: `tools/fetch_freesound.py` (CC0), `tools/synth_sfx.py`
+- Assets and licenses: `ASSETS.md` · sounds: `tools/fetch_freesound.py` (CC0), `tools/synth_sfx.py`, `tools/synth_ui.py` (UI sounds, menu and chase music)

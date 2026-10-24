@@ -25,7 +25,7 @@ class_name Story
 # Cutscene positions are Vector3(cell_x, height_m, cell_z); see cutscene.gd for step types.
 const STAGES := [
 	{
-		"title": "ด่าน 1 : แผนกบัญชี",
+		"title": "บทที่ 1 : แผนกบัญชี",
 		"scene": "stage_1",   # scenes/stages/stage_1.tscn
 		"clock": "23:47",
 		"story": [   # black-screen text before the stage (first visit only)
@@ -147,7 +147,7 @@ const STAGES := [
 		],
 	},
 	{
-		"title": "ด่าน 2 : โถงทางเดิน & โซนพักผ่อน",
+		"title": "บทที่ 2 : โถงทางเดิน & โซนพักผ่อน",
 		"scene": "stage_2",   # scenes/stages/stage_2.tscn
 		"clock": "00:31",
 		"story": [   # black-screen text before the stage (first visit only)
@@ -256,7 +256,7 @@ const STAGES := [
 		],
 	},
 	{
-		"title": "ด่าน 3 : ฝ่ายบุคคล & ห้องประชุมใหญ่",
+		"title": "บทที่ 3 : ฝ่ายบุคคล & ห้องประชุมใหญ่",
 		"scene": "stage_hr",   # scenes/stages/stage_hr.tscn
 		"clock": "00:52",
 		"story": [   # black-screen text before the stage (first visit only)
@@ -351,7 +351,7 @@ const STAGES := [
 		],
 	},
 	{
-		"title": "ด่าน 4 : ห้องเซิร์ฟเวอร์",
+		"title": "บทที่ 4 : ห้องเซิร์ฟเวอร์",
 		"scene": "stage_3",   # scenes/stages/stage_3.tscn
 		"clock": "01:12",
 		"story": [   # black-screen text before the stage (first visit only)
@@ -476,7 +476,7 @@ const STAGES := [
 		],
 	},
 	{
-		"title": "ด่าน 5 : บันไดหนีไฟ",
+		"title": "บทที่ 5 : บันไดหนีไฟ",
 		"scene": "stage_stairs",   # scenes/stages/stage_stairs.tscn
 		"clock": "01:44",
 		"story": [
@@ -554,7 +554,7 @@ const STAGES := [
 		],
 	},
 	{
-		"title": "ด่าน 6 : ตึกผู้ป่วย 7",
+		"title": "บทที่ 6 : ตึกผู้ป่วย 7",
 		"scene": "stage_hospital",   # scenes/stages/stage_hospital.tscn
 		"clock": "??:??",
 		"heartbeat": true,   # the doctor hears your heart; the HUD shows its rate
@@ -647,7 +647,7 @@ const STAGES := [
 		],
 	},
 	{
-		"title": "ด่าน 7 : ออกจากบริษัท",
+		"title": "บทที่ 7 : ออกจากบริษัท",
 		"scene": "stage_4",   # scenes/stages/stage_4.tscn
 		"clock": "02:58",
 		"story": [   # black-screen text before the stage (first visit only)

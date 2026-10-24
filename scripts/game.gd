@@ -246,6 +246,11 @@ func save_progress() -> void:
 func has_save() -> bool:
 	return FileAccess.file_exists(save_path)
 
+# Which chapter the save is at (-1 = none), without loading it.
+func saved_stage() -> int:
+	var cf := ConfigFile.new()
+	return cf.get_value("run", "stage", -1) if cf.load(save_path) == OK else -1
+
 func load_progress() -> bool:
 	var cf := ConfigFile.new()
 	if cf.load(save_path) != OK:
