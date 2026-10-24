@@ -51,6 +51,25 @@ var _skip_release := false     # just skipped one: let go of Space before the ne
 var skip_cutscenes := false    # tests + settings
 var sensitivity := 1.0         # settings: mouse look multiplier
 var volume := 0.8              # settings: master volume 0..1
+var music := 0.7               # settings: menu music 0..1
+var difficulty := 1            # settings: 0 easy, 1 normal, 2 hard (catch drain + coworker speed)
+var brightness := 1.0          # settings: picture brightness
+var fov := 70.0                # settings: field of view (degrees)
+var vhs := 1.0                 # settings: strength of the VHS / fear picture effects
+var sub_size := 22             # settings: subtitle text size
+var invert_y := false          # settings: mouse look up/down inverted
+var fullscreen := false        # settings (desktop only)
+const SETTINGS := ["sensitivity", "volume", "music", "skip_cutscenes", "difficulty", "brightness", "fov", "vhs", "sub_size", "invert_y", "fullscreen"]
+# Profile: what this player has done across every run (main menu: chapters, archive, endings).
+var profile_path := "user://profile.cfg"
+var reached := -1              # furthest chapter started (-1 = only the tutorial so far)
+var endings_seen := {}         # "A".."D" -> true
+var docs_found := {}           # document title -> true (notes, post-its, goal items ever read)
+var grades := {}               # chapter -> best performance-review grade
+# This chapter so far (performance review at the end of it)
+var stage_caught := 0
+var stage_hints0 := 0
+var stage_reads := 0
 var save_path := "user://save_v4.cfg"       # tests point these elsewhere (v4: 7 stages, old saves do not fit)
 var settings_path := "user://settings.cfg"
 var phone_taken := false
@@ -61,6 +80,7 @@ var phone_lock := false         # a text Tong must read first: no moving or acti
 var typing := false             # whoever is texting is still typing (phone shows it)
 var clock := ""                 # HUD clock override ("" = stage clock + play time)
 var heart := 30.0               # 0 = calm .. 100 = pounding (stages with "heartbeat": the doctor hears it)
+var hud_clock := ""             # what the HUD clock shows right now (main.gd): stamped on phone messages
 var player: Node3D
 var level: Node3D
 var _last_cause := ""
@@ -69,6 +89,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_setup_buses()
 	load_settings()
+	load_profile()
 	_bind("move_forward", [KEY_W, KEY_UP])
 	_bind("move_back", [KEY_S, KEY_DOWN])
 	_bind("move_left", [KEY_A, KEY_LEFT])
@@ -105,7 +126,7 @@ func _process(dt: float) -> void:
 func _setup_buses() -> void:
 	if AudioServer.get_bus_index("SFX") >= 0:
 		return
-	for bname in ["SFX", "Amb", "Tension"]:
+	for bname in ["SFX", "Amb", "Tension", "Music"]:
 		AudioServer.add_bus()
 		var i := AudioServer.bus_count - 1
 		AudioServer.set_bus_name(i, bname)
@@ -127,21 +148,91 @@ func _setup_buses() -> void:
 func load_settings() -> void:
 	var cf := ConfigFile.new()
 	if cf.load(settings_path) == OK:
-		sensitivity = cf.get_value("s", "sensitivity", sensitivity)
-		volume = cf.get_value("s", "volume", volume)
-		skip_cutscenes = cf.get_value("s", "skip_cutscenes", skip_cutscenes)
+		for k in SETTINGS:
+			set(k, cf.get_value("s", k, get(k)))
 	apply_volume()
 
 func save_settings() -> void:
 	var cf := ConfigFile.new()
-	cf.set_value("s", "sensitivity", sensitivity)
-	cf.set_value("s", "volume", volume)
-	cf.set_value("s", "skip_cutscenes", skip_cutscenes)
+	for k in SETTINGS:
+		cf.set_value("s", k, get(k))
 	cf.save(settings_path)
 	apply_volume()
 
 func apply_volume() -> void:
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.001)))
+	var mb := AudioServer.get_bus_index("Music")
+	if mb >= 0:
+		AudioServer.set_bus_volume_db(mb, linear_to_db(maxf(music, 0.001)))
+	if not OS.has_feature("web") and DisplayServer.get_name() != "headless":
+		var mode := DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
+		if DisplayServer.window_get_mode() != mode and (fullscreen or DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN):
+			DisplayServer.window_set_mode(mode)
+
+# Difficulty: how much a catch drains and how fast they move.
+func drain_mult() -> float:
+	return [0.6, 1.0, 1.35][clampi(difficulty, 0, 2)]
+
+func speed_mult() -> float:
+	return [0.88, 1.0, 1.1][clampi(difficulty, 0, 2)]
+
+# --- profile: kept across runs ---
+func load_profile() -> void:
+	var cf := ConfigFile.new()
+	if cf.load(profile_path) == OK:
+		for k in ["reached", "endings_seen", "docs_found", "grades"]:
+			set(k, cf.get_value("p", k, get(k)))
+
+func save_profile() -> void:
+	var cf := ConfigFile.new()
+	for k in ["reached", "endings_seen", "docs_found", "grades"]:
+		cf.set_value("p", k, get(k))
+	cf.save(profile_path)
+
+# Every document in the game, in story order: {title, text, chapter (-1 = tutorial)}.
+static func all_docs() -> Array:
+	var out := []
+	for d in Story.TUTORIAL.get("notes", []):
+		out.append({"title": d.title, "text": d.text, "chapter": -1})
+	for i in Story.STAGES.size():
+		for key in ["notes", "items", "postits"]:
+			for d in Story.STAGES[i].get(key, []):
+				out.append({"title": d.title, "text": d.text, "chapter": i})
+	return out
+
+# A new chapter starts (main.gd): remember how far the player has got, zero this chapter's stats.
+func begin_stage() -> void:
+	stage_caught = 0
+	stage_hints0 = hints
+	stage_reads = 0
+	if not tutorial and stage > reached:
+		reached = stage
+		save_profile()
+
+# Performance review: 0..100 score -> S/A/B/C/D.
+static func grade_for(caught: int, secs: float, found_clue: bool, evidence: int) -> String:
+	var score := 100 - caught * 15 - maxf(0.0, secs / 60.0 - 8.0) * 3.0 + (10 if found_clue else 0) + evidence * 5
+	if score >= 100:
+		return "S"
+	if score >= 85:
+		return "A"
+	if score >= 70:
+		return "B"
+	if score >= 50:
+		return "C"
+	return "D"
+
+func record_grade(g: String) -> void:
+	var old: String = grades.get(stage, "")
+	if old == "" or "SABCD".find(g) < "SABCD".find(old):
+		grades[stage] = g
+		save_profile()
+
+func see_ending(id: String) -> bool:   # true = first time
+	var first := not endings_seen.has(id)
+	endings_seen[id] = true
+	save_profile()
+	return first
 
 # Checkpoint at the start of each stage: what the endings depend on carries over.
 func save_progress() -> void:
@@ -235,9 +326,10 @@ func catch(npc: Node) -> void:
 		return
 	busy = true
 	times_caught += 1   # the sting plays on main.gd's jumpscare face-slam
+	stage_caught += 1
 	say(npc.catch_line, 4.0)
 	caught.emit(npc)
-	damage(npc.drain, npc.death_text)
+	damage(npc.drain * drain_mult(), npc.death_text)
 
 func collect() -> void:
 	goal_count += 1
@@ -251,6 +343,10 @@ func collect() -> void:
 func _log_read(title: String, text: String) -> void:
 	if not read_log.any(func(e): return e.title == title):
 		read_log.append({"title": title, "text": text})
+		stage_reads += 1
+	if not docs_found.has(title):   # the main menu's archive keeps it for good
+		docs_found[title] = true
+		save_profile()
 
 # Pickups call this. Returns true when the item is used up.
 func use(kind: String, node: Node = null) -> bool:
@@ -304,7 +400,8 @@ func use(kind: String, node: Node = null) -> bool:
 				level.fuse_power_cut()
 			say("ต๋อง: เครื่องสแกนมีไฟแล้ว! ...แต่ไฟทั้งชั้นดับ — พี่สมชายขยับ?! เปิดไฟฉาย!", 3.5); collect()
 		"coffee", "coffee_goal":
-			sfx("pour"); heal(40.0); say("กาแฟดำแก้วใหญ่... Social Battery +40", 2.5)
+			var cup := 28.0 if difficulty >= 2 else 40.0
+			sfx("pour"); heal(cup); say("กาแฟดำแก้วใหญ่... Social Battery +%d" % cup, 2.5)
 			if kind == "coffee_goal":
 				collect()
 		"phone":
@@ -344,7 +441,7 @@ func use(kind: String, node: Node = null) -> bool:
 func text(thread: String, msg: String, img: Texture2D = null) -> void:
 	if not threads.has(thread):
 		threads[thread] = []
-	var m := {"text": msg, "img": img}
+	var m := {"text": msg, "img": img, "time": hud_clock}
 	threads[thread].append(m)
 	sfx("vibrate", null, -6.0)
 	phone_message.emit(thread, m)

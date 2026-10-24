@@ -249,7 +249,7 @@ func sees_player(any_angle := false) -> bool:
 func go_to(target: Vector3, spd: float, dt: float) -> bool:
 	if home_radius > 0.0:
 		target = _clamp_to_home(target)
-	spd *= 1.2 * (1.0 + 0.05 * Game.goal_count)   # base +20% speed, plus +5% more per task you finish
+	spd *= 1.2 * (1.0 + 0.05 * Game.goal_count) * Game.speed_mult()   # base +20% speed, +5% per task you finish, x difficulty
 	if unstick_t > 0.0:
 		unstick_t -= dt
 		velocity = -global_basis.z * spd

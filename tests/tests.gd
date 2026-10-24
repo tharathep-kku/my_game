@@ -16,6 +16,7 @@ var fails := 0
 func _ready() -> void:
 	Game.save_path = "user://test_save.cfg"   # never touch the player's real save/settings
 	Game.settings_path = "user://test_settings.cfg"
+	Game.profile_path = "user://test_profile.cfg"
 	Game.skip_cutscenes = true
 	var only := OS.get_cmdline_user_args()   # quick run of one test: ... tests.tscn -- t_notes
 	if only.size() > 0 and has_method(only[0]):

@@ -1,5 +1,6 @@
-# Scene flow + all UI: menu, HUD, pause, game over, endings.
+# Scene flow + all UI: menu, HUD, phone, pause, the paperwork screens, endings.
 # 3D renders in a SubViewport at 1/3 res (PSX look); UI stays sharp for Thai text.
+# Look and feel (fonts, colours, styles, UI sounds): scripts/ui/kit.gd.
 extends Control
 
 const YELLOW := Color(1.0, 0.82, 0.2)
@@ -11,40 +12,69 @@ const ENDINGS := {
 	"B": ["B · DREAM END", "ทุกอย่างเป็นแค่ฝัน", "manager",
 		"ต๋องลืมตาขึ้นมาที่โรงพยาบาล\nหมอบอกว่าเขาหมดสติเพราะทำงานหนักเกินไป\n\nหันซ้าย... คุณหมอยิ้มให้\nหันขวา... หัวหน้าธนายื่นหน้ามาพร้อมรอยยิ้มค้าง\n\n\"งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ?\""],
 	"C": ["C · BAD END", "มีคนตามกลับบ้าน", "guard",
-		"ต๋องถึงห้องพักตอนตีสอง ล็อกประตูแล้วถอนหายใจโล่งอก\n\nก๊อก... ก๊อก... ก๊อก...\n\"ข้าวมันไก่ครับ... ซื้อมาฝาก\"\n\nต๋องไม่เคยบอกใครเลยว่าบ้านอยู่ที่ไหน\n\n(คำใบ้: รับสายโทรศัพท์ที่ดัง มองหาพี่สมชายที่ยืนอยู่ไกลๆ อ่านโน้ตที่พูดถึงเขา\nแล้วขโมยมือถือเขามาแจ้งตำรวจ — หรือเก็บของแปลกๆ ที่ไม่ควรอยู่ในออฟฟิศให้ครบ — หรือทำทั้งสองอย่าง...)"],
+		"ต๋องถึงห้องพักตอนตีสอง ล็อกประตูแล้วถอนหายใจโล่งอก\n\nก๊อก... ก๊อก... ก๊อก...\n\"ข้าวมันไก่ครับ... ซื้อมาฝาก\"\n\nต๋องไม่เคยบอกใครเลยว่าบ้านอยู่ที่ไหน"],
 	"D": ["D · TRUE END", "ตื่นแล้ว", "tong",
 		"ต๋องลืมตาขึ้นที่โรงพยาบาล เตียง 4 ห้อง 7 — ของจริง\nเขาหมดสติที่โต๊ะทำงานมาสามวัน\n\nก่อนหมดสติ เขากดโทรแจ้งตำรวจไว้ทัน\nพี่สมชายถูกจับที่ทางเดินหน้าห้องพักผู้ป่วย\n\nข้อความสุดท้ายที่ต๋องส่งถึงบริษัท:\n\"ผมขอลาออกครับ\""],
 }
+# How to get each ending: shown on its locked card (the gallery) and after a bad end.
+const ENDING_HINTS := {
+	"A": "ขโมยมือถือพี่สมชาย + หาหลักฐานเรื่องเขาให้ครบ 6 ชิ้น",
+	"B": "เก็บของแปลกๆ ที่ไม่ควรอยู่ในออฟฟิศให้ครบทุกบท และอย่าแตะมือถือพี่สมชาย",
+	"C": "แค่หนีออกมาให้ได้... ก็พอ",
+	"D": "ทำทั้ง A และ B ในการเล่นรอบเดียว",
+}
+# Your boss's verdict on the performance review, by grade.
+const BOSS_SAYS := {
+	"S": "งานคืบหน้า 100% แล้วจ๊ะ! ...งั้นพรุ่งนี้มาเช้ากว่าเดิมนะ",
+	"A": "ดีมากจ๊ะ ต๋อง ผมไว้ใจต๋องที่สุดเลย ^_^",
+	"B": "ก็พอไหวนะจ๊ะ แต่เดี๋ยวเรามาคุยกันหน่อย... แค่ 3 ชั่วโมงเอง",
+	"C": "งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ? ...ไม่ต้องตอบ ผมรู้แล้ว",
+	"D": "ต๋องจ๊ะ... เราต้องคุยกันยาวๆ แล้วล่ะ",
+}
+const MENU_SCREENS := ["menu", "chapters", "archive", "gallery", "credits", "settings", "debug"]
 
 var view: SubViewport
 var level: Node3D
 var playing := false
 var ambience: AudioStreamPlayer
+var menu_music: AudioStreamPlayer
 
 var hud: Control
 var battery_bar: ProgressBar
 var battery_fill: StyleBoxFlat
+var battery_pct: Label
 var objective: Label
-var subtitle: Label
+var objective_note: PanelContainer
+var subtitle: RichTextLabel
+var sub_panel: PanelContainer
 var prompt: Label
+var prompt_key: Label
+var prompt_box: PanelContainer
 var banner: Label
-var crosshair: Label
+var crosshair: Control
 var fade: ColorRect
 var status: Control      # HUD widgets hidden during cutscenes
 var bars: Array[ColorRect] = []
 var skip_hint: Label     # "hold Space to skip" in the top letterbox bar
 var skip_fill: ColorRect
 var stamina_bar: ColorRect
+var lamp_label: Label    # phone battery, shown while the flashlight is on (it drains it)
+var vignette: TextureRect   # red edges when Social Battery runs low
+var tip_panel: PanelContainer
+var tip_label: Label
+var _tips := {}          # first-time tips already shown this session
 var hide_view: Control
 var phone: Panel
 var phone_head: Label
-var phone_app := ""   # "" = app picker, "chat", "gps", "docs"
+var phone_app := ""   # "" = home screen, "chat", "gps", "docs", "map"
 var phone_home: VBoxContainer
+var phone_clock: Label
 var phone_chat: VBoxContainer
 var phone_tabs: HBoxContainer
 var phone_list: VBoxContainer
 var phone_gps: Control
 var phone_docs: VBoxContainer
+var phone_map: PhoneMap
 var phone_scroll: ScrollContainer
 var phone_foot: Label
 var _seen := {}          # thread -> messages already shown: the phone opens at the first new one
@@ -52,11 +82,15 @@ var lock_hint: Label     # "read your phone" while Game.phone_lock holds Tong st
 var phone_thread := ""
 var phone_hint: Label
 var toast: Label
+var toast_panel: PanelContainer
 var unread := 0
 var stage_time := 0.0
 var heartbeat: AudioStreamPlayer
 var drone: AudioStreamPlayer
 var card: Label
+var card_fx: Control     # CCTV overlay around the chapter card (REC, camera, timestamp)
+var card_chapter: Label
+var card_osd: Label
 var continue_btn: Button
 var _load_id := 0   # bumps per start_stage(); stale overlapping calls bail out
 var _story_seen: Array[int] = []   # stages whose black-screen story already played (-1 = tutorial)
@@ -66,7 +100,10 @@ var flash_rect: ColorRect
 var chase_loop: AudioStreamPlayer
 var screens := {}
 var over_cause: Label
+var over_count: Label
 var end_labels := {}
+var review_labels := {}
+var _review_done := false
 var _sub_t := 0.0
 var scare_face: FaceView
 var hud_face: FaceView
@@ -89,12 +126,29 @@ var tut_hint: Label
 var beacons: Control   # on-screen markers: what a note revealed, the exit, the tutorial step
 var peephole: TextureRect   # door-viewer vignette (cutscene "peephole" step)
 var heart_label: Label      # heart rate (stages with "heartbeat": the doctor hears it)
+var _map_t := 0.0
+# main menu
+var menu_bg: MenuBg
+var title_ghosts: Array[Label] = []
+var _glitch := 0.0
+var badge_stats: Label
+var menu_osd: Label
+var _osd_secs := 0.0
+var chapter_grid: GridContainer
+var archive_list: VBoxContainer
+var archive_title: Label
+var archive_body: Label
+var archive_count: Label
+var gallery_row: HBoxContainer
+var credits_scroll: ScrollContainer
+var pause_info: RichTextLabel
+var _settings_back := "menu"
+var _settings_rows := {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_preset(PRESET_FULL_RECT)
-	theme = Theme.new()
-	theme.default_font_size = 22
+	theme = Kit.theme()
 	_build_world()
 	_build_hud()
 	_build_screens()
@@ -118,9 +172,14 @@ func _ready() -> void:
 	chase_loop.bus = "Tension"
 	chase_loop.volume_db = -60
 	add_child(chase_loop)
+	menu_music = AudioStreamPlayer.new()
+	menu_music.stream = Game.looped("menu_theme")
+	menu_music.bus = "Music"
+	menu_music.volume_db = -6
+	add_child(menu_music)
 	Game.battery_changed.connect(_on_battery)
 	Game.message.connect(_on_message)
-	Game.objective_changed.connect(func(t): objective.text = t)
+	Game.objective_changed.connect(_on_objective)
 	Game.caught.connect(_on_caught)
 	Game.game_over.connect(_on_game_over)
 	Game.stage_cleared.connect(_on_stage_cleared)
@@ -134,6 +193,7 @@ func _ready() -> void:
 	Game.scare_face.connect(_face_slam)
 	Game.fade.connect(func(a, secs): _fade_to(a, secs))
 	Game.overlay.connect(func(kind): peephole.visible = kind == "peephole")
+	apply_settings()
 	show_screen("menu")
 
 # ---------- flow ----------
@@ -162,37 +222,43 @@ func start_stage() -> void:
 	for c in view.get_children():
 		c.queue_free()
 	level = null
-	if not Game.skip_cutscenes:   # clock card: time is running out
+	if not Game.skip_cutscenes:   # chapter card: the CCTV feed of the next floor
 		hud.hide()
 		fade.color.a = 1.0
+		card_chapter.text = "บทนำ" if Game.tutorial else "บทที่ %d / %d" % [Game.stage + 1, Game.STAGES.size()]
+		card_osd.text = "CAM %02d · %s" % [(Game.stage + 1) * 3 + 1 if not Game.tutorial else 1, Game.stage_data().get("clock", "")]
+		card_fx.show()
 		var key := -1 if Game.tutorial else Game.stage
 		if not key in _story_seen:   # story text on black, once per stage per session (not on retry)
 			_story_seen.append(key)
 			card.add_theme_font_size_override("font_size", 28)
+			card.add_theme_font_override("font", Kit.BODY)
 			for line in Game.stage_data().get("story", []):
 				card.text = line
-				card.modulate.a = 0.0
 				card.show()
-				create_tween().tween_property(card, "modulate:a", 1.0, 0.6)
-				await _story_wait(2.0 + line.length() * 0.05)
+				_typewrite(card, line.length())
+				await _story_wait(2.4 + line.length() * 0.05)
 				if my_load != _load_id:
 					break
-			card.add_theme_font_size_override("font_size", 44)
-			card.modulate.a = 1.0
+			card.add_theme_font_size_override("font_size", 46)
+			card.add_theme_font_override("font", Kit.TITLE)
 			if my_load != _load_id:
 				return
-		card.text = "%s\n\n%s" % [Game.stage_data().get("clock", ""), Game.stage_data().title]
+		card.text = "%s\n%s" % [Game.stage_data().get("clock", ""), Game.stage_data().title]
 		card.show()
+		_typewrite(card, card.text.length(), 0.03)
 		if not Game.tutorial:   # stage 0 opens on an ordinary afternoon
 			Game.sfx("heartbeat", null, -6.0)
-		await get_tree().create_timer(2.4).timeout
+		await get_tree().create_timer(2.6).timeout
 		if my_load != _load_id:
 			return
 		card.hide()
+		card_fx.hide()
 	level = load(Game.scene_path()).instantiate()
 	tut_hint.visible = Game.tutorial
 	view.add_child(level)
 	Game.save_progress()
+	Game.begin_stage()
 	Game.busy = false
 	playing = true
 	get_tree().paused = false
@@ -207,6 +273,7 @@ func start_stage() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_fade_to(0.0, 0.8)
 	stage_time = 0.0
+	phone_map.reset()
 	close_phone()
 	note_panel.hide()
 	_close_keypad()
@@ -221,6 +288,17 @@ func start_stage() -> void:
 	banner.text = Game.stage_data().title
 	banner.modulate.a = 1.0
 	create_tween().tween_property(banner, "modulate:a", 0.0, 1.5).set_delay(2.5)
+	if Game.tutorial:
+		_tip("move", "เดิน WASD · วิ่ง Shift ค้าง · ก้มย่อง C · มองแล้วกด E เพื่อใช้ของ")
+
+# The label types itself out, a clack per few letters.
+func _typewrite(l: Label, chars: int, per := 0.035) -> void:
+	l.visible_ratio = 0.0
+	var secs := clampf(chars * per, 0.3, 2.2)
+	var t := create_tween()
+	t.tween_property(l, "visible_ratio", 1.0, secs)
+	for i in int(secs / 0.09):
+		get_tree().create_timer(i * 0.09).timeout.connect(func(): if l.visible and l.visible_ratio < 1.0: Kit.ui_sound("type", -16.0))
 
 # Waits secs; E / Space jumps to the next line early.
 func _story_wait(secs: float) -> void:
@@ -246,6 +324,8 @@ func stop_play() -> void:
 	bars[1].position.y = 720.0
 	status.show()
 	peephole.hide()
+	card.hide()
+	card_fx.hide()
 	for c in view.get_children():
 		c.queue_free()
 	level = null
@@ -267,6 +347,7 @@ func _on_caught(npc: Node) -> void:
 	level.player.frozen = false
 	Game.busy = false
 	_fade_to(0.0, 0.6)
+	_tip("caught", "โดนจับ = Social Battery ลด แล้วกลับไปจุดเช็คพอยต์ · หมดเมื่อไหร่ = Game Over · กาแฟช่วยเติมพลัง")
 
 # Death jumpscare: the camera whips onto the coworker, they do their own lunge (Npc.jumpscare),
 # then their face slams full screen and it hard-cuts to black.
@@ -382,15 +463,23 @@ func _on_game_over(cause: String) -> void:
 		return
 	stop_play()
 	over_cause.text = cause
+	over_count.text = "บทที่ %d · %s\nโดนจับรวม %d ครั้ง · เวลาในบทนี้ %s" % [Game.stage + 1, Game.stage_data().title, Game.times_caught, _mmss(stage_time)]
 	show_screen("over")
 	fade.color.a = 0.0
+	_stamp(screens.over.get_meta("stamp"))
 
 func _on_stage_cleared() -> void:
 	level.player.frozen = true
 	await _fade_to(1.0, 1.0)
 	if Game.tutorial:   # training done: the real night starts
 		skip_tutorial()
-	elif Game.is_last_stage():
+		return
+	if not Game.skip_cutscenes:   # the performance review
+		var my_load := _load_id
+		await _review()
+		if my_load != _load_id:
+			return
+	if Game.is_last_stage():
 		stop_play()
 		var id := Game.ending()
 		Game.clear_save()
@@ -401,6 +490,46 @@ func _on_stage_cleared() -> void:
 		Game.stage += 1
 		Game.goal_count = 0
 		start_stage()
+
+# "ใบประเมินผลการปฏิบัติงาน": what this chapter took, a grade, a stamp, and what the boss thinks.
+func _review() -> void:
+	var found_clue: bool = Game.clues.has(Game.stage)
+	var evidence := Game.hints - Game.stage_hints0
+	var g := Game.grade_for(Game.stage_caught, stage_time, found_clue, evidence)
+	Game.record_grade(g)
+	review_labels.chapter.text = "บทที่ %d · %s" % [Game.stage + 1, Game.stage_data().title.get_slice(" : ", 1)]
+	review_labels.rows.text = "เวลาที่ใช้\t%s\nโดนจับ\t%d ครั้ง\nหลักฐานเรื่องพี่สมชาย (บทนี้)\t+%d\nเบาะแสความฝัน\t%s\nเอกสารที่อ่าน\t%d" % [
+		_mmss(stage_time), Game.stage_caught, evidence, "พบแล้ว" if found_clue else "ไม่พบ", Game.stage_reads]
+	review_labels.grade.text = g
+	review_labels.boss.text = "หัวหน้าธนา: \"%s\"" % BOSS_SAYS[g]
+	review_labels.best.text = "เกรดดีที่สุดของบทนี้: %s" % Game.grades.get(Game.stage, g)
+	stop_play()
+	fade.color.a = 0.0
+	show_screen("review")
+	_review_done = false
+	_stamp(review_labels.stamp)
+	var t := 0.0
+	while not _review_done and t < 30.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		if t > 0.8 and (Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept")):
+			_review_done = true
+	Kit.ui_sound("ui_click", -8.0)
+	show_screen("")
+	fade.color.a = 1.0
+
+# A rubber stamp comes down: big and tilted, then slams to size with a thud and a shake.
+func _stamp(s: Control) -> void:
+	s.scale = Vector2.ONE * 2.6
+	s.modulate.a = 0.0
+	var t := create_tween()
+	t.tween_interval(0.45)
+	t.tween_property(s, "modulate:a", 1.0, 0.01)
+	t.parallel().tween_property(s, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	t.tween_callback(func(): Kit.ui_sound("stamp", -2.0))
+
+func _mmss(secs: float) -> String:
+	return "%02d:%02d" % [int(secs) / 60, int(secs) % 60]
 
 # Short 3D vignette before the ending card.
 func _ending_scene(id: String) -> void:
@@ -426,12 +555,15 @@ func _on_flash(kind: String) -> void:
 
 func _show_ending(id: String) -> void:
 	var e: Array = ENDINGS[id]
+	var first := Game.see_ending(id)
 	end_labels.letter.text = e[0]
 	end_labels.title.text = e[1]
 	end_labels.face.set_preset(e[2])
-	end_labels.body.text = e[3]
-	end_labels.stats.text = "โดนจับ %d ครั้ง  ·  หลักฐานเรื่องพี่สมชาย %d (ต้องมี %d)  ·  เบาะแสความฝัน %d/%d  ·  มือถือพี่สมชาย: %s" % [
+	end_labels.body.text = e[3] + ("" if id != "C" else "\n\n(ยังมีทางจบอื่นอีก... ดูคำใบ้ได้ที่เมนู \"ฉากจบ\")")
+	end_labels.new.visible = first
+	end_labels.stats.text = "โดนจับ %d ครั้ง  ·  หลักฐานเรื่องพี่สมชาย %d/%d  ·  เบาะแสความฝัน %d/%d  ·  มือถือพี่สมชาย: %s" % [
 		Game.times_caught, Game.hints, Game.EVIDENCE_NEEDED, Game.clues.size(), Game.CLUE_TOTAL, "ขโมยมา" if Game.phone_taken else "ไม่ได้แตะ"]
+	_fill_gallery(end_labels.gallery, true, id)
 	show_screen("ending")
 
 func _fade_to(a: float, secs: float) -> void:
@@ -441,6 +573,15 @@ func _fade_to(a: float, secs: float) -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not playing:
+		if e.is_action_pressed("pause") and screens.has("menu"):   # Esc backs out of the menu's sub-screens
+			for s in ["chapters", "archive", "gallery", "credits", "debug"]:
+				if screens[s].visible:
+					show_screen("menu")
+					get_viewport().set_input_as_handled()
+					return
+			if screens.settings.visible:
+				show_screen(_settings_back)
+				get_viewport().set_input_as_handled()
 		return
 	if Game.in_cutscene or _scaring:
 		return
@@ -456,7 +597,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("fps"):   # F3: show frame rate (check 60 fps in the browser)
 		fps_label.visible = not fps_label.visible
 		return
-	if phone.visible and phone_app != "" and not Game.phone_lock and e.is_action_pressed("pause"):   # back to the app picker (a text he must read: Esc closes)
+	if phone.visible and phone_app != "" and not Game.phone_lock and e.is_action_pressed("pause"):   # back to the home screen (a text he must read: Esc closes)
 		_show_app("")
 		get_viewport().set_input_as_handled()
 		return
@@ -475,10 +616,16 @@ func _unhandled_input(e: InputEvent) -> void:
 			app = "gps"
 		elif e.is_action_pressed("phone_app_3"):
 			app = "docs"
+		elif e is InputEventKey and e.pressed and e.physical_keycode == KEY_4:
+			app = "map"
 		if app != "":
 			_show_app(app)
 			get_viewport().set_input_as_handled()
 			return
+	if e.is_action_pressed("pause") and screens.settings.visible:   # settings opened from the pause menu
+		show_screen("pause")
+		get_viewport().set_input_as_handled()
+		return
 	if e.is_action_pressed("pause"):
 		var p := not get_tree().paused
 		get_tree().paused = p
@@ -496,6 +643,11 @@ func _unhandled_input(e: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
+func _resume() -> void:
+	get_tree().paused = false
+	show_screen("")
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
 func clock_text() -> String:
 	if Game.clock != "":   # tutorial: the afternoon runs on into the night
 		return Game.clock
@@ -505,14 +657,18 @@ func clock_text() -> String:
 	var mins := int(start.get_slice(":", 0)) * 60 + int(start.get_slice(":", 1)) + int(stage_time / 10.0)
 	return "%02d:%02d" % [(mins / 60) % 24, mins % 60]
 
+# ---------- phone ----------
 func open_phone() -> void:
 	phone.show()
 	Game.event.emit("phone")
 	unread = 0
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_show_app("chat" if Game.phone_lock else "")   # the app picker, unless a text is holding Tong still: straight to it
+	phone.scale = Vector2(0.9, 0.9)
+	create_tween().tween_property(phone, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_show_app("chat" if Game.phone_lock else "")   # the home screen, unless a text is holding Tong still: straight to it
 
-# "" = app picker, "chat" = the thread view, "gps" = compass to the nearest objective.
+# "" = home screen, "chat" = the thread view, "gps" = compass to the nearest objective,
+# "docs" = everything read so far, "map" = the floor plan (where you have been).
 func _show_app(app: String) -> void:
 	phone_app = app
 	phone_home.visible = app == ""
@@ -520,6 +676,7 @@ func _show_app(app: String) -> void:
 	phone_gps.visible = app == "gps"
 	phone_docs.visible = app == "docs"
 	phone_docs.get_parent().visible = app == "docs"   # its ScrollContainer: left showing, it took half the phone from the chat
+	phone_map.visible = app == "map"
 	Game.sfx("metalClick", null, -14.0)
 	if app == "chat":
 		var first: String = Game.threads.keys()[0] if not Game.threads.is_empty() else ""
@@ -542,35 +699,49 @@ func _show_thread(t: String, live := false) -> void:
 	for tname in Game.threads.keys():
 		var b := Button.new()
 		b.text = tname
-		b.add_theme_font_size_override("font_size", 14)
 		b.toggle_mode = true
 		b.button_pressed = tname == t
+		b.add_theme_font_size_override("font_size", 13)
+		var on := Kit.box(Kit.speaker_color(tname).darkened(0.35), Color(0, 0, 0, 0), 0, 10, 6)
+		var off := Kit.box(Color(1, 1, 1, 0.08), Color(0, 0, 0, 0), 0, 10, 6)
+		b.add_theme_stylebox_override("normal", on if tname == t else off)
+		b.add_theme_stylebox_override("hover", on)
+		b.add_theme_stylebox_override("pressed", on)
+		b.add_theme_stylebox_override("focus", off)
 		b.pressed.connect(_show_thread.bind(tname))
 		phone_tabs.add_child(b)
 	for c in phone_list.get_children():
 		c.queue_free()
+	var col := Kit.speaker_color(t)
 	for m in Game.threads.get(t, []):
-		var l := _label(m.text, 16, Color(0.1, 0.1, 0.12))
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		l.add_theme_constant_override("outline_size", 0)
-		var bubble := PanelContainer.new()
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.95, 0.8, 0.8) if t == "เบอร์ไม่รู้จัก" else Color(0.85, 0.95, 0.8)
-		sb.set_corner_radius_all(10)
-		sb.set_content_margin_all(8)
-		bubble.add_theme_stylebox_override("panel", sb)
+		var row := HBoxContainer.new()   # one row per message: avatar + bubble (+ time under it)
+		row.add_theme_constant_override("separation", 6)
+		var av := Kit.panel(Kit.box(col.darkened(0.2), Color(1, 1, 1, 0.3), 1, 16, 0))
+		av.custom_minimum_size = Vector2(30, 30)
+		av.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		var ini := Kit.label("?" if t == "เบอร์ไม่รู้จัก" else t.left(1), 15, Kit.NIGHT, Kit.TITLE, av)
+		ini.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ini.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(av)
 		var v := VBoxContainer.new()
-		bubble.add_child(v)
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v.add_theme_constant_override("separation", 1)
+		row.add_child(v)
+		var bubble := Kit.panel(Kit.box(Color(0.42, 0.06, 0.1) if t == "เบอร์ไม่รู้จัก" else Color(0.18, 0.19, 0.24), Color(0, 0, 0, 0), 0, 12, 8))
+		v.add_child(bubble)
+		var bv := VBoxContainer.new()
+		bubble.add_child(bv)
 		if m.img:
 			var tr := TextureRect.new()
 			tr.texture = m.img
-			tr.custom_minimum_size = Vector2(240, 180)
+			tr.custom_minimum_size = Vector2(190, 140)
 			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			v.add_child(tr)
-		v.add_child(l)
-		phone_list.add_child(bubble)
+			bv.add_child(tr)
+		Kit.label(m.text, 15, Color(0.95, 0.95, 0.97), Kit.BODY, bv)
+		Kit.label(m.get("time", ""), 11, Kit.DIM, Kit.UI, v)
+		phone_list.add_child(row)
 	_scroll_to_new(9999 if live else _seen.get(t, 0))   # one arriving while he reads: show it
 	_seen[t] = Game.threads.get(t, []).size()
 
@@ -587,23 +758,14 @@ func _show_docs() -> void:
 	for c in phone_docs.get_children():
 		c.queue_free()
 	if Game.read_log.is_empty():
-		_label("ยังไม่ได้อ่านอะไรเลย", 14, Color(0.6, 0.6, 0.65), phone_docs)
+		Kit.label("ยังไม่ได้อ่านอะไรเลย", 14, Kit.DIM, Kit.UI, phone_docs)
 		return
 	for entry in Game.read_log:
-		var bubble := PanelContainer.new()
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.9, 0.88, 0.8)
-		sb.set_corner_radius_all(10)
-		sb.set_content_margin_all(8)
-		bubble.add_theme_stylebox_override("panel", sb)
+		var bubble := Kit.panel(Kit.box(Kit.PAPER, Color(0, 0, 0, 0), 0, 8, 9))
 		var v := VBoxContainer.new()
 		bubble.add_child(v)
-		var title_l := _label(entry.title, 15, Color(0.3, 0.05, 0.05), v)
-		title_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		title_l.add_theme_constant_override("outline_size", 0)
-		var body_l := _label(entry.text, 14, Color(0.1, 0.1, 0.12), v)
-		body_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		body_l.add_theme_constant_override("outline_size", 0)
+		Kit.label(entry.title, 15, Color(0.5, 0.08, 0.1), Kit.HAND, v)
+		Kit.label(entry.text, 13, Kit.INK, Kit.BODY, v)
 		phone_docs.add_child(bubble)
 
 func _on_phone_message(thread: String, m: Dictionary) -> void:
@@ -612,11 +774,14 @@ func _on_phone_message(thread: String, m: Dictionary) -> void:
 		return
 	unread += 1
 	phone_thread = thread   # the phone opens on whoever just texted
-	toast.text = "ข้อความใหม่ · %s: %s" % [thread, "(รูปภาพ)" if m.img else m.text]
-	toast.modulate.a = 1.0
+	toast.text = "%s\n%s" % [thread, "(รูปภาพ)" if m.img else m.text]
+	toast.add_theme_color_override("font_color", Color.WHITE)
+	toast_panel.position.y = -80.0
+	toast_panel.modulate.a = 1.0
 	var t := create_tween()
+	t.tween_property(toast_panel, "position:y", 12.0, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.tween_interval(3.5)
-	t.tween_property(toast, "modulate:a", 0.0, 0.8)
+	t.tween_property(toast_panel, "modulate:a", 0.0, 0.6)
 
 func _on_story_event(t: Dictionary) -> void:
 	if t.get("photo", false) and is_instance_valid(level):
@@ -633,9 +798,9 @@ func _draw_beacons() -> void:
 		return
 	var cam: Camera3D = Game.player.cam
 	var k := Vector2(960, 720) / Vector2(view.size)   # 3D renders at 1/3 res
-	var font := get_theme_default_font()
+	var font := Kit.UI
 	var centre := Vector2(480, 360)
-	var inner := Rect2(60, 90, 840, 560)
+	var inner := Rect2(60, 110, 840, 520)
 	for m: Node3D in get_tree().get_nodes_in_group("beacon"):
 		if not m.is_inside_tree():
 			continue
@@ -649,8 +814,8 @@ func _draw_beacons() -> void:
 		var text := "%s  %d ม." % [label, roundi(dist)]
 		if not behind and inner.has_point(sp):
 			var tip := sp + Vector2(0, -8 + bob)
-			beacons.draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-12, -20), tip + Vector2(12, -20)]), col)
-			_beacon_text(beacons, font, text, tip + Vector2(0, -26), col)
+			beacons.draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-11, -18), tip + Vector2(11, -18)]), col)
+			_beacon_text(beacons, font, text, tip + Vector2(0, -24), col)
 		elif m.get_meta("edge"):
 			var d := (sp - centre) * (-1.0 if behind else 1.0)
 			if d.length() < 1.0:
@@ -663,22 +828,23 @@ func _draw_beacons() -> void:
 			_beacon_text(beacons, font, text, p - d * 40, col)
 
 func _beacon_text(canvas: CanvasItem, font: Font, text: String, at: Vector2, col: Color) -> void:
-	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, 18).x
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, 17).x
 	var pos := at - Vector2(w / 2, 0)
-	canvas.draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 6, Color.BLACK)
-	canvas.draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, col)
+	canvas.draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 6, Color.BLACK)
+	canvas.draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, col)
 
 # GPS app: a compass needle rotated to your bearing toward the nearest unfinished objective
 # (or the exit, once it's open) - "up" is straight ahead, so turn until it points up.
 func _draw_gps() -> void:
-	var c := phone_gps.size / 2.0
-	var r := minf(c.x, c.y) - 14.0
-	var font := get_theme_default_font()
-	phone_gps.draw_arc(c, r, 0.0, TAU, 48, Color(0.3, 0.9, 0.45, 0.5), 2.0)
+	var c := phone_gps.size / 2.0 - Vector2(0, 16)
+	var r := minf(c.x, c.y) - 18.0
+	var font := Kit.UI
+	for i in 3:
+		phone_gps.draw_arc(c, r * (1.0 - i * 0.3), 0.0, TAU, 48, Color(0.3, 0.9, 0.45, 0.45 - i * 0.12), 2.0)
 	phone_gps.draw_circle(c, 4.0, Color(0.3, 0.9, 0.45))
 	var t := _gps_target()
 	if t.is_empty():
-		_beacon_text(phone_gps, font, "ไม่มีเป้าหมายตอนนี้", c + Vector2(0, r + 30), Color(0.6, 0.6, 0.65))
+		_beacon_text(phone_gps, font, "ไม่มีเป้าหมายตอนนี้", c + Vector2(0, r + 34), Color(0.6, 0.6, 0.65))
 		return
 	var fwd := -Game.player.global_basis.z
 	var to: Vector3 = t.pos - Game.player.global_position
@@ -686,9 +852,10 @@ func _draw_gps() -> void:
 	var dir := Vector2(0, -1).rotated(bearing)
 	var side := dir.orthogonal()
 	var tip := c + dir * r
-	phone_gps.draw_colored_polygon(PackedVector2Array([tip, c + dir * (r - 26) + side * 12, c + dir * (r - 26) - side * 12]), Color(0.3, 0.9, 0.45))
+	phone_gps.draw_colored_polygon(PackedVector2Array([tip, c + dir * (r - 28) + side * 13, c + dir * (r - 28) - side * 13]), Color(0.3, 0.9, 0.45))
 	var dist := Game.player.global_position.distance_to(t.pos)
-	_beacon_text(phone_gps, font, "%s  ·  %d ม." % [t.label, roundi(dist)], c + Vector2(0, r + 30), Color(0.85, 0.95, 0.85))
+	_beacon_text(phone_gps, font, t.label, c + Vector2(0, r + 30), Color(0.85, 0.95, 0.85))
+	_beacon_text(phone_gps, font, "%d เมตร" % roundi(dist), c + Vector2(0, r + 52), Kit.DIM)
 
 # Nearest item still needed (or the exit once unlocked) - what the GPS app points to.
 func _gps_target() -> Dictionary:
@@ -723,9 +890,12 @@ func _on_note(title: String, body: String, tip: String) -> void:
 	note_labels.title.text = title
 	note_labels.body.text = body
 	note_labels.tip.text = tip
-	note_labels.tip.visible = tip != ""
+	note_labels.tip.get_parent().visible = tip != ""
 	banner.modulate.a = 0.0   # the stage title would sit on top of the text
 	note_panel.show()
+	note_panel.rotation = randf_range(-0.025, 0.025)
+	note_panel.modulate.a = 0.0
+	create_tween().tween_property(note_panel, "modulate:a", 1.0, 0.15)
 	if is_instance_valid(Game.player):
 		_note_at = Game.player.global_position
 
@@ -771,15 +941,17 @@ func tension() -> Vector2:
 
 func _process(dt: float) -> void:
 	_watch_capture()
+	_menu_tick(dt)
 	if fps_label.visible:
 		fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+	Game.hud_clock = clock_text() if playing else ""
 	if playing:
 		var t := tension()
 		var listening: bool = is_instance_valid(level) and level.data.get("heartbeat", false)
 		heart_label.visible = listening
 		if listening:   # the doctor's stage: you hear (and see) your own heart, the way he does
 			var bpm := 60 + int(Game.heart)
-			heart_label.text = "♥ %d BPM%s" % [bpm, "  — เขาได้ยิน!" if Game.heart > 65.0 else ""]
+			heart_label.text = "♥ %d BPM%s" % [bpm, "  เขาได้ยิน!" if Game.heart > 65.0 else ""]
 			heart_label.add_theme_color_override("font_color", Color(1, 0.25, 0.25) if Game.heart > 65.0 else Color(1, 0.7, 0.7))
 			heartbeat.volume_db = lerpf(heartbeat.volume_db, lerpf(-24.0, 2.0, Game.heart / 100.0), dt * 3.0)
 			heartbeat.pitch_scale = 0.8 + Game.heart / 100.0 * 0.9
@@ -794,6 +966,25 @@ func _process(dt: float) -> void:
 		hud_face.shake = fear()
 		if note_panel.visible and is_instance_valid(Game.player) and Game.player.global_position.distance_to(_note_at) > 1.2:
 			note_panel.hide()
+		var low := Game.battery < 35.0   # red edges throb when Social Battery runs low
+		vignette.modulate.a = lerpf(vignette.modulate.a, (0.45 + 0.35 * sin(Time.get_ticks_msec() * 0.006)) if low else 0.0, dt * 4.0)
+		if t.y > 0.0:
+			_tip("chase", "โดนไล่! วิ่ง (Shift) แล้วหาที่ซ่อน: ล็อกเกอร์ ห้องน้ำ ใต้โต๊ะ (มองแล้วกด E)")
+		if is_instance_valid(level) and level.get("dark"):
+			_tip("dark", "มืด... เปิดไฟฉาย (F) — แต่ไฟฉายกินแบตมือถือ และศัตรูเห็นแสงได้จากไกล")
+		if is_instance_valid(Game.player):
+			_map_t -= dt
+			if _map_t <= 0.0:
+				_map_t = 0.25
+				phone_map.reveal(Game.player.global_position)
+				if phone_map.visible:
+					phone_map.queue_redraw()
+			var lamp: bool = Game.player.flashlight.visible
+			lamp_label.visible = lamp or Game.phone_battery < 30.0
+			lamp_label.text = "ไฟฉาย · แบตมือถือ %d%%" % int(Game.phone_battery)
+			lamp_label.add_theme_color_override("font_color", Color(1, 0.4, 0.35) if Game.phone_battery < 25.0 else Color(0.75, 0.85, 1.0))
+			if Game.player.hidden:
+				_tip("hide", "กำลังซ่อน · ถ้ามีคนมายืนใกล้ๆ กด Space ค้างเพื่อกลั้นหายใจ (ระวังแรงหมด)")
 	if playing and not Game.in_cutscene:
 		stage_time += dt
 	var held := Game.skip_hold / Game.SKIP_HOLD
@@ -802,32 +993,54 @@ func _process(dt: float) -> void:
 	lock_hint.visible = playing and Game.phone_lock and not phone.visible and not get_tree().paused
 	lock_hint.modulate.a = 0.65 + 0.35 * sin(Time.get_ticks_msec() * 0.006)
 	if phone.visible:
-		phone_head.text = "%s        แบต %d%%" % [clock_text(), int(Game.phone_battery)]
+		phone_head.text = "%s                แบต %d%%" % [clock_text(), int(Game.phone_battery)]
+		phone_clock.text = clock_text()
 		if Game.typing:
 			phone_foot.text = "กำลังพิมพ์" + ".".repeat(1 + int(Time.get_ticks_msec() / 400) % 3)
 		elif phone_app == "":
-			phone_foot.text = "[1] แชท   [2] GPS   [3] เอกสาร   [Esc] ปิด"
+			phone_foot.text = "1 แชท · 2 GPS · 3 เอกสาร · 4 แผนที่ · Esc ปิด"
 		else:
-			phone_foot.text = "[Esc] ปิด" if Game.phone_lock else "[Esc] กลับ   [Tab] ปิด"
+			phone_foot.text = "[Esc] ปิด" if Game.phone_lock else "[Esc] กลับ · [Tab] ปิด"
 		if phone_app == "gps":
 			phone_gps.queue_redraw()
-	var badge := (" (%d ใหม่)" % unread) if unread > 0 else ""
-	phone_hint.text = "[Tab] มือถือ%s   [F] ไฟฉาย   [M] ปล่อยเมาส์   %s" % [badge, clock_text()]
+	var badge := ("  (%d ใหม่)" % unread) if unread > 0 else ""
+	phone_hint.text = "[Tab] มือถือ%s    [F] ไฟฉาย    [Esc] พัก    %s" % [badge, clock_text()]
 	if playing and not get_tree().paused and not phone.visible and not keypad.visible and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		phone_hint.text = "คลิกที่จอ หรือกด [M] เพื่อล็อกเมาส์   %s" % clock_text()
+		phone_hint.text = "คลิกที่จอ หรือกด [M] เพื่อล็อกเมาส์    %s" % clock_text()
 	if _sub_t > 0.0:
 		_sub_t -= dt
 		if _sub_t <= 0.0:
 			subtitle.text = ""
+			sub_panel.hide()
 	if playing and is_instance_valid(Game.player):
 		var f: Node = Game.player.focus()
-		prompt.text = f.prompt() if f else ""
-		crosshair.modulate = YELLOW if f else Color(1, 1, 1, 0.5)
-		stamina_bar.size.x = 240.0 * Game.player.stamina / 100.0
-		if prompt.text == "" and Game.player.held:
-			prompt.text = "[Q / คลิกขวา] ขว้างของล่อ"
+		var ptext: String = f.prompt() if f else ""
+		if ptext == "" and Game.player.held:
+			ptext = "[Q] ขว้างของล่อ"
 		if Game.player.hidden:
-			prompt.text = "[E] ออกมา  ·  [Space ค้าง] กลั้นหายใจ" + ("  (กำลังกลั้น...)" if Game.player.holding_breath else "")
+			ptext = "[E] ออกมา · [Space ค้าง] กลั้นหายใจ" + ("  (กำลังกลั้น...)" if Game.player.holding_breath else "")
+		_set_prompt(ptext)
+		crosshair.set_meta("on", f != null)
+		crosshair.queue_redraw()
+		stamina_bar.size.x = 180.0 * Game.player.stamina / 100.0
+		stamina_bar.color = Color(1, 0.45, 0.3) if Game.player.exhausted else Color(0.45, 0.75, 1.0)
+
+# "[E] อ่าน" -> a key cap with E on it, then "อ่าน". Empty = nothing shown.
+func _set_prompt(ptext: String) -> void:
+	if ptext == "":
+		prompt.text = ""
+		prompt_box.hide()
+		return
+	var key := ""
+	var rest := ptext
+	if ptext.begins_with("["):
+		var j := ptext.find("]")
+		key = ptext.substr(1, j - 1)
+		rest = ptext.substr(j + 1).strip_edges()
+	prompt_key.text = key
+	prompt_key.get_parent().visible = key != ""
+	prompt.text = rest
+	prompt_box.show()
 
 func _on_hidden(kind: String) -> void:
 	for c in hide_view.get_children():
@@ -860,26 +1073,75 @@ func _on_cutscene(on: bool) -> void:
 
 func _on_battery(v: float) -> void:
 	battery_bar.value = v
-	battery_fill.bg_color = Color(0.3, 0.85, 0.35) if v > 60 else (YELLOW if v > 30 else RED)
+	battery_pct.text = "%d%%" % int(v)
+	battery_fill.bg_color = Color(0.3, 0.85, 0.45) if v > 60 else (YELLOW if v > 30 else RED)
+
+func _on_objective(t: String) -> void:
+	if objective.text == t:
+		return
+	objective.text = t
+	objective_note.visible = t != ""
+	if playing and t != "":   # a little bounce and a pen scribble when it changes
+		Kit.ui_sound("pen", -14.0)
+		objective_note.scale = Vector2(1.08, 1.08)
+		create_tween().tween_property(objective_note, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK)
 
 func _on_message(text: String, secs: float) -> void:
-	subtitle.text = text
+	subtitle.text = Kit.subtitle_bbcode(text)
+	sub_panel.visible = text != ""
 	_sub_t = secs
+
+# First-time help, once per session each: a small card on the left.
+func _tip(id: String, text: String) -> void:
+	if _tips.has(id) or Game.in_cutscene:
+		return
+	_tips[id] = true
+	tip_label.text = text
+	tip_panel.show()
+	tip_panel.modulate.a = 0.0
+	var t := create_tween()
+	t.tween_property(tip_panel, "modulate:a", 1.0, 0.3)
+	t.tween_interval(7.0)
+	t.tween_property(tip_panel, "modulate:a", 0.0, 0.8)
+	t.tween_callback(tip_panel.hide)
 
 func show_screen(sname: String) -> void:
 	for k in screens:
 		screens[k].visible = k == sname
-	if sname == "menu":
-		continue_btn.visible = Game.has_save()
-	elif sname == "pause":
-		skip_tut_btn.visible = Game.tutorial
-	elif sname == "debug":   # locked again every time you come back
-		debug_pw.text = ""
-		debug_err.text = ""
-		debug_list.hide()
-		for c in debug_lock:
-			c.show()
-		debug_pw.grab_focus.call_deferred()
+	if playing and hud:   # paused: just the coffee-break sheet, no HUD showing through
+		hud.visible = not sname in ["pause", "settings"]
+	if menu_music:
+		if sname in MENU_SCREENS and not playing:
+			if not menu_music.playing:
+				menu_music.play()
+		elif menu_music.playing:
+			menu_music.stop()
+	match sname:
+		"menu":
+			continue_btn.visible = Game.has_save()
+			_refresh_badge()
+			var f: Button = continue_btn if continue_btn.visible else screens.menu.get_meta("first")
+			f.grab_focus.call_deferred()
+		"pause":
+			skip_tut_btn.visible = Game.tutorial
+			_refresh_pause()
+		"debug":   # locked again every time you come back
+			debug_pw.text = ""
+			debug_err.text = ""
+			debug_list.hide()
+			for c in debug_lock:
+				c.show()
+			debug_pw.grab_focus.call_deferred()
+		"chapters":
+			_fill_chapters()
+		"archive":
+			_fill_archive()
+		"gallery":
+			_fill_gallery(gallery_row, false, "")
+		"credits":
+			credits_scroll.scroll_vertical = 0
+		"settings":
+			_refresh_settings()
 
 func _debug_unlock() -> void:
 	if debug_pw.text != DEBUG_PASS:
@@ -900,7 +1162,17 @@ func continue_game() -> void:
 	if Game.load_progress():
 		start_stage()
 
-# ---------- building UI ----------
+# Settings that change something on screen right away.
+func apply_settings() -> void:
+	screen_fx.set_shader_parameter("strength", Game.vhs)
+	screen_fx.set_shader_parameter("brightness", Game.brightness)
+	subtitle.add_theme_font_size_override("normal_font_size", Game.sub_size)
+	subtitle.add_theme_font_size_override("bold_font_size", Game.sub_size)
+	subtitle.add_theme_font_size_override("italics_font_size", Game.sub_size)
+	if is_instance_valid(Game.player):
+		Game.player.cam.fov = Game.fov
+
+# ---------- building: the 3D view ----------
 func _build_world() -> void:
 	var box := SubViewportContainer.new()
 	box.set_anchors_preset(PRESET_FULL_RECT)
@@ -917,43 +1189,47 @@ func _build_world() -> void:
 	view.audio_listener_enable_3d = true
 	box.add_child(view)
 
-func _label(text: String, size := 22, color := Color.WHITE, parent: Node = null) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_color_override("font_outline_color", Color.BLACK)
-	l.add_theme_constant_override("outline_size", 6)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	if parent:
-		parent.add_child(l)
-	return l
+func _crt(parent: Control, corners := 0.55, scan := 0.12) -> ColorRect:
+	var c := ColorRect.new()
+	c.set_anchors_preset(PRESET_FULL_RECT)
+	c.mouse_filter = MOUSE_FILTER_IGNORE
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://shaders/crt.gdshader")
+	m.set_shader_parameter("corners", corners)
+	m.set_shader_parameter("scan", scan)
+	c.material = m
+	parent.add_child(c)
+	return c
 
-func _button(text: String, cb: Callable, parent: Node) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(320, 52)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.12, 0.1, 0.14)
-	sb.border_color = YELLOW
-	sb.set_border_width_all(3)
-	b.add_theme_stylebox_override("normal", sb)
-	var hov := sb.duplicate()
-	hov.bg_color = Color(0.35, 0.1, 0.1)
-	b.add_theme_stylebox_override("hover", hov)
-	b.add_theme_stylebox_override("focus", hov)
-	b.add_theme_color_override("font_color", YELLOW)
-	b.pressed.connect(cb)
-	parent.add_child(b)
-	return b
+func _at(c: Control, pos: Vector2, sz: Vector2) -> Control:
+	c.position = pos
+	c.size = sz
+	return c
 
+# ---------- building: HUD ----------
 func _build_hud() -> void:
 	hud = Control.new()
 	hud.set_anchors_preset(PRESET_FULL_RECT)
 	hud.mouse_filter = MOUSE_FILTER_IGNORE
 	hud.hide()
 	add_child(hud)
+	vignette = TextureRect.new()   # red edges: low Social Battery
+	var vg := Gradient.new()
+	vg.set_color(0, Color(0.6, 0, 0.02, 0))
+	vg.set_color(1, Color(0.6, 0, 0.02, 0.85))
+	vg.add_point(0.55, Color(0.6, 0, 0.02, 0))
+	var vt := GradientTexture2D.new()
+	vt.gradient = vg
+	vt.fill = GradientTexture2D.FILL_RADIAL
+	vt.fill_from = Vector2(0.5, 0.5)
+	vt.fill_to = Vector2(1.0, 1.0)
+	vignette.texture = vt
+	vignette.set_anchors_preset(PRESET_FULL_RECT)
+	vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	vignette.mouse_filter = MOUSE_FILTER_IGNORE
+	vignette.modulate.a = 0.0
+	hud.add_child(vignette)
 	for top in [true, false]:   # cutscene letterbox
 		var bar := ColorRect.new()
 		bar.color = Color.BLACK
@@ -962,58 +1238,77 @@ func _build_hud() -> void:
 		bar.mouse_filter = MOUSE_FILTER_IGNORE
 		hud.add_child(bar)
 		bars.append(bar)
-	skip_hint = _label("กด [Space] ค้างไว้เพื่อข้าม", 15, Color(0.75, 0.75, 0.8), bars[0])   # slides in with the bar
+	skip_hint = Kit.label("กด [Space] ค้างไว้เพื่อข้าม", 15, Color(0.75, 0.75, 0.8), Kit.UI, bars[0])   # slides in with the bar
 	skip_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	skip_hint.position = Vector2(560, 26)
-	skip_hint.size = Vector2(384, 24)
+	_at(skip_hint, Vector2(560, 26), Vector2(384, 24))
 	var skip_back := ColorRect.new()
 	skip_back.color = Color(0.25, 0.25, 0.28)
-	skip_back.position = Vector2(784, 56)
-	skip_back.size = Vector2(160, 5)
+	_at(skip_back, Vector2(784, 56), Vector2(160, 5))
 	bars[0].add_child(skip_back)
 	skip_fill = ColorRect.new()
-	skip_fill.color = YELLOW
+	skip_fill.color = Kit.RED
 	skip_fill.size = Vector2(0, 5)
 	skip_back.add_child(skip_fill)
 	status = Control.new()
 	status.set_anchors_preset(PRESET_FULL_RECT)
 	status.mouse_filter = MOUSE_FILTER_IGNORE
 	hud.add_child(status)
+	# top left: Tong + his Social Battery
+	var card_l := Kit.panel(Kit.box(Color(0.03, 0.03, 0.05, 0.72), Color(1, 1, 1, 0.1), 1, 10, 0), status)
+	_at(card_l, Vector2(12, 12), Vector2(318, 96))
+	var frame := Kit.panel(Kit.box(Color(0.12, 0.13, 0.18), Kit.YELLOW.darkened(0.3), 2, 8, 0), status)
+	_at(frame, Vector2(20, 20), Vector2(72, 72))
 	hud_face = FaceView.new("tong", 64)   # Tong's own head; trembles as Social Battery drains
-	hud_face.position = Vector2(16, 16)
-	hud_face.size = Vector2(64, 64)
+	_at(hud_face, Vector2(24, 24), Vector2(64, 64))
 	hud_face.turn = 0.12
 	status.add_child(hud_face)
-	var cap := _label("SOCIAL BATTERY", 16, YELLOW, status)
-	cap.position = Vector2(92, 14)
-	cap.size = Vector2(240, 26)
-	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var cap := Kit.label("SOCIAL BATTERY", 14, Kit.YELLOW, Kit.TITLE, status)
+	_at(cap, Vector2(104, 18), Vector2(180, 20))
+	battery_pct = Kit.label("100%", 16, Color.WHITE, Kit.TITLE, status)
+	battery_pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_at(battery_pct, Vector2(244, 16), Vector2(76, 22))
 	battery_bar = ProgressBar.new()
-	battery_bar.position = Vector2(92, 44)
-	battery_bar.size = Vector2(240, 26)
+	_at(battery_bar, Vector2(104, 42), Vector2(214, 18))
 	battery_bar.show_percentage = false
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.05, 0.05, 0.05, 0.8)
-	bg.border_color = Color.WHITE
-	bg.set_border_width_all(2)
-	battery_fill = StyleBoxFlat.new()
+	var bg := Kit.box(Color(0.02, 0.02, 0.03, 0.9), Color(1, 1, 1, 0.5), 2, 4, 0)
+	battery_fill = Kit.box(Color(0.3, 0.85, 0.45), Color(0, 0, 0, 0), 0, 3, 0)
 	battery_bar.add_theme_stylebox_override("background", bg)
 	battery_bar.add_theme_stylebox_override("fill", battery_fill)
 	status.add_child(battery_bar)
+	for i in range(1, 5):   # cell dividers: reads as a battery
+		var div := ColorRect.new()
+		div.color = Color(0, 0, 0, 0.55)
+		_at(div, Vector2(104 + 214 * i / 5.0, 44), Vector2(2, 14))
+		div.mouse_filter = MOUSE_FILTER_IGNORE
+		status.add_child(div)
 	var sback := ColorRect.new()   # thin stamina bar (ProgressBar enforces a text-height minimum)
-	sback.color = Color(0.05, 0.05, 0.05, 0.8)
-	sback.position = Vector2(92, 76)
-	sback.size = Vector2(240, 6)
+	sback.color = Color(0.02, 0.02, 0.03, 0.9)
+	_at(sback, Vector2(104, 66), Vector2(180, 5))
 	status.add_child(sback)
 	stamina_bar = ColorRect.new()
-	stamina_bar.color = Color(0.4, 0.7, 1.0)
-	stamina_bar.position = sback.position
-	stamina_bar.size = sback.size
+	stamina_bar.color = Color(0.45, 0.75, 1.0)
+	_at(stamina_bar, sback.position, sback.size)
 	status.add_child(stamina_bar)
-	heart_label = _label("", 18, Color(1, 0.6, 0.6), status)
-	heart_label.position = Vector2(92, 86)
-	heart_label.size = Vector2(240, 26)
-	heart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var stc := Kit.label("แรง", 11, Kit.DIM, Kit.UI, status)
+	_at(stc, Vector2(290, 60), Vector2(30, 16))
+	heart_label = Kit.label("", 15, Color(1, 0.6, 0.6), Kit.TITLE, status)
+	_at(heart_label, Vector2(104, 76), Vector2(214, 22))
+	lamp_label = Kit.label("", 13, Color(0.75, 0.85, 1.0), Kit.UI, status)
+	_at(lamp_label, Vector2(16, 112), Vector2(300, 20))
+	# top right: the objective, on a sticky note
+	objective_note = Kit.panel(Kit.box(Kit.STICKY, Kit.STICKY.darkened(0.2), 1, 2, 12), status)
+	objective_note.get_theme_stylebox("panel").shadow_color = Color(0, 0, 0, 0.5)
+	objective_note.get_theme_stylebox("panel").shadow_size = 6
+	objective_note.get_theme_stylebox("panel").shadow_offset = Vector2(3, 4)
+	_at(objective_note, Vector2(634, 14), Vector2(310, 60))
+	objective_note.rotation = -0.025
+	objective_note.pivot_offset = Vector2(155, 20)
+	var ov := VBoxContainer.new()
+	ov.add_theme_constant_override("separation", 0)
+	objective_note.add_child(ov)
+	Kit.label("ภารกิจ", 15, Color(0.7, 0.12, 0.12), Kit.HAND, ov)
+	objective = Kit.label("", 16, Kit.INK, Kit.HAND, ov)
+	objective.custom_minimum_size.x = 286
 	beacons = Control.new()
 	beacons.set_anchors_preset(PRESET_FULL_RECT)
 	beacons.mouse_filter = MOUSE_FILTER_IGNORE
@@ -1023,132 +1318,81 @@ func _build_hud() -> void:
 	hide_view.set_anchors_preset(PRESET_FULL_RECT)
 	hide_view.mouse_filter = MOUSE_FILTER_IGNORE
 	hud.add_child(hide_view)
-	hud.move_child(hide_view, 0)
-	phone_hint = _label("", 16, Color(0.8, 0.85, 1.0), status)
+	hud.move_child(hide_view, 1)
+	# centre: crosshair + what E does
+	crosshair = Control.new()
+	_at(crosshair, Vector2(470, 350), Vector2(20, 20))
+	crosshair.mouse_filter = MOUSE_FILTER_IGNORE
+	crosshair.set_meta("on", false)
+	crosshair.draw.connect(func():
+		if crosshair.get_meta("on"):
+			crosshair.draw_arc(Vector2(10, 10), 8.0, 0.0, TAU, 24, Kit.YELLOW, 2.0)
+			crosshair.draw_circle(Vector2(10, 10), 2.0, Kit.YELLOW)
+		else:
+			crosshair.draw_circle(Vector2(10, 10), 2.0, Color(1, 1, 1, 0.6)))
+	status.add_child(crosshair)
+	prompt_box = Kit.panel(Kit.box(Color(0.02, 0.02, 0.04, 0.7), Color(1, 1, 1, 0.12), 1, 8, 8), status)
+	var ph := HBoxContainer.new()
+	ph.add_theme_constant_override("separation", 10)
+	ph.alignment = BoxContainer.ALIGNMENT_CENTER
+	prompt_box.add_child(ph)
+	var keycap := Kit.panel(Kit.box(Color(0.92, 0.9, 0.84), Color(0.55, 0.52, 0.45), 2, 5, 4), ph)
+	keycap.custom_minimum_size = Vector2(30, 28)
+	prompt_key = Kit.label("E", 16, Kit.NIGHT, Kit.TITLE, keycap, 0, false)
+	prompt_key.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt = Kit.label("", 18, Color.WHITE, Kit.UI, ph, 0, false)
+	prompt_box.hide()
+	prompt_box.resized.connect(func(): prompt_box.position = Vector2(480 - prompt_box.size.x / 2, 392))
+	# bottom right: keys + clock · bottom left: tutorial hint · left: first-time tips
+	phone_hint = Kit.label("", 15, Color(0.8, 0.85, 1.0), Kit.UI, status, 4)
 	phone_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	phone_hint.position = Vector2(560, 680)
-	phone_hint.size = Vector2(384, 30)
-	toast = _label("", 18, Color(0.8, 1.0, 0.8), hud)
-	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	toast.position = Vector2(380, 80)
-	toast.size = Vector2(564, 60)
-	toast.modulate.a = 0.0
-	phone = Panel.new()
-	var psb := StyleBoxFlat.new()
-	psb.bg_color = Color(0.08, 0.08, 0.1)
-	psb.border_color = Color(0.3, 0.3, 0.35)
-	psb.set_border_width_all(6)
-	psb.set_corner_radius_all(24)
-	phone.add_theme_stylebox_override("panel", psb)
-	phone.position = Vector2(680, 160)
-	phone.size = Vector2(260, 420)
-	phone.hide()
-	hud.add_child(phone)
-	var pv := VBoxContainer.new()
-	pv.position = Vector2(14, 14)
-	pv.size = Vector2(232, 392)
-	phone.add_child(pv)
-	phone_head = _label("", 13, Color.WHITE, pv)
-	phone_home = VBoxContainer.new()
-	phone_home.add_theme_constant_override("separation", 10)
-	phone_home.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	pv.add_child(phone_home)
-	_label("เลือกแอป", 13, Color(0.6, 0.6, 0.7), phone_home)
-	var chat_btn := Button.new()
-	chat_btn.text = "1  ·  แชท"
-	chat_btn.add_theme_font_size_override("font_size", 20)
-	chat_btn.pressed.connect(_show_app.bind("chat"))
-	phone_home.add_child(chat_btn)
-	var gps_btn := Button.new()
-	gps_btn.text = "2  ·  GPS"
-	gps_btn.add_theme_font_size_override("font_size", 20)
-	gps_btn.pressed.connect(_show_app.bind("gps"))
-	phone_home.add_child(gps_btn)
-	var docs_btn := Button.new()
-	docs_btn.text = "3  ·  เอกสาร"
-	docs_btn.add_theme_font_size_override("font_size", 20)
-	docs_btn.pressed.connect(_show_app.bind("docs"))
-	phone_home.add_child(docs_btn)
-	phone_chat = VBoxContainer.new()
-	phone_chat.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	pv.add_child(phone_chat)
-	phone_tabs = HBoxContainer.new()
-	phone_chat.add_child(phone_tabs)
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	phone_chat.add_child(scroll)
-	phone_scroll = scroll
-	phone_list = VBoxContainer.new()
-	phone_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	phone_list.add_theme_constant_override("separation", 8)
-	scroll.add_child(phone_list)
-	phone_gps = Control.new()
-	phone_gps.custom_minimum_size = Vector2(232, 340)
-	phone_gps.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	phone_gps.draw.connect(_draw_gps)
-	pv.add_child(phone_gps)
-	var docs_scroll := ScrollContainer.new()
-	docs_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	docs_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	pv.add_child(docs_scroll)
-	phone_docs = VBoxContainer.new()
-	phone_docs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	phone_docs.add_theme_constant_override("separation", 8)
-	docs_scroll.add_child(phone_docs)
-	phone_foot = _label("[Esc] ปิด", 12, Color(0.6, 0.6, 0.7), pv)
-	note_panel = _paper(Vector2(200, 120), Vector2(560, 440))   # note reader
-	var nv := VBoxContainer.new()
-	nv.add_theme_constant_override("separation", 10)
-	note_panel.add_child(nv)
-	note_labels.title = _label("", 24, Color(0.35, 0.05, 0.05), nv)
-	note_labels.body = _label("", 19, Color(0.12, 0.1, 0.1), nv)
-	note_labels.body.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	note_labels.body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	note_labels.tip = _label("", 17, Color(0.1, 0.35, 0.15), nv)
-	_label("(เดินออก / Esc เพื่อปิด)", 13, Color(0.4, 0.4, 0.4), nv)
-	for l in nv.get_children():
-		l.add_theme_constant_override("outline_size", 0)
-	keypad = _paper(Vector2(300, 220), Vector2(360, 230))   # PC login
-	var kv := VBoxContainer.new()
-	kv.add_theme_constant_override("separation", 12)
-	keypad.add_child(kv)
-	var kt := _label("ห้อง Admin · ใส่รหัสผ่าน", 22, Color(0.1, 0.1, 0.15), kv)
-	kt.add_theme_constant_override("outline_size", 0)
-	keypad_edit = LineEdit.new()
-	keypad_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	keypad_edit.max_length = 8
-	keypad_edit.custom_minimum_size = Vector2(200, 52)
-	keypad_edit.add_theme_font_size_override("font_size", 30)
-	keypad_edit.text_submitted.connect(_submit_code)
-	kv.add_child(keypad_edit)
-	var kh := _label("Enter = ยืนยัน · Esc = ยกเลิก\nรหัสผิด = เสียงเตือนดังลั่น!", 14, Color(0.4, 0.1, 0.1), kv)
-	kh.add_theme_constant_override("outline_size", 0)
-	tut_hint = _label("บทนำ · [Esc] แล้วกด \"ข้ามบทนำ\" เพื่อเริ่มด่าน 1 ทันที", 14, Color(0.7, 0.75, 0.9), status)
-	tut_hint.position = Vector2(16, 690)
-	tut_hint.size = Vector2(520, 24)
-	tut_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_at(phone_hint, Vector2(480, 684), Vector2(464, 26))
+	tut_hint = Kit.label("บทนำ · [Esc] แล้วกด \"ข้ามบทนำ\" เพื่อเริ่มบทที่ 1 ทันที", 14, Color(0.7, 0.75, 0.9), Kit.UI, status, 4)
+	_at(tut_hint, Vector2(16, 688), Vector2(460, 24))
 	tut_hint.hide()
-	objective = _label("", 18, Color.WHITE, status)
-	objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	objective.position = Vector2(360, 16)
-	objective.size = Vector2(584, 60)
-	subtitle = _label("", 22, Color(1, 1, 0.85), hud)
-	subtitle.position = Vector2(60, 600)
-	subtitle.size = Vector2(840, 100)
-	prompt = _label("", 20, YELLOW, status)
-	prompt.position = Vector2(280, 400)
-	prompt.size = Vector2(400, 40)
-	crosshair = _label("·", 32, Color.WHITE, status)
-	crosshair.position = Vector2(460, 336)
-	crosshair.size = Vector2(40, 40)
-	lock_hint = _label("มีข้อความเข้า!\nกด [Tab] เปิดมือถืออ่าน", 30, YELLOW, hud)
-	lock_hint.position = Vector2(180, 420)
-	lock_hint.size = Vector2(600, 100)
+	tip_panel = Kit.panel(Kit.box(Color(0.03, 0.05, 0.08, 0.85), Color("#4aa3ff"), 0, 8, 12), status)
+	tip_panel.get_theme_stylebox("panel").border_width_left = 4
+	_at(tip_panel, Vector2(16, 150), Vector2(300, 0))
+	var tv := VBoxContainer.new()
+	tip_panel.add_child(tv)
+	Kit.label("คำแนะนำ", 14, Color("#4aa3ff"), Kit.TITLE, tv)
+	tip_label = Kit.label("", 15, Color(0.9, 0.92, 0.95), Kit.BODY, tv)
+	tip_label.custom_minimum_size.x = 276
+	tip_panel.hide()
+	# bottom: subtitles (stay up in cutscenes)
+	sub_panel = Kit.panel(Kit.box(Color(0, 0, 0, 0.62), Color(0, 0, 0, 0), 0, 8, 10), hud)
+	sub_panel.hide()
+	subtitle = Kit.rich(Game.sub_size, sub_panel)
+	subtitle.custom_minimum_size.x = 760
+	subtitle.add_theme_font_override("italics_font", Kit.BODY)
+	subtitle.add_theme_color_override("default_color", Color(1, 1, 0.94))
+	subtitle.add_theme_constant_override("outline_size", 4)
+	subtitle.add_theme_color_override("font_outline_color", Color.BLACK)
+	sub_panel.resized.connect(func(): sub_panel.position = Vector2(480 - sub_panel.size.x / 2, 640 - sub_panel.size.y))
+	# phone notification, slides down from the top
+	toast_panel = Kit.panel(Kit.box(Color(0.1, 0.1, 0.13, 0.94), Color(1, 1, 1, 0.12), 1, 14, 10), hud)
+	_at(toast_panel, Vector2(330, -80), Vector2(300, 0))
+	var th := HBoxContainer.new()
+	th.add_theme_constant_override("separation", 10)
+	toast_panel.add_child(th)
+	var tic := AppIcon.new("chat", Color("#3dbb6b"))
+	tic.custom_minimum_size = Vector2(36, 36)
+	tic.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	th.add_child(tic)
+	toast = Kit.label("", 14, Color.WHITE, Kit.BODY, th)
+	toast.custom_minimum_size.x = 230
+	toast.max_lines_visible = 3
+	toast_panel.modulate.a = 0.0
+	lock_hint = Kit.label("มีข้อความเข้า!\nกด [Tab] เปิดมือถืออ่าน", 30, Kit.YELLOW, Kit.TITLE, hud, 8)
+	lock_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_at(lock_hint, Vector2(180, 420), Vector2(600, 100))
 	lock_hint.hide()
-	banner = _label("", 40, YELLOW, hud)
-	banner.position = Vector2(0, 220)
-	banner.size = Vector2(960, 80)
+	banner = Kit.label("", 40, Color.WHITE, Kit.TITLE, hud, 10)   # chapter title as play starts
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_at(banner, Vector2(0, 200), Vector2(960, 80))
+	_build_phone()
+	note_panel = _note_reader()
+	keypad = _keypad()
 	peephole = TextureRect.new()   # fish-eye door viewer: a round hole in the black
 	var g := Gradient.new()
 	g.set_color(0, Color(0, 0, 0, 0))
@@ -1164,16 +1408,14 @@ func _build_hud() -> void:
 	peephole.texture = gt
 	peephole.stretch_mode = TextureRect.STRETCH_SCALE
 	peephole.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	peephole.position = Vector2(120, 0)
-	peephole.size = Vector2(720, 720)
+	_at(peephole, Vector2(120, 0), Vector2(720, 720))
 	peephole.mouse_filter = MOUSE_FILTER_IGNORE
 	peephole.hide()
 	hud.add_child(peephole)
-	hud.move_child(peephole, 0)
+	hud.move_child(peephole, 1)
 	for r in [Rect2(0, 0, 120, 720), Rect2(840, 0, 120, 720)]:   # the sides beyond the round hole
 		var side := ColorRect.new()
 		side.color = Color.BLACK
-		side.position = r.position
 		side.size = r.size
 		side.mouse_filter = MOUSE_FILTER_IGNORE
 		peephole.add_child(side)
@@ -1196,148 +1438,815 @@ func _build_hud() -> void:
 	fade.set_anchors_preset(PRESET_FULL_RECT)
 	fade.mouse_filter = MOUSE_FILTER_IGNORE
 	add_child(fade)
-	fps_label = _label("", 16, Color(0.6, 1, 0.6))
-	fps_label.position = Vector2(8, 690)
-	fps_label.size = Vector2(120, 24)
-	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	fps_label = Kit.label("", 16, Color(0.6, 1, 0.6), Kit.UI, null, 4)
+	_at(fps_label, Vector2(8, 690), Vector2(120, 24))
 	fps_label.hide()
 	add_child(fps_label)
-	card = _label("", 44, Color(0.9, 0.9, 0.9))
+	_build_card()
+
+# The chapter card: a CCTV feed of the next floor. REC blinking, the camera, a running timestamp.
+func _build_card() -> void:
+	card_fx = Control.new()
+	card_fx.set_anchors_preset(PRESET_FULL_RECT)
+	card_fx.mouse_filter = MOUSE_FILTER_IGNORE
+	card_fx.hide()
+	add_child(card_fx)
+	_crt(card_fx, 0.7, 0.16)
+	var rec := HBoxContainer.new()
+	_at(rec, Vector2(40, 34), Vector2(300, 30))
+	card_fx.add_child(rec)
+	var dot := Kit.panel(Kit.box(Kit.RED, Color(0, 0, 0, 0), 0, 9, 0), rec)
+	dot.custom_minimum_size = Vector2(18, 18)
+	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var blink := create_tween().set_loops()
+	blink.tween_property(dot, "modulate:a", 0.0, 0.01).set_delay(0.6)
+	blink.tween_property(dot, "modulate:a", 1.0, 0.01).set_delay(0.6)
+	Kit.label("  REC", 22, Kit.CCTV, Kit.TITLE, rec, 0, false)
+	card_osd = Kit.label("CAM 04", 22, Kit.CCTV, Kit.TITLE, card_fx)
+	card_osd.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_at(card_osd, Vector2(560, 34), Vector2(360, 30))
+	var corp := Kit.label("NIGHTSHIFT CO., LTD. · SECURITY", 15, Kit.CCTV.darkened(0.3), Kit.UI, card_fx)
+	_at(corp, Vector2(40, 670), Vector2(400, 24))
+	card_chapter = Kit.label("", 20, Kit.RED, Kit.TITLE, card_fx)
+	card_chapter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_at(card_chapter, Vector2(0, 230), Vector2(960, 30))
+	for xy in [Vector2(30, 24), Vector2(906, 24), Vector2(30, 670), Vector2(906, 670)]:   # viewfinder corners
+		var hl := ColorRect.new()
+		hl.color = Kit.CCTV
+		_at(hl, xy + Vector2(0, 0 if xy.y < 360 else 22), Vector2(24, 2))
+		card_fx.add_child(hl)
+		var vl := ColorRect.new()
+		vl.color = Kit.CCTV
+		_at(vl, xy + Vector2(0 if xy.x < 480 else 22, 0), Vector2(2, 24))
+		card_fx.add_child(vl)
+	card = Kit.label("", 44, Color(0.92, 0.92, 0.9), Kit.TITLE, null, 0)
 	card.set_anchors_preset(PRESET_FULL_RECT)
+	card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	card.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	card.offset_left = 80
+	card.offset_right = -80
 	card.hide()
 	add_child(card)
 
-# Hidden off-white sheet on the HUD (note reader, keypad).
-func _paper(pos: Vector2, sz: Vector2) -> PanelContainer:
-	var p := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.93, 0.91, 0.82)
-	sb.border_color = Color(0.55, 0.5, 0.4)
-	sb.set_border_width_all(3)
-	sb.set_content_margin_all(22)
-	p.add_theme_stylebox_override("panel", sb)
-	p.position = pos
-	p.size = sz
-	p.mouse_filter = MOUSE_FILTER_IGNORE
+# The phone: a handset on the right of the screen. Home screen with app icons, chats with
+# avatars and times, the GPS compass, the documents read so far, and the floor map.
+func _build_phone() -> void:
+	phone = Panel.new()
+	var body := Kit.box(Color(0.05, 0.05, 0.06), Color(0.22, 0.22, 0.26), 5, 34, 0)
+	body.shadow_color = Color(0, 0, 0, 0.6)
+	body.shadow_size = 18
+	phone.add_theme_stylebox_override("panel", body)
+	_at(phone, Vector2(640, 96), Vector2(290, 560))
+	phone.pivot_offset = Vector2(145, 560)
+	phone.hide()
+	hud.add_child(phone)
+	var scr := Panel.new()   # the glass
+	scr.add_theme_stylebox_override("panel", Kit.box(Color(0.07, 0.07, 0.1), Color(0, 0, 0, 0), 0, 26, 0))
+	_at(scr, Vector2(10, 10), Vector2(270, 540))
+	scr.clip_contents = true
+	phone.add_child(scr)
+	var wall := TextureRect.new()
+	var wg := Gradient.new()
+	wg.set_color(0, Color("#1c2340"))
+	wg.set_color(1, Color("#3a0d1c"))
+	var wt := GradientTexture2D.new()
+	wt.gradient = wg
+	wt.fill_from = Vector2(0, 0)
+	wt.fill_to = Vector2(0.4, 1)
+	wall.texture = wt
+	wall.set_anchors_preset(PRESET_FULL_RECT)
+	wall.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	wall.modulate = Color(1, 1, 1, 0.9)
+	scr.add_child(wall)
+	var notch := Panel.new()
+	notch.add_theme_stylebox_override("panel", Kit.box(Color(0.02, 0.02, 0.03), Color(0, 0, 0, 0), 0, 10, 0))
+	_at(notch, Vector2(95, 6), Vector2(80, 18))
+	scr.add_child(notch)
+	var pv := VBoxContainer.new()
+	_at(pv, Vector2(12, 8), Vector2(246, 520))
+	pv.add_theme_constant_override("separation", 6)
+	scr.add_child(pv)
+	phone_head = Kit.label("", 12, Color.WHITE, Kit.UI, pv)
+	phone_home = VBoxContainer.new()
+	phone_home.add_theme_constant_override("separation", 10)
+	phone_home.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	pv.add_child(phone_home)
+	phone_clock = Kit.label("23:47", 58, Color.WHITE, Kit.TITLE, phone_home)
+	phone_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var date := Kit.label("วันศุกร์ · กะดึก", 15, Color(0.85, 0.85, 0.95), Kit.UI, phone_home)
+	date.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 40
+	phone_home.add_child(gap)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 18)
+	grid.add_theme_constant_override("v_separation", 14)
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	phone_home.add_child(grid)
+	for app in [["chat", "1 · แชท", Color("#2fae5f")], ["gps", "2 · GPS", Color("#2f6fd6")], ["docs", "3 · เอกสาร", Color("#d6902f")], ["map", "4 · แผนที่", Color("#8a3fd1")]]:
+		var b := Button.new()
+		b.flat = true
+		b.custom_minimum_size = Vector2(100, 92)
+		b.focus_mode = Control.FOCUS_NONE
+		b.pressed.connect(_show_app.bind(app[0]))
+		var bv := VBoxContainer.new()
+		bv.set_anchors_preset(PRESET_FULL_RECT)
+		bv.alignment = BoxContainer.ALIGNMENT_CENTER
+		bv.mouse_filter = MOUSE_FILTER_IGNORE
+		b.add_child(bv)
+		var ic := AppIcon.new(app[0], app[2])
+		ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		bv.add_child(ic)
+		var al := Kit.label(app[1], 14, Color.WHITE, Kit.UI, bv)
+		al.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		al.mouse_filter = MOUSE_FILTER_IGNORE
+		grid.add_child(b)
+	phone_chat = VBoxContainer.new()
+	phone_chat.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	pv.add_child(phone_chat)
+	var tabs_scroll := ScrollContainer.new()
+	tabs_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tabs_scroll.custom_minimum_size.y = 34
+	phone_chat.add_child(tabs_scroll)
+	phone_tabs = HBoxContainer.new()
+	phone_tabs.add_theme_constant_override("separation", 4)
+	tabs_scroll.add_child(phone_tabs)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	phone_chat.add_child(scroll)
+	phone_scroll = scroll
+	phone_list = VBoxContainer.new()
+	phone_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	phone_list.add_theme_constant_override("separation", 8)
+	scroll.add_child(phone_list)
+	phone_gps = Control.new()
+	phone_gps.custom_minimum_size = Vector2(246, 360)
+	phone_gps.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	phone_gps.draw.connect(_draw_gps)
+	pv.add_child(phone_gps)
+	var docs_scroll := ScrollContainer.new()
+	docs_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	docs_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	pv.add_child(docs_scroll)
+	phone_docs = VBoxContainer.new()
+	phone_docs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	phone_docs.add_theme_constant_override("separation", 8)
+	docs_scroll.add_child(phone_docs)
+	phone_map = PhoneMap.new()
+	phone_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	phone_map.custom_minimum_size = Vector2(246, 380)
+	pv.add_child(phone_map)
+	phone_foot = Kit.label("[Esc] ปิด", 12, Color(0.7, 0.7, 0.8), Kit.UI, pv)
+	phone_foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var bar := Panel.new()   # home indicator
+	bar.add_theme_stylebox_override("panel", Kit.box(Color(1, 1, 1, 0.6), Color(0, 0, 0, 0), 0, 3, 0))
+	_at(bar, Vector2(95, 528), Vector2(80, 5))
+	scr.add_child(bar)
+
+# Note reader: a sheet of ruled paper, slightly askew. Title in handwriting, what reading it gave
+# you in a green box at the bottom.
+func _note_reader() -> PanelContainer:
+	var img := Image.create(32, 30, false, Image.FORMAT_RGBA8)
+	img.fill(Kit.PAPER)
+	for x in 32:
+		img.set_pixel(x, 29, Kit.PAPER_LINE)
+	var st := StyleBoxTexture.new()
+	st.texture = ImageTexture.create_from_image(img)
+	st.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	st.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	st.set_content_margin_all(26)
+	st.content_margin_left = 54
+	var p := Kit.panel(st, hud)
+	_at(p, Vector2(190, 110), Vector2(580, 450))
+	p.pivot_offset = Vector2(290, 225)
+	p.draw.connect(func(): p.draw_line(Vector2(40, 0), Vector2(40, p.size.y), Color(0.85, 0.35, 0.35, 0.7), 2.0))   # the red margin line
+	var nv := VBoxContainer.new()
+	nv.add_theme_constant_override("separation", 10)
+	p.add_child(nv)
+	note_labels.title = Kit.label("", 28, Color(0.42, 0.06, 0.08), Kit.HAND, nv)
+	note_labels.body = Kit.label("", 19, Kit.INK, Kit.BODY, nv)
+	note_labels.body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var tb := Kit.panel(Kit.box(Color(0.82, 0.93, 0.82), Color(0.2, 0.55, 0.3), 2, 6, 10), nv)
+	note_labels.tip = Kit.label("", 16, Color(0.08, 0.32, 0.14), Kit.UI, tb)
+	Kit.label("(เดินออก / Esc เพื่อปิด)", 13, Color(0.45, 0.42, 0.4), Kit.UI, nv)
 	p.hide()
-	hud.add_child(p)
 	return p
 
-func _screen(sname: String, bg := Color(0.04, 0.03, 0.06, 1.0)) -> VBoxContainer:
+# PC login: a little window from the accounts system.
+func _keypad() -> PanelContainer:
+	var k := Kit.panel(Kit.box(Color(0.82, 0.83, 0.86), Color(0.1, 0.25, 0.6), 2, 4, 0), hud)
+	_at(k, Vector2(290, 220), Vector2(380, 250))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	k.add_child(v)
+	var bar := Kit.panel(Kit.box(Color(0.1, 0.25, 0.6), Color(0, 0, 0, 0), 0, 0, 8), v)
+	Kit.label("ระบบบัญชี v2.3 · ห้อง Admin", 16, Color.WHITE, Kit.UI, bar)
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 10)
+	var m := MarginContainer.new()
+	for side in ["left", "right", "bottom"]:
+		m.add_theme_constant_override("margin_" + side, 18)
+	m.add_child(inner)
+	v.add_child(m)
+	Kit.label("ใส่รหัสผ่านเพื่อเข้าสู่ระบบ", 18, Kit.INK, Kit.UI, inner)
+	keypad_edit = LineEdit.new()
+	keypad_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	keypad_edit.max_length = 8
+	keypad_edit.secret = false
+	keypad_edit.custom_minimum_size = Vector2(200, 52)
+	keypad_edit.add_theme_font_size_override("font_size", 30)
+	keypad_edit.add_theme_font_override("font", Kit.TITLE)
+	keypad_edit.text_submitted.connect(_submit_code)
+	inner.add_child(keypad_edit)
+	Kit.label("Enter = ยืนยัน · Esc = ยกเลิก · รหัสผิด = เสียงเตือนดังลั่น!", 13, Color(0.5, 0.1, 0.1), Kit.UI, inner)
+	k.hide()
+	return k
+
+# ---------- building: screens ----------
+func _screen(sname: String, bg := Kit.NIGHT, crt := true) -> Control:
 	var root := ColorRect.new()
 	root.color = bg
 	root.set_anchors_preset(PRESET_FULL_RECT)
 	add_child(root)
-	var v := VBoxContainer.new()
-	v.set_anchors_preset(PRESET_FULL_RECT)
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_theme_constant_override("separation", 14)
-	root.add_child(v)
 	screens[sname] = root
+	if crt:
+		_crt(root, 0.6, 0.08)
+	return root
+
+func _vbox(parent: Control, pos: Vector2, sz: Vector2, sep := 10) -> VBoxContainer:
+	var v := VBoxContainer.new()
+	_at(v, pos, sz)
+	v.add_theme_constant_override("separation", sep)
+	parent.add_child(v)
 	return v
 
-# Live 3D head of a character (Story.BODIES preset) at px x px.
-func _face(preset: String, parent: Node, px := 128) -> FaceView:
-	var t := FaceView.new(preset, clampi(px, 64, 112))
-	t.custom_minimum_size = Vector2(px, px)
-	parent.add_child(t)
-	return t
+func _header(parent: Control, text: String, sub := "") -> void:
+	var h := Kit.label(text, 40, Color.WHITE, Kit.TITLE, parent)
+	_at(h, Vector2(60, 36), Vector2(840, 54))
+	var line := ColorRect.new()
+	line.color = Kit.RED
+	_at(line, Vector2(60, 92), Vector2(120, 4))
+	parent.add_child(line)
+	if sub != "":
+		var s := Kit.label(sub, 16, Kit.DIM, Kit.UI, parent)
+		_at(s, Vector2(60, 102), Vector2(840, 24))
 
-func _centered(n: Control) -> Control:
-	n.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	return n
+func _back(parent: Control, cb: Callable) -> Button:
+	var b := Kit.button("‹  กลับ  (Esc)", cb, parent, 18, 180)
+	_at(b, Vector2(60, 650), Vector2(180, 44))
+	return b
 
 func _build_screens() -> void:
-	var m := _screen("menu")
-	_label("SOCIAL BATTERY", 18, YELLOW, m)
-	var faces := HBoxContainer.new()
-	faces.alignment = BoxContainer.ALIGNMENT_CENTER
-	faces.add_theme_constant_override("separation", 12)
-	for f in ["manager", "sweeper", "tong", "goblin", "guard"]:
-		_face(f, faces, 128 if f == "tong" else 88)
-	m.add_child(faces)
-	_label("Salary man:", 44, Color.WHITE, m)
-	_label("NIGHTMARE", 72, RED, m)
-	_label("Horror Comedy · Workplace Survival · Low-Poly PSX", 18, Color(0.7, 0.7, 0.8), m)
-	_centered(_button("▶  เริ่มเกม", start_game, m)).grab_focus.call_deferred()
-	continue_btn = _centered(_button("เล่นต่อ (ด่านล่าสุด)", continue_game, m))
-	_centered(_button("ตั้งค่า", func(): show_screen("settings"), m))
-	_centered(_button("Debug", func(): show_screen("debug"), m))
+	_build_menu()
+	_build_chapters()
+	_build_archive()
+	_build_gallery()
+	_build_credits()
+	_build_settings()
+	_build_debug()
+	_build_pause()
+	_build_over()
+	_build_review()
+	_build_ending()
+	show_screen("")
+
+func _build_menu() -> void:
+	var m := _screen("menu", Color.BLACK, false)
+	menu_bg = MenuBg.new()
+	m.add_child(menu_bg)
+	var shade := TextureRect.new()   # dark on the left so the menu reads over the office
+	var sg := Gradient.new()
+	sg.set_color(0, Color(0.02, 0.01, 0.03, 0.94))
+	sg.set_color(1, Color(0.02, 0.01, 0.03, 0.15))
+	var stx := GradientTexture2D.new()
+	stx.gradient = sg
+	stx.fill_from = Vector2(0.25, 0)
+	stx.fill_to = Vector2(0.9, 0)
+	shade.texture = stx
+	shade.set_anchors_preset(PRESET_FULL_RECT)
+	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shade.mouse_filter = MOUSE_FILTER_IGNORE
+	m.add_child(shade)
+	_crt(m, 0.5, 0.1)
+	menu_osd = Kit.label("", 16, Kit.CCTV, Kit.TITLE, m, 4)
+	_at(menu_osd, Vector2(40, 22), Vector2(880, 24))
+	var rec := Kit.panel(Kit.box(Kit.RED, Color(0, 0, 0, 0), 0, 7, 0), m)
+	_at(rec, Vector2(22, 27), Vector2(14, 14))
+	var blink := create_tween().set_loops()
+	blink.tween_property(rec, "modulate:a", 0.0, 0.01).set_delay(0.7)
+	blink.tween_property(rec, "modulate:a", 1.0, 0.01).set_delay(0.7)
+	var t1 := Kit.label("Salary man:", 40, Color(0.9, 0.9, 0.92), Kit.TITLE, m)
+	_at(t1, Vector2(58, 64), Vector2(500, 56))
+	for c in [Color(0.2, 0.9, 1.0, 0.0), Color(1.0, 0.1, 0.3, 0.0)]:   # glitch ghosts behind the title
+		var gl := Kit.label("NIGHTMARE", 84, c, Kit.TITLE, m)
+		_at(gl, Vector2(54, 106), Vector2(520, 110))
+		title_ghosts.append(gl)
+	var t2 := Kit.label("NIGHTMARE", 84, Kit.RED, Kit.TITLE, m)
+	_at(t2, Vector2(54, 106), Vector2(520, 110))
+	var tag := Kit.label("Horror Comedy · Workplace Survival · Low-Poly PSX", 15, Kit.DIM, Kit.UI, m)
+	_at(tag, Vector2(60, 212), Vector2(480, 22))
+	var v := _vbox(m, Vector2(56, 246), Vector2(340, 420), 5)
+	continue_btn = Kit.button("▶  เล่นต่อ (บทล่าสุด)", continue_game, v, 19)
+	var first := Kit.button("▶  เริ่มเกมใหม่", start_game, v, 19)
+	m.set_meta("first", first)
+	Kit.button("เลือกบท", func(): show_screen("chapters"), v, 19)
+	Kit.button("คลังหลักฐาน", func(): show_screen("archive"), v, 19)
+	Kit.button("ฉากจบ", func(): show_screen("gallery"), v, 19)
+	Kit.button("ตั้งค่า", func(): _settings_back = "menu"; show_screen("settings"), v, 19)
+	Kit.button("เครดิต", func(): show_screen("credits"), v, 19)
 	if not OS.has_feature("web"):   # a web page can't close itself
-		_centered(_button("ออกจากเกม", get_tree().quit, m))
-	_label("WASD เดิน · Shift วิ่ง · C/Ctrl ก้ม · E เก็บ/ใช้/ซ่อน · Space กลั้นหายใจ · Q ขว้าง · Tab มือถือ · F ไฟฉาย · Esc หยุด", 15, Color(0.6, 0.6, 0.7), m)
+		Kit.button("ออกจากเกม", get_tree().quit, v, 19)
+	var dbg := Kit.button("Debug", func(): show_screen("debug"), m, 13, 70, true)
+	_at(dbg, Vector2(880, 680), Vector2(70, 28))
+	dbg.modulate.a = 0.5
+	var keys := Kit.label("WASD เดิน · Shift วิ่ง · C ก้ม · E ใช้/ซ่อน · Space กลั้นหายใจ · Q ขว้าง · Tab มือถือ · F ไฟฉาย", 13, Kit.DIM, Kit.UI, m)
+	_at(keys, Vector2(60, 688), Vector2(800, 20))
+	# Tong's staff ID on a lanyard: who you are and how far you've got
+	var lan := ColorRect.new()
+	lan.color = Color(0.75, 0.12, 0.2)
+	_at(lan, Vector2(744, 0), Vector2(8, 120))
+	m.add_child(lan)
+	var badge := Kit.panel(Kit.paper_box(Color("#f4f2ec"), 0), m)
+	_at(badge, Vector2(640, 100), Vector2(216, 330))
+	badge.rotation = 0.06
+	badge.pivot_offset = Vector2(108, 0)
+	var bv := VBoxContainer.new()
+	bv.add_theme_constant_override("separation", 4)
+	badge.add_child(bv)
+	var strip := Kit.panel(Kit.box(Kit.RED.darkened(0.15), Color(0, 0, 0, 0), 0, 0, 6), bv)
+	var sl := Kit.label("NIGHTSHIFT CO., LTD.", 14, Color.WHITE, Kit.TITLE, strip)
+	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var ph := Kit.panel(Kit.box(Color("#b9c3cf"), Color(0.3, 0.3, 0.35), 2, 2, 0), bv)
+	ph.custom_minimum_size = Vector2(120, 120)
+	ph.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var face := FaceView.new("tong", 112)
+	face.custom_minimum_size = Vector2(116, 116)
+	face.turn = 0.08
+	ph.add_child(face)
+	var nm := Kit.label("ต๋อง", 26, Kit.INK, Kit.TITLE, bv)
+	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var dept := Kit.label("ฝ่ายบัญชี · พนักงานกะดึก", 13, Color(0.35, 0.33, 0.32), Kit.UI, bv)
+	dept.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge_stats = Kit.label("", 13, Kit.INK, Kit.BODY, bv)
+	badge_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var code := Control.new()   # barcode
+	code.custom_minimum_size = Vector2(180, 26)
+	code.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	code.draw.connect(func():
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 4471
+		var x := 0.0
+		while x < 176.0:
+			var w := rng.randi_range(1, 3)
+			code.draw_rect(Rect2(x, 0, w, 26), Kit.INK)
+			x += w + rng.randi_range(1, 3))
+	bv.add_child(code)
+	# the night shift: who's waiting
+	var crew := Kit.label("เพื่อนร่วมงานกะดึก", 14, Kit.DIM, Kit.UI, m)
+	crew.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_at(crew, Vector2(500, 486), Vector2(440, 22))
+	var faces := HBoxContainer.new()
+	faces.add_theme_constant_override("separation", 6)
+	faces.alignment = BoxContainer.ALIGNMENT_CENTER
+	_at(faces, Vector2(500, 510), Vector2(440, 92))
+	m.add_child(faces)
+	for f in ["manager", "sweeper", "hr", "goblin", "guard"]:
+		var fv := FaceView.new(f, 80)
+		fv.custom_minimum_size = Vector2(82, 88)
+		fv.set_horror(true)
+		faces.add_child(fv)
 
-	var st := _screen("settings")
-	_label("ตั้งค่า", 44, YELLOW, st)
-	for row in [["ความไวเมาส์", "sensitivity", 0.3, 2.0], ["ระดับเสียง", "volume", 0.0, 1.0]]:
-		_label(row[0], 20, Color.WHITE, st)
+func _refresh_badge() -> void:
+	var docs := Game.all_docs()
+	var found := docs.filter(func(d): return Game.docs_found.has(d.title)).size()
+	var best := ""
+	for g in "SABCD":
+		if Game.grades.values().has(g):
+			best = g
+			break
+	badge_stats.text = "บทที่ไปถึง  %d / %d\nฉากจบ  %d / 4\nเอกสาร  %d / %d%s" % [
+		Game.reached + 1 if Game.reached >= 0 else 0, Game.STAGES.size(), Game.endings_seen.size(), found, docs.size(),
+		("\nเกรดดีที่สุด  " + best) if best != "" else ""]
+
+# Main menu motion: the CCTV clock ticks, and the title glitches now and then.
+func _menu_tick(dt: float) -> void:
+	if not screens.has("menu") or not screens.menu.visible:
+		return
+	_osd_secs += dt
+	var s := 23 * 3600 + 47 * 60 + int(_osd_secs)
+	menu_osd.text = "REC   CAM 01 · ชั้น 4 · ฝ่ายบัญชี                                                  ศุกร์ 24/10   %02d:%02d:%02d" % [(s / 3600) % 24, (s / 60) % 60, s % 60]
+	if _glitch > 0.0:
+		_glitch -= dt
+		for i in title_ghosts.size():
+			title_ghosts[i].position = Vector2(54, 106) + Vector2(randf_range(-9, 9), randf_range(-3, 3))
+			title_ghosts[i].modulate.a = 0.85
+		if _glitch <= 0.0:
+			for g in title_ghosts:
+				g.modulate.a = 0.0
+	elif randf() < dt * 0.35:
+		_glitch = randf_range(0.08, 0.3)
+
+func _build_chapters() -> void:
+	var c := _screen("chapters")
+	_header(c, "เลือกบท", "เริ่มจากกลางเรื่องได้ · หลักฐาน/เบาะแสจากบทก่อนหน้าจะไม่ถูกนับในรอบนั้น")
+	chapter_grid = GridContainer.new()
+	chapter_grid.columns = 2
+	chapter_grid.add_theme_constant_override("h_separation", 16)
+	chapter_grid.add_theme_constant_override("v_separation", 10)
+	_at(chapter_grid, Vector2(60, 140), Vector2(840, 490))
+	c.add_child(chapter_grid)
+	_back(c, func(): show_screen("menu"))
+
+func _fill_chapters() -> void:
+	for ch in chapter_grid.get_children():
+		ch.queue_free()
+	var tut := Kit.button("บทนำ · เย็นวันศุกร์ ก่อนกะดึก\n17:30", start_game, chapter_grid, 17, 412)
+	tut.custom_minimum_size.y = 96
+	for i in Game.STAGES.size():
+		var d: Dictionary = Game.STAGES[i]
+		var open := i <= Game.reached
+		var grade: String = Game.grades.get(i, "")
+		var text := ("บทที่ %d · %s\n%s%s" % [i + 1, d.title.get_slice(" : ", 1), d.clock, ("   ·   เกรด " + grade) if grade != "" else ""]) if open else "บทที่ %d · ???\nยังไม่ปลดล็อก" % (i + 1)
+		var b := Kit.button(text, _debug_start.bind(i), chapter_grid, 17, 412)
+		b.custom_minimum_size.y = 96
+		b.disabled = not open
+
+func _build_archive() -> void:
+	var a := _screen("archive")
+	_header(a, "คลังหลักฐาน")
+	archive_count = Kit.label("", 16, Kit.DIM, Kit.UI, a)
+	_at(archive_count, Vector2(60, 102), Vector2(840, 24))
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_at(scroll, Vector2(60, 140), Vector2(330, 490))
+	a.add_child(scroll)
+	archive_list = VBoxContainer.new()
+	archive_list.add_theme_constant_override("separation", 4)
+	archive_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(archive_list)
+	var paper := Kit.panel(Kit.paper_box(), a)
+	_at(paper, Vector2(420, 140), Vector2(480, 490))
+	paper.rotation = 0.012
+	var pv := VBoxContainer.new()
+	pv.add_theme_constant_override("separation", 10)
+	paper.add_child(pv)
+	archive_title = Kit.label("", 26, Color(0.42, 0.06, 0.08), Kit.HAND, pv)
+	archive_body = Kit.label("", 17, Kit.INK, Kit.BODY, pv)
+	_back(a, func(): show_screen("menu"))
+
+func _fill_archive() -> void:
+	for c in archive_list.get_children():
+		c.queue_free()
+	var docs := Game.all_docs()
+	var found := docs.filter(func(d): return Game.docs_found.has(d.title))
+	archive_count.text = "เอกสาร โน้ต และของที่เก็บได้ในทุกการเล่น · พบแล้ว %d / %d" % [found.size(), docs.size()]
+	archive_title.text = "เลือกเอกสารทางซ้าย"
+	archive_body.text = "ทุกอย่างที่ต๋องเคยอ่าน จะถูกเก็บไว้ที่นี่ตลอดไป\nเอกสารที่ยังไม่เจอ ซ่อนอยู่ในบทนั้นๆ"
+	var last := -2
+	for d in docs:
+		if d.chapter != last:
+			last = d.chapter
+			Kit.label("บทนำ" if last < 0 else "บทที่ %d" % (last + 1), 14, Kit.RED, Kit.TITLE, archive_list)
+		var have: bool = Game.docs_found.has(d.title)
+		var read := func(): archive_title.text = d.title; archive_body.text = d.text
+		var b := Kit.button(d.title if have else "???  (ยังไม่พบ)", read, archive_list, 15, 316)
+		b.custom_minimum_size.y = 34
+		b.disabled = not have
+
+func _build_gallery() -> void:
+	var g := _screen("gallery")
+	_header(g, "ฉากจบ", "4 ทางจบ · ทางไหนที่ยังไม่เจอ มีคำใบ้ให้")
+	gallery_row = HBoxContainer.new()
+	gallery_row.add_theme_constant_override("separation", 14)
+	_at(gallery_row, Vector2(60, 150), Vector2(840, 460))
+	g.add_child(gallery_row)
+	_back(g, func(): show_screen("menu"))
+
+# Four ending cards; small = the row on the ending screen (the one just reached glows).
+func _fill_gallery(row: HBoxContainer, small: bool, just: String) -> void:
+	for c in row.get_children():
+		c.queue_free()
+	for id in ["A", "B", "C", "D"]:
+		var seen: bool = Game.endings_seen.has(id)
+		var col := Kit.YELLOW if id == just else (Color(1, 1, 1, 0.25) if seen else Color(1, 1, 1, 0.08))
+		var cardp := Kit.panel(Kit.box(Color(0.06, 0.06, 0.09, 0.95), col, 2, 8, 10), row)
+		cardp.custom_minimum_size = Vector2(100 if small else 199, 0 if small else 440)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 6)
+		cardp.add_child(v)
+		if seen:
+			var fv := FaceView.new(ENDINGS[id][2], 96)
+			fv.custom_minimum_size = Vector2(70, 70) if small else Vector2(170, 170)
+			fv.set_horror(id != "D")
+			v.add_child(fv)
+		else:
+			var q := Kit.label("?", 60 if not small else 34, Color(1, 1, 1, 0.15), Kit.TITLE, v)
+			q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			q.custom_minimum_size.y = 70 if small else 170
+			q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var l := Kit.label(ENDINGS[id][0], 13 if small else 16, Kit.YELLOW if seen else Kit.DIM, Kit.TITLE, v)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		if not small:
+			var tl := Kit.label(ENDINGS[id][1] if seen else "ยังไม่พบ", 20, Color.WHITE if seen else Kit.DIM, Kit.TITLE, v)
+			tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			var hint := Kit.label(ENDING_HINTS[id] if not seen or id == "D" else ENDINGS[id][3].get_slice("\n", 0), 14, Kit.DIM, Kit.BODY, v)
+			hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+func _build_credits() -> void:
+	var c := _screen("credits")
+	_header(c, "เครดิต")
+	credits_scroll = ScrollContainer.new()
+	credits_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_at(credits_scroll, Vector2(60, 130), Vector2(840, 500))
+	c.add_child(credits_scroll)
+	var r := Kit.rich(18, credits_scroll)
+	r.custom_minimum_size.x = 820
+	r.add_theme_color_override("default_color", Color(0.88, 0.88, 0.9))
+	r.text = """[b][color=#f2c94c]Salary man: Nightmare[/color][/b]
+Horror Comedy · Workplace Survival · Low-Poly PSX
+CP410844 กลุ่ม 2
+
+[b][color=#d8263a]เกมและเนื้อเรื่อง[/color][/b]
+ออกแบบ เขียนเรื่อง ตัวละคร ด่าน และระบบทั้งหมด — ทีมกลุ่ม 2
+
+[b][color=#d8263a]เครื่องมือ[/color][/b]
+Godot Engine 4.7 · Blender 5.2 · Python + numpy (เสียงสังเคราะห์)
+
+[b][color=#d8263a]โมเดล 3D[/color][/b]
+ตัวละครทุกตัว (ร่างกลางวัน / กลางคืน): สร้างใน Blender ด้วยสคริปต์ของทีม
+เฟอร์นิเจอร์ออฟฟิศ: Furniture Kit โดย Kenney (CC0)
+
+[b][color=#d8263a]ฟอนต์[/color][/b]
+Kanit, Sriracha (Cadson Demak) · Sarabun — SIL Open Font License 1.1
+
+[b][color=#d8263a]เสียง[/color][/b]
+Kenney RPG Audio (CC0) · เสียงจาก freesound.org (CC0) โดย MathewHenry, Johnnie_Holiday, DavidJohnson2019,
+Cloud-10, CVLTIV8R, tlcolbe, XfiXy8, nayahnaidoo, Kleber_KGF, BFMGames, Ligidium, DigPro120, baidonovan,
+PSsoundproject, sickfin, Lancemartin, szegvari, Nox_Sound, jayfrosting, egomassive
+เพลงกล่องดนตรี เสียง UI ไซเรน และเสียงสังเคราะห์อื่นๆ: สร้างเองด้วยสคริปต์
+
+[b][color=#d8263a]ขอบคุณ[/color][/b]
+ทุกคนที่เคยอยู่กะดึก ...และกลับบ้านได้
+
+[color=#8a8a99]บริษัท ไนท์ชิฟต์ จำกัด เป็นบริษัทสมมุติ ไม่มีพนักงานคนไหนได้รับอันตรายระหว่างการสร้างเกมนี้
+(ยกเว้น Social Battery)[/color]"""
+	_back(c, func(): show_screen("menu"))
+
+func _build_settings() -> void:
+	var s := _screen("settings", Color(0.03, 0.025, 0.04, 0.97))
+	_header(s, "ตั้งค่า")
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 20)
+	grid.add_theme_constant_override("v_separation", 12)
+	_at(grid, Vector2(60, 130), Vector2(840, 480))
+	s.add_child(grid)
+	var row := func(label: String, ctrl: Control, key: String, fmt: String) -> void:
+		var name_l := Kit.label(label, 19, Color(0.9, 0.88, 0.85), Kit.UI, grid)
+		name_l.custom_minimum_size.x = 260
+		ctrl.custom_minimum_size = Vector2(380, 30)
+		ctrl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		grid.add_child(ctrl)
+		var val := Kit.label("", 17, Kit.YELLOW, Kit.TITLE, grid)
+		val.custom_minimum_size.x = 120
+		_settings_rows[key] = [ctrl, val, fmt]
+	var diff := HBoxContainer.new()
+	diff.add_theme_constant_override("separation", 6)
+	var group := ButtonGroup.new()
+	for i in 3:
+		var b := Button.new()
+		b.text = ["ง่าย", "ปกติ", "ยาก"][i]
+		b.toggle_mode = true
+		b.button_group = group
+		b.custom_minimum_size = Vector2(120, 32)
+		Kit.button_styles(b, 17, true)
+		b.add_theme_stylebox_override("pressed", Kit.box(Kit.RED.darkened(0.2), Kit.RED, 1, 4, 6))
+		b.pressed.connect(func(): Game.difficulty = i; _setting_changed())
+		diff.add_child(b)
+	row.call("ความยาก", diff, "difficulty", "")
+	for spec in [["ความไวเมาส์", "sensitivity", 0.3, 2.0, 0.05, "%.2f"], ["เสียงทั้งหมด", "volume", 0.0, 1.0, 0.05, "%d%%"],
+			["เพลงเมนู", "music", 0.0, 1.0, 0.05, "%d%%"], ["ความสว่าง", "brightness", 0.6, 1.6, 0.05, "%d%%"],
+			["มุมมอง (FOV)", "fov", 55.0, 95.0, 1.0, "%d°"], ["เอฟเฟกต์ภาพ VHS", "vhs", 0.0, 1.5, 0.05, "%d%%"],
+			["ขนาดซับไตเติล", "sub_size", 16.0, 32.0, 1.0, "%d"]]:
 		var sl := HSlider.new()
-		sl.min_value = row[2]
-		sl.max_value = row[3]
-		sl.step = 0.05
-		sl.value = Game.get(row[1])
-		sl.custom_minimum_size = Vector2(360, 30)
-		sl.value_changed.connect(func(v): Game.set(row[1], v); Game.save_settings())
-		st.add_child(_centered(sl))
-	var cb := CheckBox.new()
-	cb.text = "ข้ามคัตซีน"
-	cb.button_pressed = Game.skip_cutscenes
-	cb.toggled.connect(func(on): Game.skip_cutscenes = on; Game.save_settings())
-	st.add_child(_centered(cb))
-	_centered(_button("กลับ", func(): show_screen("menu"), st))
+		sl.min_value = spec[2]
+		sl.max_value = spec[3]
+		sl.step = spec[4]
+		sl.focus_mode = Control.FOCUS_ALL
+		var key: String = spec[1]
+		sl.value_changed.connect(func(v):
+			Game.set(key, int(v) if key == "sub_size" else v)
+			_setting_changed())
+		row.call(spec[0], sl, key, spec[5])
+	for spec in [["กลับแกนเมาส์ขึ้น-ลง", "invert_y"], ["ข้ามคัตซีนทั้งหมด", "skip_cutscenes"], ["เต็มจอ", "fullscreen"]]:
+		if spec[1] == "fullscreen" and OS.has_feature("web"):
+			continue
+		var cb := CheckBox.new()
+		var key2: String = spec[1]
+		cb.toggled.connect(func(on): Game.set(key2, on); _setting_changed())
+		row.call(spec[0], cb, key2, "")
+	_back(s, func(): show_screen(_settings_back))
 
-	# Debug: password, then jump straight into any stage (for testing / demoing).
-	var dbg := _screen("debug")
-	_label("DEBUG MODE", 44, YELLOW, dbg)
+func _refresh_settings() -> void:
+	for key in _settings_rows:
+		var r: Array = _settings_rows[key]
+		var ctrl: Control = r[0]
+		if ctrl is HSlider:
+			ctrl.set_value_no_signal(Game.get(key))
+		elif ctrl is CheckBox:
+			ctrl.set_pressed_no_signal(Game.get(key))
+		elif key == "difficulty":
+			ctrl.get_child(Game.difficulty).set_pressed_no_signal(true)
+	_settings_labels()
+
+func _settings_labels() -> void:
+	for key in _settings_rows:
+		var r: Array = _settings_rows[key]
+		var v = Game.get(key)
+		var fmt: String = r[2]
+		r[1].text = "" if fmt == "" else (fmt % (v * 100.0 if fmt == "%d%%" else v))
+	_settings_rows.difficulty[1].text = ["ศัตรูช้าลง โดนจับเจ็บน้อย", "", "ศัตรูเร็ว กาแฟน้อย"][Game.difficulty]
+
+func _setting_changed() -> void:
+	Game.save_settings()
+	apply_settings()
+	_settings_labels()
+
+func _build_debug() -> void:
+	var d := _screen("debug")
+	_header(d, "DEBUG MODE", "รหัสผ่าน แล้วกระโดดไปบทไหนก็ได้ (สำหรับทดสอบ / สาธิต)")
+	var v := _vbox(d, Vector2(300, 150), Vector2(360, 480), 8)
 	debug_pw = LineEdit.new()
 	debug_pw.secret = true
 	debug_pw.placeholder_text = "รหัสผ่าน"
 	debug_pw.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	debug_pw.custom_minimum_size = Vector2(320, 48)
 	debug_pw.text_submitted.connect(func(_t): _debug_unlock())
-	dbg.add_child(_centered(debug_pw))
-	debug_err = _label("", 18, RED, dbg)
-	var ok := _centered(_button("ยืนยัน", _debug_unlock, dbg))
+	v.add_child(debug_pw)
+	debug_err = Kit.label("", 18, Kit.RED, Kit.UI, v)
+	var ok := Kit.button("ยืนยัน", _debug_unlock, v, 20, 360, true)
 	debug_list = VBoxContainer.new()
-	debug_list.add_theme_constant_override("separation", 10)
+	debug_list.add_theme_constant_override("separation", 6)
 	debug_list.hide()
-	dbg.add_child(_centered(debug_list))
-	_label("เลือกด่าน", 20, Color.WHITE, debug_list)
-	_button(Story.TUTORIAL.title, start_game, debug_list)
+	v.add_child(debug_list)
+	Kit.button(Story.TUTORIAL.title, start_game, debug_list, 16, 360)
 	for i in Game.STAGES.size():
-		_button(Game.STAGES[i].title, _debug_start.bind(i), debug_list)
+		Kit.button(Game.STAGES[i].title, _debug_start.bind(i), debug_list, 16, 360)
 	debug_lock = [debug_pw, ok]
-	_centered(_button("กลับ", func(): show_screen("menu"), dbg))
+	_back(d, func(): show_screen("menu"))
 
-	var p := _screen("pause", Color(0, 0, 0, 0.7))
-	_label("หยุดพัก...", 48, YELLOW, p)
-	_centered(_button("เล่นต่อ", func(): _unhandled_input(_pause_event()), p))
-	skip_tut_btn = _centered(_button("ข้ามบทนำ → ด่าน 1", skip_tutorial, p))
-	_centered(_button("เมนูหลัก", func(): get_tree().paused = false; stop_play(); show_screen("menu"), p))
+# Pause = coffee break: the menu on the left, where you are on a sheet of paper on the right.
+func _build_pause() -> void:
+	var p := _screen("pause", Color(0, 0, 0, 0.72), false)
+	var t := Kit.label("พักเบรก", 52, Color.WHITE, Kit.TITLE, p)
+	_at(t, Vector2(60, 70), Vector2(400, 70))
+	var line := ColorRect.new()
+	line.color = Kit.RED
+	_at(line, Vector2(62, 142), Vector2(120, 4))
+	p.add_child(line)
+	var v := _vbox(p, Vector2(56, 180), Vector2(340, 400), 8)
+	var resume := Kit.button("▶  เล่นต่อ", func(): _unhandled_input(_pause_event()), v, 21)
+	p.set_meta("first", resume)
+	Kit.button("ตั้งค่า", func(): _settings_back = "pause"; show_screen("settings"), v, 21)
+	skip_tut_btn = Kit.button("ข้ามบทนำ → บทที่ 1", skip_tutorial, v, 21)
+	Kit.button("เมนูหลัก", func(): get_tree().paused = false; stop_play(); show_screen("menu"), v, 21)
+	var paper := Kit.panel(Kit.paper_box(), p)
+	_at(paper, Vector2(450, 70), Vector2(450, 580))
+	paper.rotation = 0.015
+	pause_info = Kit.rich(17, paper)
+	pause_info.add_theme_color_override("default_color", Kit.INK)
+	pause_info.add_theme_font_override("bold_font", Kit.TITLE)
 
-	var o := _screen("over", Color(0.08, 0.0, 0.0, 1.0))
-	_centered(_face("tong", o, 140))
-	_label("GAME OVER", 64, RED, o)
-	_label("Social Battery = 0  ·  ล้มนอนตาลอยกลางออฟฟิศ", 22, Color.WHITE, o)
-	over_cause = _label("", 22, YELLOW, o)
-	_centered(_button("ลองใหม่ (ด่านนี้)", func(): Game.reset_stage(); start_stage(), o))
-	_centered(_button("เมนูหลัก", func(): show_screen("menu"), o))
+func _refresh_pause() -> void:
+	if not playing:
+		return
+	screens.pause.get_meta("first").grab_focus.call_deferred()
+	var d := Game.stage_data()
+	pause_info.text = "[b][font_size=24]%s[/font_size][/b]\n[color=#7a6f66]%s · ความยาก: %s[/color]\n\n[b]ภารกิจ[/b]\n%s\n\n[b]สิ่งที่สะสม (ทั้งเกม)[/b]\nเบาะแสความฝัน  %d / %d\nหลักฐานเรื่องพี่สมชาย  %d / %d\nมือถือพี่สมชาย  %s\nโดนจับ  %d ครั้ง\n\n[b]ปุ่ม[/b]\nWASD เดิน · Shift วิ่ง · C ก้มย่อง\nE ใช้ของ / ซ่อน / คุย · Space ค้าง กลั้นหายใจ\nQ ขว้างของล่อ · F ไฟฉาย · Tab มือถือ (4 = แผนที่)" % [
+		d.title, clock_text(), ["ง่าย", "ปกติ", "ยาก"][Game.difficulty], Game.objective_text(),
+		Game.clues.size(), Game.CLUE_TOTAL, Game.hints, Game.EVIDENCE_NEEDED, "อยู่ในมือ" if Game.phone_taken else "ยังไม่ได้", Game.times_caught]
 
-	var e := _screen("ending")
-	end_labels.letter = _label("", 28, YELLOW, e)
-	end_labels.title = _label("", 48, Color.WHITE, e)
-	end_labels.face = _centered(_face("tong", e, 120))
-	end_labels.body = _label("", 21, Color(0.9, 0.9, 0.9), e)
-	end_labels.stats = _label("", 16, Color(0.6, 0.6, 0.7), e)
-	_centered(_button("เมนูหลัก", func(): show_screen("menu"), e))
-	show_screen("")
+# Game over = a warning letter from HR.
+func _build_over() -> void:
+	var o := _screen("over", Color(0.07, 0.0, 0.01))
+	var paper := Kit.panel(Kit.paper_box(), o)
+	_at(paper, Vector2(200, 40), Vector2(560, 560))
+	paper.rotation = -0.012
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	paper.add_child(v)
+	Kit.label("บริษัท ไนท์ชิฟต์ จำกัด · ฝ่ายบุคคล", 14, Color(0.4, 0.36, 0.33), Kit.UI, v)
+	Kit.label("หนังสือเตือน", 40, Color(0.55, 0.05, 0.08), Kit.TITLE, v)
+	Kit.label("ถึง: คุณต๋อง ฝ่ายบัญชี\nเรื่อง: Social Battery หมด ล้มนอนตาลอยกลางออฟฟิศ", 17, Kit.INK, Kit.BODY, v)
+	var hr := ColorRect.new()
+	hr.color = Color(0.4, 0.36, 0.33, 0.5)
+	hr.custom_minimum_size.y = 2
+	v.add_child(hr)
+	over_cause = Kit.label("", 19, Kit.INK, Kit.HAND, v)
+	over_count = Kit.label("", 15, Color(0.35, 0.32, 0.3), Kit.BODY, v)
+	Kit.label("\nจึงเรียนมาเพื่อทราบ และกลับไปทำงานต่อโดยด่วน\n— พี่แหม่ม HR", 16, Kit.INK, Kit.BODY, v)
+	var stamp := _stamp_label("พักงาน", o, Vector2(560, 380))
+	o.set_meta("stamp", stamp)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 16)
+	_at(h, Vector2(200, 628), Vector2(560, 56))
+	o.add_child(h)
+	var retry := Kit.button("ลองใหม่ (บทนี้)", func(): Game.reset_stage(); start_stage(), h, 20, 272, true)
+	o.set_meta("first", retry)
+	Kit.button("เมนูหลัก", func(): show_screen("menu"), h, 20, 272, true)
+
+func _stamp_label(text: String, parent: Control, pos: Vector2) -> Control:
+	var s := Kit.panel(Kit.box(Color(0, 0, 0, 0), Color(0.8, 0.08, 0.12, 0.85), 5, 6, 10), parent)
+	var l := Kit.label(text, 42, Color(0.8, 0.08, 0.12, 0.85), Kit.TITLE, s, 0, false)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_at(s, pos, Vector2(220, 80))
+	s.pivot_offset = Vector2(110, 40)
+	s.rotation = -0.3
+	s.set_meta("label", l)
+	return s
+
+# Stage clear = the performance review.
+func _build_review() -> void:
+	var r := _screen("review", Color(0.05, 0.05, 0.07))
+	var paper := Kit.panel(Kit.paper_box(), r)
+	_at(paper, Vector2(170, 34), Vector2(620, 590))
+	paper.rotation = 0.01
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	paper.add_child(v)
+	Kit.label("บริษัท ไนท์ชิฟต์ จำกัด · แบบฟอร์ม HR-07", 14, Color(0.4, 0.36, 0.33), Kit.UI, v)
+	Kit.label("ใบประเมินผลการปฏิบัติงาน", 34, Kit.INK, Kit.TITLE, v)
+	review_labels.chapter = Kit.label("", 20, Color(0.55, 0.05, 0.08), Kit.UI, v)
+	var hr := ColorRect.new()
+	hr.color = Color(0.4, 0.36, 0.33, 0.5)
+	hr.custom_minimum_size.y = 2
+	v.add_child(hr)
+	review_labels.rows = Kit.label("", 19, Kit.INK, Kit.BODY, v)
+	review_labels.rows.tab_stops = PackedFloat32Array([330.0])
+	review_labels.boss = Kit.label("", 18, Color(0.25, 0.22, 0.4), Kit.HAND, v)
+	review_labels.best = Kit.label("", 14, Color(0.4, 0.36, 0.33), Kit.UI, v)
+	Kit.label("\nผู้ประเมิน: หัวหน้าธนา                    ผู้อนุมัติ: พี่แหม่ม HR", 15, Kit.INK, Kit.HAND, v)
+	var stamp := Kit.panel(Kit.box(Color(0, 0, 0, 0), Color(0.8, 0.08, 0.12, 0.85), 5, 70, 4), r)
+	_at(stamp, Vector2(600, 300), Vector2(150, 150))
+	stamp.pivot_offset = Vector2(75, 75)
+	stamp.rotation = -0.25
+	var sv := VBoxContainer.new()
+	sv.alignment = BoxContainer.ALIGNMENT_CENTER
+	stamp.add_child(sv)
+	var sl := Kit.label("เกรด", 18, Color(0.8, 0.08, 0.12, 0.85), Kit.TITLE, sv, 0, false)
+	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	review_labels.grade = Kit.label("A", 64, Color(0.8, 0.08, 0.12, 0.9), Kit.TITLE, sv, 0, false)
+	review_labels.grade.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	review_labels.stamp = stamp
+	var go := Kit.button("ไปต่อ  (E)", func(): _review_done = true, r, 20, 260, true)
+	_at(go, Vector2(350, 640), Vector2(260, 50))
+	r.set_meta("first", go)
+
+# Ending = a certificate, with every ending found so far underneath.
+func _build_ending() -> void:
+	var e := _screen("ending", Color(0.03, 0.03, 0.05))
+	var frame := Kit.panel(Kit.box(Color(0.07, 0.065, 0.09, 0.96), Color("#b8963e"), 3, 4, 22), e)
+	_at(frame, Vector2(80, 22), Vector2(800, 486))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	frame.add_child(v)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 18)
+	v.add_child(top)
+	end_labels.face = FaceView.new("tong", 112)
+	end_labels.face.custom_minimum_size = Vector2(130, 130)
+	top.add_child(end_labels.face)
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(tv)
+	end_labels.letter = Kit.label("", 22, Kit.YELLOW, Kit.TITLE, tv)
+	end_labels.title = Kit.label("", 46, Color.WHITE, Kit.TITLE, tv)
+	end_labels.new = Kit.label("ปลดล็อกฉากจบใหม่!", 16, Kit.GREEN, Kit.TITLE, tv)
+	end_labels.body = Kit.label("", 18, Color(0.88, 0.88, 0.9), Kit.BODY, v)
+	end_labels.stats = Kit.label("", 14, Kit.DIM, Kit.UI, v)
+	end_labels.gallery = HBoxContainer.new()
+	end_labels.gallery.add_theme_constant_override("separation", 10)
+	end_labels.gallery.alignment = BoxContainer.ALIGNMENT_CENTER
+	_at(end_labels.gallery, Vector2(80, 520), Vector2(800, 130))
+	e.add_child(end_labels.gallery)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 16)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	_at(h, Vector2(80, 662), Vector2(800, 46))
+	e.add_child(h)
+	var again := Kit.button("เล่นอีกครั้ง", start_game, h, 18, 220, true)
+	e.set_meta("first", again)
+	Kit.button("ฉากจบทั้งหมด", func(): show_screen("gallery"), h, 18, 220, true)
+	Kit.button("เมนูหลัก", func(): show_screen("menu"), h, 18, 220, true)
 
 # Browsers release the mouse on Esc without passing the key to the game. If capture is lost
 # mid-play, open the pause menu; its Resume click is the user gesture needed to lock again.
 func _watch_capture() -> void:
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if _was_captured and not captured and playing and not get_tree().paused 			and not phone.visible and not keypad.visible and not Game.in_cutscene and not Game.busy:
+	if _was_captured and not captured and playing and not get_tree().paused \
+			and not phone.visible and not keypad.visible and not Game.in_cutscene and not Game.busy:
 		_unhandled_input(_pause_event())
 	_was_captured = captured
 

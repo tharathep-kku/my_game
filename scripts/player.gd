@@ -27,6 +27,7 @@ var _pre_hide := Transform3D()
 var held := false               # carrying a throwable (mug/stapler)
 
 func _ready() -> void:
+	cam.fov = Game.fov
 	if OS.has_feature("web"):   # a shadowed light re-renders the scene: too heavy for WebGL
 		flashlight.shadow_enabled = false
 
@@ -42,7 +43,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if e is InputEventMouseMotion:
 		rotate_y(-e.relative.x * SENS * Game.sensitivity)
-		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * SENS * Game.sensitivity, -1.4, 1.4)
+		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * SENS * Game.sensitivity * (-1.0 if Game.invert_y else 1.0), -1.4, 1.4)
 		if hidden:   # peeking: only a narrow view out of the hide spot
 			var base := atan2(-spot.look.x, -spot.look.z)
 			rotation.y = base + clampf(wrapf(rotation.y - base, -PI, PI), -0.6, 0.6)
