@@ -24,6 +24,7 @@ func _ready() -> void:
 		print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 		get_tree().quit(1 if fails else 0)
 		return
+	await t_lint()
 	await t_rules()
 	await t_cutscene()
 	await t_builder()
@@ -77,6 +78,26 @@ func _ready() -> void:
 	await t_mid_scenes()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
+
+# The editor treats some warnings as errors (e.g. a type inferred from a Variant) and then
+# refuses to run the game, while a plain run still works. Parse every script the editor's way.
+func t_lint() -> void:
+	var files := []
+	var dirs := ["res://scripts", "res://tools", "res://tests"]
+	while not dirs.is_empty():
+		var d: String = dirs.pop_back()
+		for sub in DirAccess.get_directories_at(d):
+			dirs.append(d.path_join(sub))
+		for f in DirAccess.get_files_at(d):
+			if f.ends_with(".gd"):
+				files.append(d.path_join(f))
+	var bad := []
+	for f in files:
+		var out := []
+		OS.execute(OS.get_executable_path(), ["--headless", "--path", ProjectSettings.globalize_path("res://"), "--check-only", "--script", f], out, true)
+		if "Parse Error" in "".join(out):
+			bad.append(f)
+	check(files.size() > 20 and bad.is_empty(), "every script parses like in the editor (%d files) %s" % [files.size(), bad])
 
 func check(ok: bool, what: String) -> void:
 	print(("PASS  " if ok else "FAIL  ") + what)

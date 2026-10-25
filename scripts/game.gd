@@ -126,11 +126,13 @@ func _process(dt: float) -> void:
 func _setup_buses() -> void:
 	if AudioServer.get_bus_index("SFX") >= 0:
 		return
-	for bname in ["SFX", "Amb", "Tension", "Music"]:
-		AudioServer.add_bus()
-		var i := AudioServer.bus_count - 1
-		AudioServer.set_bus_name(i, bname)
-		AudioServer.set_bus_send(i, "Master")
+	# bus_count, not add_bus(): on the web add_bus() puts the new bus in the wrong slot of the
+	# browser's mixer, the sends then loop back into Master and the browser mutes it all.
+	var names := ["SFX", "Amb", "Tension", "Music"]
+	AudioServer.bus_count = 1 + names.size()
+	for i in names.size():
+		AudioServer.set_bus_name(i + 1, names[i])
+		AudioServer.set_bus_send(i + 1, "Master")
 	AudioServer.add_bus_effect(0, AudioEffectHardLimiter.new())   # jumpscare layers stack up: no clipping
 	var sfx_bus := AudioServer.get_bus_index("SFX")
 	var rev := AudioEffectReverb.new()

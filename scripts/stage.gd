@@ -315,7 +315,7 @@ func _marker(on: Node3D, color: Color, h: float, secs: float, label := "", edge 
 	m.set_meta("color", color)
 	m.set_meta("edge", edge)
 	on.add_child(m)
-	var w := weakref(m)   # the thing it marks may be gone first (picked up, coworker went home)
+	var w: WeakRef = weakref(m)   # the thing it marks may be gone first (picked up, coworker went home)
 	get_tree().create_timer(secs, false).timeout.connect(func(): if w.get_ref(): w.get_ref().queue_free())
 	return m
 
