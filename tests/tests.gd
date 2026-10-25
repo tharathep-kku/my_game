@@ -1577,7 +1577,7 @@ func t_tutorial() -> void:
 	var plane: Node3D = tut.plane
 	pl.global_position = plane.global_position - plane.global_basis.z * 4.5 + Vector3(1.0, 0.1, 0.0)   # inside the door, short of the spot
 	pl.rotation.y = atan2(-plane.global_basis.z.x, -plane.global_basis.z.z)
-	await frames(5)
+	await pframes(5)   # (the reflection follows him in _process)
 	var back: Vector3 = plane.to_local(tut._reflection.global_position)
 	check(tut._reflection.visible and absf(back.z - 4.5) < 0.1 and absf(back.x - 1.0) < 0.1, "Tong's reflection stands as far behind the glass as he is in front")
 	check(tut.phase == "mirror", "nothing happens until he walks up to it")
