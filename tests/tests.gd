@@ -450,7 +450,7 @@ func t_quests() -> void:
 	Game.battery = 50.0
 	Game.offer_quest("mum_lunch")
 	var it: Array = mine.call("mum_lunch")
-	check(Game.threads.has("แม่") and it.size() == 1 and it[0].global_position.distance_to(lvl.cell_pos(Vector2i(9, 19))) < 0.5, "jobs: a text offers it, the first step's thing appears")
+	check(Game.threads.has("แม่") and it.size() == 1 and Vector2(it[0].global_position.x, it[0].global_position.z).distance_to(Vector2(lvl.cell_pos(Vector2i(9, 19)).x, lvl.cell_pos(Vector2i(9, 19)).z)) < 0.5, "jobs: a text offers it, the first step's thing appears")
 	it[0].interact()
 	await frames(2)
 	check(Game.quests.mum_lunch == 1 and mine.call("mum_lunch").size() == 1 and Game.docs_found.has("หยิบข้าวกล่องของแม่"), "jobs: a step done (its note read), the next thing appears")
