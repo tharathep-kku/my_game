@@ -121,15 +121,25 @@ func cut_split(hold := 1.4) -> void:
 	if cam:
 		face(cam.global_position - global_position)
 	var head: Node3D = body.parts.Head
-	_twin = head.duplicate()
-	body.parts.Neck.add_child(_twin)
+	var twin_head: Node3D
+	if body.real:   # the realistic model's head is only a joint: a second him leans out of him instead
+		var tw := Body.new()
+		add_child(tw)
+		tw.transform = body.transform
+		tw.build(body.built_spec)
+		_twin = tw
+		twin_head = tw.parts.Head
+	else:
+		_twin = head.duplicate()
+		body.parts.Neck.add_child(_twin)
+		twin_head = _twin
 	Game.sfx("sting", self)
 	Game.sfx("techspeak", self, 4.0, 0.5)
 	var t := create_tween().set_parallel().set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 	t.tween_property(head, "position:x", -0.16, 0.12)
 	t.tween_property(head, "rotation:z", 0.55, 0.12)
-	t.tween_property(_twin, "position:x", 0.16, 0.12)
-	t.tween_property(_twin, "rotation:z", -0.55, 0.12)
+	t.tween_property(_twin, "position:x", _twin.position.x + 0.16, 0.12)
+	t.tween_property(twin_head, "rotation:z", -0.55, 0.12)
 	t.chain().tween_interval(hold)
 	t.chain().tween_callback(func():
 		head.position.x = 0.0

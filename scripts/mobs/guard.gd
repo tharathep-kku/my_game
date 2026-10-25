@@ -90,11 +90,15 @@ func cut_feed() -> void:
 func _blood() -> void:
 	var red := Body.mat(Color(0.45, 0.02, 0.02))
 	var head: MeshInstance3D = body.parts.Head
-	var hb := head.get_aabb()
+	# the realistic body's head and arms are empty joints: their sizes are known instead
+	var hb := AABB(Vector3(-0.08, -0.03, -0.105), Vector3(0.16, 0.25, 0.2)) if body.real else head.get_aabb()
 	var c := hb.get_center()
 	_blob(head, red, Vector3(c.x, hb.position.y + hb.size.y * 0.28, hb.position.z - 0.01), Vector3(hb.size.x * 0.55, hb.size.y * 0.16, 0.03))   # round the mouth
 	_blob(head, red, Vector3(c.x + hb.size.x * 0.1, hb.position.y + hb.size.y * 0.1, hb.position.z - 0.012), Vector3(0.05, hb.size.y * 0.25, 0.03))   # down the chin
 	for arm in ["ArmL", "ArmR"]:
+		if body.real:
+			_blob(body.parts[arm], red, Vector3(0, -0.66, -0.01), Vector3(0.11, 0.15, 0.1))   # hands
+			continue
 		var m := body.parts[arm] as MeshInstance3D
 		if m:
 			var ab := m.get_aabb()
@@ -102,9 +106,16 @@ func _blood() -> void:
 
 func _blob(on: Node3D, m: Material, pos: Vector3, size: Vector3) -> MeshInstance3D:
 	var b := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	b.mesh = bm
+	if body.real:   # smeared, not boxed
+		var sm := SphereMesh.new()
+		sm.radius = 0.5
+		sm.height = 1.0
+		b.mesh = sm
+		b.scale = size
+	else:
+		var bm := BoxMesh.new()
+		bm.size = size
+		b.mesh = bm
 	b.material_override = m
 	b.position = pos
 	on.add_child(b)
