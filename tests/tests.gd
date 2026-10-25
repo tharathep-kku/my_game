@@ -1559,7 +1559,7 @@ func t_tutorial() -> void:
 		c.interact()
 	check(said.size() == 4 and said[0] == sweeper.lines[0], "each coworker answers with their own line")
 	await frames(3)
-	check(tut.phase == "dusk", "said hello to everyone: the afternoon starts to go")
+	check(tut.phase == "dusk", "said hello to everyone: the afternoon starts to go (%s, busy %s, cutscene %s, talked %s)" % [tut.phase, Game.busy, Game.in_cutscene, str(crew.map(func(c): return c.talked))])
 	tut.dusk_secs = 2.0
 	await wait_phase(tut, "night", 20.0)
 	check(lvl.gloom == 1.0 and lvl._env.fog_density > 0.0 and tut.coworkers().is_empty() and Game.clock == tut.night_clock, "night (%s): lights down, fog in, everyone gone home" % Game.clock)
