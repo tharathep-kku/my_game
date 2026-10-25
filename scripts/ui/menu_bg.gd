@@ -31,8 +31,12 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vp = SubViewport.new()
 	vp.own_world_3d = true   # its own little world: never mixes with the stage
-	vp.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED   # _notification: only while the menu shows
 	add_child(vp)
+
+func _notification(what: int) -> void:
+	if (what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_ENTER_TREE) and vp:
+		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if is_visible_in_tree() else SubViewport.UPDATE_DISABLED
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

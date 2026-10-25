@@ -33,7 +33,7 @@ func _init(p := "", res := 96) -> void:
 	_vp.msaa_3d = Viewport.MSAA_DISABLED if Game.retro else Viewport.MSAA_4X
 	_vp.own_world_3d = true   # never shares the stage's world/lights
 	_vp.transparent_bg = true
-	_vp.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
+	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED   # _notification turns it on while shown
 	add_child(_vp)
 	_cam = Camera3D.new()
 	_cam.fov = 32.0
@@ -90,3 +90,9 @@ func _process(dt: float) -> void:
 	body.parts.Head.rotation.z = randf_range(-1, 1) * 0.06 * shake
 	_cam.position = Vector3(0, _head_y + 0.02, -1.45 / zoom) + j   # the body faces -Z: stand in front
 	_cam.look_at(Vector3(0, _head_y - 0.04, 0) + j * 0.5)
+
+# Rendered only while it is on screen: a hidden screen's portraits (pause sheet, game over,
+# endings...) would otherwise each redraw a whole character every frame.
+func _notification(what: int) -> void:
+	if (what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_ENTER_TREE) and _vp:
+		_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if is_visible_in_tree() else SubViewport.UPDATE_DISABLED

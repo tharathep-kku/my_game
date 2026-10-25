@@ -120,8 +120,13 @@ static func realize(root: Node) -> void:
 		real.transform = Transform3D(Basis.from_scale(s), kb - rb * s)
 		n.add_child(real)
 		n.set_meta("real", true)
-		# far away in the dark they are not drawn (the fog has them by then): small things sooner
-		_far(real, 32.0 if (kab.size * n.scale).length() > 1.2 else 18.0)
+		# far away in the dark they are not drawn (the fog has them by then): small things sooner,
+		# and small things cast no shadow (the torch's shadow pass skips them)
+		var big := (kab.size * n.scale).length() > 1.2
+		_far(real, 32.0 if big else 18.0)
+		if not big:
+			for gi: GeometryInstance3D in real.find_children("*", "GeometryInstance3D", true, false):
+				gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 static func _far(node: Node, dist: float) -> void:
 	for g: GeometryInstance3D in node.find_children("*", "GeometryInstance3D", true, false):
@@ -319,11 +324,11 @@ static func _decorate(root: Node) -> void:
 			if not near:
 				var roll := rng.randf()
 				var at := Vector3(x + rng.randf_range(-0.3, 0.3), top - 0.03, z + rng.randf_range(-0.3, 0.3))
-				if roll < 0.16:
+				if roll < 0.1:
 					put.call("vent", Vector3(x, top - 0.031, z), 0.0)
-				elif roll < 0.27:
+				elif roll < 0.16:
 					put.call("smoke", at - Vector3(0, 0.003, 0), 0.0)
-				elif roll < 0.4:
+				elif roll < 0.24:
 					put.call("sprinkler", at + Vector3(0, 0.014, 0), 0.0)
 			x += 2.0
 	var door := root.find_child("Exit", true, false) as Node3D

@@ -111,7 +111,7 @@ class Model:
         self.bm.from_mesh(me)
         bpy.data.meshes.remove(me)
 
-    def box(self, c, s, mat, bevel=0.004, seg=2, rot=(0, 0, 0), taper=1.0):
+    def box(self, c, s, mat, bevel=0.004, seg=1, rot=(0, 0, 0), taper=1.0):
         tmp = bmesh.new()
         bmesh.ops.create_cube(tmp, size=1.0)
         for v in tmp.verts:
@@ -123,16 +123,16 @@ class Model:
         self._add(tmp, mat, c, rot, b > 0.0005)
 
     # Cylinder along local y, r1 bottom / r2 top.
-    def cyl(self, c, r1, h, mat, r2=None, n=24, rot=(0, 0, 0), bevel=0.0, caps=True):
+    def cyl(self, c, r1, h, mat, r2=None, n=16, rot=(0, 0, 0), bevel=0.0, caps=True):
         tmp = bmesh.new()
         bmesh.ops.create_cone(tmp, cap_ends=caps, cap_tris=False, segments=n, radius1=r1, radius2=r1 if r2 is None else r2, depth=h)
         bmesh.ops.rotate(tmp, verts=tmp.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.radians(-90), 3, "X"))
         if bevel > 0:
             rims = [e for e in tmp.edges if abs(e.verts[0].co.y - e.verts[1].co.y) < 1e-6 and abs(abs(e.verts[0].co.y) - h / 2) < 1e-6]
-            bmesh.ops.bevel(tmp, geom=rims, offset=bevel, segments=2, profile=0.5, affect="EDGES", clamp_overlap=True)
+            bmesh.ops.bevel(tmp, geom=rims, offset=bevel, segments=1, profile=0.5, affect="EDGES", clamp_overlap=True)
         self._add(tmp, mat, c, rot, True)
 
-    def sphere(self, c, s, mat, rot=(0, 0, 0), u=20, v=12):
+    def sphere(self, c, s, mat, rot=(0, 0, 0), u=16, v=10):
         tmp = bmesh.new()
         bmesh.ops.create_uvsphere(tmp, u_segments=u, v_segments=v, radius=0.5)
         for vv in tmp.verts:
@@ -214,20 +214,20 @@ def chairDesk(m):
     for i in range(5):
         a = math.radians(i * 72 + 18)
         d = Vector((math.cos(a), 0, math.sin(a)))
-        m.box(tuple(d * 0.14 + Vector((0, 0.085, 0))), (0.28, 0.034, 0.042), "plastic_black", 0.012, 2, rot=(0, -math.degrees(a), 0), taper=0.8)
+        m.box(tuple(d * 0.14 + Vector((0, 0.085, 0))), (0.28, 0.034, 0.042), "plastic_black", 0.012, 1, rot=(0, -math.degrees(a), 0), taper=0.8)
         tip = d * 0.285
         m.cyl((tip.x, 0.068, tip.z), 0.014, 0.03, "plastic_black", n=10)
-        m.cyl((tip.x, 0.03, tip.z), 0.028, 0.026, "plastic_dark", n=16, rot=(90, -math.degrees(a), 0))   # castor wheel
+        m.cyl((tip.x, 0.03, tip.z), 0.028, 0.026, "plastic_dark", n=10, rot=(90, -math.degrees(a), 0))   # castor wheel
     m.cyl((0, 0.085, 0), 0.055, 0.06, "plastic_black", r2=0.04, bevel=0.006)
     m.cyl((0, 0.2, 0), 0.032, 0.2, "plastic_black", n=20)
     m.cyl((0, 0.36, 0), 0.02, 0.16, "metal_chrome", n=20)
     m.box((0, 0.43, 0.01), (0.22, 0.04, 0.25), "metal_dark", 0.006)
     m.box((0.13, 0.43, 0.12), (0.012, 0.012, 0.12), "plastic_black", 0.004, rot=(0, 20, 0))   # height lever
-    m.box((0, 0.495, 0.02), (0.5, 0.085, 0.48), "fabric_seat", 0.034, 4)
+    m.box((0, 0.495, 0.02), (0.5, 0.085, 0.48), "fabric_seat", 0.034, 2)
     m.box((0, 0.452, 0.02), (0.46, 0.012, 0.44), "plastic_black", 0.005)   # seat shell
     m.box((0, 0.56, -0.24), (0.07, 0.17, 0.03), "plastic_black", 0.01, rot=(-12, 0, 0))
     m.box((0, 0.71, -0.275), (0.07, 0.2, 0.026), "plastic_black", 0.01, rot=(-6, 0, 0))
-    m.box((0, 0.94, -0.3), (0.46, 0.52, 0.06), "fabric_mesh", 0.028, 4, rot=(-9, 0, 0), taper=0.96)
+    m.box((0, 0.94, -0.3), (0.46, 0.52, 0.06), "fabric_mesh", 0.028, 2, rot=(-9, 0, 0), taper=0.96)
     m.box((0, 0.94, -0.335), (0.44, 0.5, 0.02), "plastic_black", 0.008, rot=(-9, 0, 0), taper=0.96)
     for x in (-0.27, 0.27):
         m.box((x * 0.8, 0.462, 0.0), (0.12, 0.016, 0.05), "plastic_black", 0.004)
@@ -260,14 +260,14 @@ def computerKeyboard(m):
                 w = 6   # space bar
             if r == 5:
                 kw = 0.016
-                m.box((x, y, z), (kw, 0.006, 0.012), "plastic_dark", 0.002, 1)
+                m.box((x, y, z), (kw, 0.006, 0.012), "plastic_dark", 0.0)
             else:
-                m.box((x + (w - 1) * p / 2, y, z), (w * p - 0.004, 0.008, 0.0175), "plastic_dark", 0.0025, 1)
+                m.box((x + (w - 1) * p / 2, y, z), (w * p - 0.004, 0.008, 0.0175), "plastic_dark", 0.0)
             x += w * p
             i += w
         if r < 5:   # number pad
             for j in range(3):
-                m.box((kx + 0.2 - 0.07 + j * p, y, z), (p - 0.004, 0.008, 0.0175), "plastic_dark", 0.0025, 1)
+                m.box((kx + 0.2 - 0.07 + j * p, y, z), (p - 0.004, 0.008, 0.0175), "plastic_dark", 0.0)
     m.box((kx + 0.19, 0.0225, 0.07), (0.004, 0.002, 0.003), "glow_3dff6a", 0.0)
     m.box((-0.2, 0.0015, 0.0), (0.2, 0.003, 0.22), "fabric_seat", 0.002)   # mouse pad
     m.sphere((-0.205, 0.018, -0.02), (0.036, 0.03, 0.064), "plastic_black")
@@ -340,8 +340,8 @@ def pottedPlant(m):
         tilt = math.degrees(math.atan2(math.hypot(d.x, d.z), d.y))
         yaw = math.degrees(math.atan2(d.x, d.z))
         m.cyl(tuple(mid), 0.012, d.length, "plastic_bark", r2=0.007, n=8, rot=(tilt, yaw, 0))
-        for k in range(16):   # leaves up the stem, spiralling, bigger lower down
-            t = 0.25 + 0.75 * k / 15
+        for k in range(13):   # leaves up the stem, spiralling, bigger lower down
+            t = 0.25 + 0.75 * k / 12
             base = bot.lerp(top, t)
             yaw_l = rnd.uniform(0, 2 * math.pi)
             ln = 0.2 * (1.25 - t * 0.5) * rnd.uniform(0.85, 1.15)
@@ -355,7 +355,7 @@ def pottedPlant(m):
                 fold = abs(u - 0.5) * wd * 0.35
                 rise = along * up - droop * (v ** 2) * ln
                 return base + Vector((cy * along - sy * width, rise + fold, sy * along + cy * width))
-            m.sheet(leaf, 2, 5, "plastic_leaf", 0.0015)
+            m.sheet(leaf, 2, 4, "plastic_leaf", 0.0015)
 
 def bedSingle(m):
     # hospital bed, head to -z
@@ -427,9 +427,9 @@ def vent(m):
         y = 0.008 + i * 0.006
         t = 0.05 if i == 0 else 0.022
         for z in (-s / 2 + t / 2, s / 2 - t / 2):
-            m.box((0, y, z), (s, 0.016, t), "plastic_white", 0.002)
+            m.box((0, y, z), (s, 0.016, t), "plastic_white", 0.0)
         for x in (-s / 2 + t / 2, s / 2 - t / 2):
-            m.box((x, y, 0), (t, 0.016, s), "plastic_white", 0.002)
+            m.box((x, y, 0), (t, 0.016, s), "plastic_white", 0.0)
     m.box((0, 0.028, 0), (0.56, 0.004, 0.56), "concrete_soil", 0.0)
     m.box((0, 0.012, 0), (0.13, 0.024, 0.13), "plastic_white", 0.003)
 
