@@ -601,6 +601,7 @@ const STAGES := [
 	{
 		"title": "บทที่ 5 : บันไดหนีไฟ",
 		"scene": "stage_stairs",   # scenes/stages/stage_stairs.tscn
+		"hd_floor": "concrete",   # HD look: the stairwell floor
 		"clock": "01:44",
 		"story": [
 			"งบดุลลับอยู่ในมือแล้ว\nเหลือแค่ลงไปสแกนนิ้วออกที่ล็อบบี้",
@@ -679,6 +680,7 @@ const STAGES := [
 	{
 		"title": "บทที่ 6 : ตึกผู้ป่วย 7",
 		"scene": "stage_hospital",   # scenes/stages/stage_hospital.tscn
+		"hd_floor": "tile",   # HD look: hospital vinyl
 		"clock": "??:??",
 		"heartbeat": true,   # the doctor hears your heart; the HUD shows its rate
 		"story": [

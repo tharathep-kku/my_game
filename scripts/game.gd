@@ -63,7 +63,10 @@ var sub_size := 22             # settings: subtitle text size
 var invert_y := false          # settings: mouse look up/down inverted
 var fullscreen := false        # settings (desktop only)
 var objective_pin := false     # settings: the objective note stays open (else it folds to a tab)
-const SETTINGS := ["sensitivity", "volume", "music", "skip_cutscenes", "difficulty", "brightness", "fov", "vhs", "sub_size", "invert_y", "fullscreen", "objective_pin"]
+var retro := false             # settings: the original PSX look (low resolution, wobbly polygons, VHS)
+var graphics := 1              # settings: 0 low, 1 medium, 2 high (HD look: shadows, ambient occlusion, volumetric fog)
+var render_scale := 1.0        # settings: 3D resolution (FSR upscales on desktop)
+const SETTINGS := ["sensitivity", "volume", "music", "skip_cutscenes", "difficulty", "brightness", "fov", "vhs", "sub_size", "invert_y", "fullscreen", "objective_pin", "retro", "graphics", "render_scale"]
 # Profile: what this player has done across every run (main menu: chapters, archive, endings).
 var profile_path := "user://profile.cfg"
 var reached := -1              # furthest chapter started (-1 = only the tutorial so far)

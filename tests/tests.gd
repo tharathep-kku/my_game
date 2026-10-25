@@ -81,6 +81,7 @@ func _ready() -> void:
 	await t_chase_gives_up()
 	await t_director()
 	await t_objective_fold()
+	await t_hd_look()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -363,7 +364,7 @@ func t_flow() -> void:
 	await shot("menu.png")
 	main.start_game()
 	await get_tree().create_timer(1.0).timeout
-	check(main.view.size == Vector2i(320, 240), "3D renders at 320x240")
+	check(main.view.size == (Vector2i(320, 240) if Game.retro else Vector2i(main.size)), "3D renders at 320x240 (retro) / full size (HD)")
 	check(Game.tutorial and main.level != null and main.level.has_node("Tutorial") and main.hud.visible, "new game starts with the tutorial (stage 0)")
 	await shot("tutorial.png")
 	Game.stage_clear()
@@ -558,6 +559,39 @@ func t_objective_fold() -> void:
 	main.queue_free()
 	await frames(2)
 	Game.new_game()
+
+# HD remaster: the stage's surfaces get their HD textures, the furniture a surface, the torch its
+# hot core; the retro setting brings back the PSX look (320x240, wobble on).
+func t_hd_look() -> void:
+	Game.retro = false
+	HD.apply_look()
+	Game.new_game()
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(5)
+	var surfaces := {}
+	for g in lvl.find_children("*", "GeometryInstance3D", true, false):
+		var m = g.material_override
+		if m is ShaderMaterial and m.get_shader_parameter("has_hd"):
+			surfaces[m.get_shader_parameter("hd_albedo").resource_path.get_file()] = true
+	check(surfaces.has("carpet.png") and surfaces.has("wall.png") and surfaces.has("ceiling.png"), "HD: floor, walls and ceiling get HD textures %s" % [str(surfaces.keys())])
+	var props := lvl.find_children("*", "MeshInstance3D", true, false).filter(func(mi): return mi.material_override == null and mi.mesh and mi.get_surface_override_material_count() > 0 and mi.get_surface_override_material(0) is StandardMaterial3D and mi.get_surface_override_material(0).albedo_texture != null)
+	check(props.size() > 20, "HD: the furniture gets surfaces (%d meshes)" % props.size())
+	check(lvl.player.flashlight.get_node_or_null("Core") != null and HD.look == 0.0, "HD: the torch has its hot core, the shaders are in HD mode")
+	await done(lvl)
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	Game.retro = true
+	main.apply_settings()
+	await pframes(3)
+	check(main.view.size == Vector2i(320, 240) and HD.look == 1.0, "retro setting: back to 320x240 and the PSX shaders")
+	Game.retro = false
+	main.apply_settings()
+	main.queue_free()
+	await frames(2)
 
 # Character lineup screenshot (for review / report), not an assertion-heavy test.
 func t_lineup() -> void:

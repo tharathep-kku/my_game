@@ -26,8 +26,8 @@ var _shown := 0.0
 
 func _init() -> void:
 	stretch = true
-	stretch_shrink = 3
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	stretch_shrink = 3 if Game.retro else 1
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if Game.retro else CanvasItem.TEXTURE_FILTER_LINEAR
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vp = SubViewport.new()
 	vp.own_world_3d = true   # its own little world: never mixes with the stage
@@ -37,7 +37,7 @@ func _init() -> void:
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var fx := ShaderMaterial.new()
-	fx.shader = preload("res://shaders/vhs.gdshader")
+	fx.shader = preload("res://shaders/vhs.gdshader") if Game.retro else preload("res://shaders/film.gdshader")
 	fx.set_shader_parameter("fear", 0.22)
 	fx.set_shader_parameter("brightness", 1.4)
 	material = fx
@@ -45,6 +45,11 @@ func _ready() -> void:
 		"wall": Color(0.55, 0.55, 0.5), "light": Color(0.75, 1.0, 0.82)}, {}, false)
 	office.set_script(null)   # scenery: no stage logic, no player
 	vp.add_child(office)
+	if not Game.retro:   # same HD dressing as a chapter
+		HD.dress(office)
+		var we: WorldEnvironment = office.get_node_or_null("WorldEnvironment")
+		if we:
+			HD.environment(we.environment)
 	for l in office.get_node("Lights").get_children():
 		if l is OmniLight3D:
 			lights.append(l)

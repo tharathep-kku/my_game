@@ -6,6 +6,8 @@ extends Control
 const YELLOW := Color(1.0, 0.82, 0.2)
 const RED := Color(0.9, 0.15, 0.15)
 
+const VHS := preload("res://shaders/vhs.gdshader")     # retro look
+const FILM := preload("res://shaders/film.gdshader")   # HD look
 const ENDINGS := {
 	"A": ["A · GOOD END", "กลับบ้านสบายใจ", "guard",
 		"ต๋องเดินออกจากตึกพร้อมมือถือของพี่สมชาย...\nในนั้นมีรูปแอบถ่ายต๋องอยู่หลายร้อยรูป\n\nต๋องกดโทรแจ้งตำรวจทันที\nคืนนั้นเขาหลับสบายเป็นครั้งแรกในรอบปี\n\n...วันจันทร์ต้องกลับไปทำงานอีกแล้วสินะ"],
@@ -86,6 +88,7 @@ var phone_jobs: VBoxContainer   # app 5: jobs under way + the case file of finis
 var side_label: Label           # HUD: the side job you're on, under the sticky note
 var objective_head: Label       # "ภารกิจ" on the note (+ the key, folded)
 var _obj_peek := 0.0            # seconds the folded note stays open after a change
+var view_box: SubViewportContainer   # holds the 3D view: shrinks it to 320x240 in the retro look
 var phone_scroll: ScrollContainer
 var phone_foot: Label
 var _seen := {}          # thread -> messages already shown: the phone opens at the first new one
@@ -1302,6 +1305,18 @@ func continue_game() -> void:
 
 # Settings that change something on screen right away.
 func apply_settings() -> void:
+	HD.apply_look()   # the PSX look or the HD one: resolution, post-process, anti-aliasing
+	view_box.stretch_shrink = 3 if Game.retro else 1
+	view_box.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if Game.retro else CanvasItem.TEXTURE_FILTER_LINEAR
+	var post: Shader = VHS if Game.retro else FILM
+	if screen_fx.shader != post:
+		screen_fx.shader = post
+	view.msaa_3d = Viewport.MSAA_DISABLED if Game.retro else [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][clampi(Game.graphics, 0, 2)]
+	view.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if not Game.retro and Game.graphics == 0 else Viewport.SCREEN_SPACE_AA_DISABLED
+	var scale := 1.0 if Game.retro else clampf(Game.render_scale, 0.5, 1.0)
+	view.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if scale < 1.0 and HD.forward_plus() else Viewport.SCALING_3D_MODE_BILINEAR
+	view.scaling_3d_scale = scale
+	screen_fx.set_shader_parameter("fear", screen_fx.get_shader_parameter("fear") if screen_fx.get_shader_parameter("fear") != null else 0.0)
 	screen_fx.set_shader_parameter("strength", Game.vhs)
 	screen_fx.set_shader_parameter("brightness", Game.brightness)
 	subtitle.add_theme_font_size_override("normal_font_size", Game.sub_size)
@@ -1313,13 +1328,14 @@ func apply_settings() -> void:
 # ---------- building: the 3D view ----------
 func _build_world() -> void:
 	var box := SubViewportContainer.new()
+	view_box = box
 	box.set_anchors_preset(PRESET_FULL_RECT)
 	box.stretch = true
 	box.stretch_shrink = 3
 	box.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	box.process_mode = Node.PROCESS_MODE_PAUSABLE   # pause menu freezes the world
 	screen_fx = ShaderMaterial.new()
-	screen_fx.shader = preload("res://shaders/vhs.gdshader")
+	screen_fx.shader = VHS if Game.retro else FILM
 	screen_fx.set_shader_parameter("fear", 0.0)
 	box.material = screen_fx
 	add_child(box)
@@ -1898,7 +1914,7 @@ func _build_menu() -> void:
 		title_ghosts.append(gl)
 	var t2 := Kit.label("NIGHTMARE", 84, Kit.RED, Kit.TITLE, m)
 	_at(t2, Vector2(54, 106), Vector2(520, 110))
-	var tag := Kit.label("Horror Comedy · Workplace Survival · Low-Poly PSX", 15, Kit.DIM, Kit.UI, m)
+	var tag := Kit.label("Horror Comedy · Workplace Survival · " + ("Low-Poly PSX" if Game.retro else "3D HD Remaster"), 15, Kit.DIM, Kit.UI, m)
 	_at(tag, Vector2(60, 212), Vector2(480, 22))
 	var v := _vbox(m, Vector2(56, 246), Vector2(340, 420), 5)
 	continue_btn = Kit.button("▶  เล่นต่อ (บทล่าสุด)", continue_game, v, 19)
@@ -2183,10 +2199,24 @@ func _build_settings() -> void:
 		b.pressed.connect(func(): Game.difficulty = i; _setting_changed())
 		diff.add_child(b)
 	row.call("ความยาก", diff, "difficulty", "")
+	var gfx := HBoxContainer.new()   # HD look quality
+	gfx.add_theme_constant_override("separation", 6)
+	var ggroup := ButtonGroup.new()
+	for i in 3:
+		var b := Button.new()
+		b.text = ["ต่ำ", "กลาง", "สูง"][i]
+		b.toggle_mode = true
+		b.button_group = ggroup
+		b.custom_minimum_size = Vector2(120, 32)
+		Kit.button_styles(b, 17, true)
+		b.add_theme_stylebox_override("pressed", Kit.box(Kit.RED.darkened(0.2), Kit.RED, 1, 4, 6))
+		b.pressed.connect(func(): Game.graphics = i; _setting_changed())
+		gfx.add_child(b)
+	row.call("คุณภาพกราฟิก", gfx, "graphics", "")
 	for spec in [["ความไวเมาส์", "sensitivity", 0.3, 2.0, 0.05, "%.2f"], ["เสียงทั้งหมด", "volume", 0.0, 1.0, 0.05, "%d%%"],
 			["เพลงเมนู", "music", 0.0, 1.0, 0.05, "%d%%"], ["ความสว่าง", "brightness", 0.6, 1.6, 0.05, "%d%%"],
 			["มุมมอง (FOV)", "fov", 55.0, 95.0, 1.0, "%d°"], ["เอฟเฟกต์ภาพ VHS", "vhs", 0.0, 1.5, 0.05, "%d%%"],
-			["ขนาดซับไตเติล", "sub_size", 16.0, 32.0, 1.0, "%d"]]:
+			["ขนาดซับไตเติล", "sub_size", 16.0, 32.0, 1.0, "%d"], ["ความละเอียด 3D", "render_scale", 0.5, 1.0, 0.05, "%d%%"]]:
 		var sl := HSlider.new()
 		sl.min_value = spec[2]
 		sl.max_value = spec[3]
@@ -2197,7 +2227,7 @@ func _build_settings() -> void:
 			Game.set(key, int(v) if key == "sub_size" else v)
 			_setting_changed())
 		row.call(spec[0], sl, key, spec[5])
-	for spec in [["กลับแกนเมาส์ขึ้น-ลง", "invert_y"], ["ข้ามคัตซีนทั้งหมด", "skip_cutscenes"], ["แสดงกระดาษภารกิจตลอด (O)", "objective_pin"], ["เต็มจอ", "fullscreen"]]:
+	for spec in [["กลับแกนเมาส์ขึ้น-ลง", "invert_y"], ["ข้ามคัตซีนทั้งหมด", "skip_cutscenes"], ["แสดงกระดาษภารกิจตลอด (O)", "objective_pin"], ["ภาพย้อนยุค (PSX 320x240)", "retro"], ["เต็มจอ", "fullscreen"]]:
 		if spec[1] == "fullscreen" and OS.has_feature("web"):
 			continue
 		var cb := CheckBox.new()
@@ -2216,6 +2246,8 @@ func _refresh_settings() -> void:
 			ctrl.set_pressed_no_signal(Game.get(key))
 		elif key == "difficulty":
 			ctrl.get_child(Game.difficulty).set_pressed_no_signal(true)
+		elif key == "graphics":
+			ctrl.get_child(clampi(Game.graphics, 0, 2)).set_pressed_no_signal(true)
 	_settings_labels()
 
 func _settings_labels() -> void:
@@ -2225,6 +2257,7 @@ func _settings_labels() -> void:
 		var fmt: String = r[2]
 		r[1].text = "" if fmt == "" else (fmt % (v * 100.0 if fmt == "%d%%" else v))
 	_settings_rows.difficulty[1].text = ["ศัตรูช้าลง โดนจับเจ็บน้อย", "", "ศัตรูเร็ว กาแฟน้อย"][Game.difficulty]
+	_settings_rows.graphics[1].text = "มีผลบทถัดไป" if playing else ""   # shadows / fog are set as a chapter loads
 
 func _setting_changed() -> void:
 	Game.save_settings()

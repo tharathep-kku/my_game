@@ -637,11 +637,23 @@ def build(name):
     hd.parent = neck
     hd.location = (0, 0, nl)
     coll.objects.link(hd)
+    # HD remaster: every box gets a small rounded edge and smooth shading, so the figures read as
+    # solid, lit 3D shapes up close instead of flat-shaded blocks (applied on export).
+    for o in list(objs.values()) + [nm, hd]:
+        bev = o.modifiers.new("Bevel", "BEVEL")
+        bev.width = 0.028
+        bev.segments = 3
+        bev.limit_method = "ANGLE"
+        bev.angle_limit = math.radians(35)
+        bev.use_clamp_overlap = True
+        bev.harden_normals = True
+        for poly in o.data.polygons:
+            poly.use_smooth = True
     os.makedirs(OUT, exist_ok=True)
     bpy.context.preferences.filepaths.save_version = 0   # no .blend1 backups
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, name + ".blend"))
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, name + ".glb"), export_format="GLB",
-                              export_yup=True, export_apply=False, export_materials="EXPORT")
+                              export_yup=True, export_apply=True, export_materials="EXPORT")
     print("built", name)
 
 def preview(name, out_dir):

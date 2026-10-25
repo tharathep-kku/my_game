@@ -28,6 +28,8 @@ var held := false               # carrying a throwable (mug/stapler)
 
 func _ready() -> void:
 	cam.fov = Game.fov
+	if not Game.retro:
+		HD.flashlight(flashlight)
 	if OS.has_feature("web"):   # a shadowed light re-renders the scene: too heavy for WebGL
 		flashlight.shadow_enabled = false
 

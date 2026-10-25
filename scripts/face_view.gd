@@ -26,10 +26,11 @@ var _env: Environment
 func _init(p := "", res := 96) -> void:
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if Game.retro else CanvasItem.TEXTURE_FILTER_LINEAR
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_vp = SubViewport.new()
-	_vp.size = Vector2i(res, res)
+	_vp.size = Vector2i(res, res) * (1 if Game.retro else 3)   # HD look: a sharp portrait, not pixels
+	_vp.msaa_3d = Viewport.MSAA_DISABLED if Game.retro else Viewport.MSAA_4X
 	_vp.own_world_3d = true   # never shares the stage's world/lights
 	_vp.transparent_bg = true
 	_vp.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE

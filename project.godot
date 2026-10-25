@@ -35,3 +35,10 @@ theme/custom_font="res://assets/fonts/Sarabun-Regular.ttf"
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
+
+[shader_globals]
+
+retro_look={
+"type": "float",
+"value": 0.0
+}

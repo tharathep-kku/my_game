@@ -1,6 +1,8 @@
 # Salary man: Nightmare
 
-Horror Comedy · Workplace Survival · Low-Poly PSX. Godot 4.7, first-person. CP410844 group 2.
+Horror Comedy · Workplace Survival · 3D. Godot 4.7, first-person. CP410844 group 2.
+
+**Branch `claude/hd-3d-remaster`: the HD 3D remaster.** The game was always 3D, but it rendered at 320x240 with wobbly PSX polygons and a VHS filter. Here it renders at full resolution with real lighting: filmic tonemapping, glow on the ceiling panels, the nearest ceiling lights casting shadows, ambient occlusion and volumetric fog that the flashlight cuts a beam through (the last ones on desktop / Forward+; the web build keeps the cheaper ones), HD textures on every surface (carpet tiles, painted walls with a skirting board, acoustic ceiling tiles, hospital vinyl, stairwell concrete, wood and plastic on the furniture), characters with rounded edges and smooth shading, sharp portraits, and a film-grain post-process that frays as Social Battery falls. Settings: **คุณภาพกราฟิก** low / medium / high, **ความละเอียด 3D** (FSR upscaling below 100 %), and **ภาพย้อนยุค (PSX 320x240)** brings the original look back.
 
 ## Run
 - Play: `build/SalarymanNightmare.exe` (after export), or open the folder in `Godot_v4.7-stable_win64.exe` and press F5.
@@ -94,6 +96,7 @@ Cutscenes, timed phone texts, objectives and endings live in `scripts/story.gd`.
 - `scripts/tutorial.gd` (stage 0's sequence: texts that lock you, day to night, mirror ending) + `scripts/coworker.gd` (friendly daytime coworker)
 - `scripts/npc.gd` + `scripts/mobs/*.gd`: base coworker AI (patrol, investigate noise, search hide spot, chase, catch; NavigationAgent3D) + the coworkers (manager, sweeper, goblin, guard, hr, doctor) + a practice mannequin (`dummy.gd`)
 - `scripts/loop.gd`: the fire-stairs loop (laps, anomalies)
+- `scripts/hd.gd`: the HD look (surface textures, furniture surfaces, environment, lights, torch, quality levels) · `shaders/psx.gdshader` has both looks (global `retro_look`) · `shaders/film.gdshader`: HD post-process · `tools/make_hd_textures.py`: generates `assets/textures/hd/` (numpy)
 - `scripts/director.gd`: the fear director (stalk / relief rhythm, psychological events, the stranger's reactive texts): every time and line is at the top of the file
 - `scripts/ui/kit.gd` (colours, fonts, button/panel styles, UI sounds: change the look here), `scripts/ui/menu_bg.gd` (live office behind the menu), `scripts/ui/phone_map.gd` (map app), `scripts/ui/app_icon.gd`, `shaders/crt.gdshader` (screen overlay)
 - `scripts/player.gd`, `scripts/pickup.gd`, `scripts/body.gd` (@tool, loads the Blender model parts), `scripts/cutscene.gd`, `scripts/main.gd`

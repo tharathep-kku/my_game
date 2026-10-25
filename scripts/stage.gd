@@ -94,6 +94,9 @@ func _ready() -> void:
 		if l is OmniLight3D:
 			lights.append(l)
 	_optimize()
+	if not Game.retro:   # HD look: real textures on the walls and floors, shadows on High
+		HD.dress(self, data.get("hd_floor", "carpet"))
+		HD.lights(lights)
 	door = get_node_or_null("Exit/Door")
 	exit_sign = get_node_or_null("Exit/Sign")
 	var exit_trig: Area3D = get_node_or_null("Exit/Trigger")
@@ -103,8 +106,10 @@ func _ready() -> void:
 	if we:
 		we.environment = we.environment.duplicate()   # ours to change: the scene's copy is shared by every play of it
 		_env = we.environment
+		if not Game.retro:
+			HD.environment(_env)
 		_ambient = _env.ambient_light_energy
-		_night = {"ambient": _env.ambient_light_color, "fog": _env.fog_density,
+		_night = {"ambient": _env.ambient_light_color, "fog": _env.fog_density, "vfog": _env.volumetric_fog_density,
 			"light": lights[0].light_color if not lights.is_empty() else Color.WHITE,
 			"energy": lights[0].light_energy if not lights.is_empty() else 1.4}
 	var win := get_node_or_null("Windows")
@@ -261,6 +266,7 @@ func set_gloom(v: float) -> void:
 	if _env:
 		_env.ambient_light_color = Color(0.8, 0.8, 0.76).lerp(_night.ambient, gloom)
 		_env.fog_density = _night.fog * gloom
+		_env.volumetric_fog_density = _night.vfog * gloom
 		for l in lights:
 			l.light_color = Color(1.0, 0.96, 0.86).lerp(_night.light, gloom)
 			l.light_energy = lerpf(2.2, _night.energy, gloom)
@@ -682,7 +688,26 @@ func add_wet(pos: Vector3, sweeper: Npc, secs := 10.0) -> void:
 	a.body_entered.connect(func(bd): if bd == player: sweeper.anger())
 	add_child(a)
 
+var _shadow_t := 0.0
+
+# HD look: the few ceiling lights nearest Tong cast shadows (all of them would cost too much).
+func _nearest_shadows(dt: float) -> void:
+	_shadow_t -= dt
+	var k := HD.shadow_count()
+	if _shadow_t > 0.0 or k == 0 or lights.is_empty():
+		return
+	_shadow_t = 0.4
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var at := cam.global_position
+	var by_d := lights.duplicate()
+	by_d.sort_custom(func(a, b): return a.global_position.distance_squared_to(at) < b.global_position.distance_squared_to(at))
+	for i in by_d.size():
+		by_d[i].shadow_enabled = i < k
+
 func _process(dt: float) -> void:
+	_nearest_shadows(dt)
 	if not dark and gloom > 0.5 and ending_id == "" and not lights.is_empty() and _rng.randf() < 0.04:   # one dying fluorescent tube (endings set their own lights)
 		lights[0].visible = not lights[0].visible or _rng.randf() < 0.5
 	_cameos(dt)
