@@ -70,6 +70,7 @@ func _ready() -> void:
 	await t_locker()
 	await t_exit()
 	await t_flow()
+	await t_review_flow()
 	await t_lineup()
 	await t_loop()
 	await t_hr()
@@ -143,6 +144,12 @@ func t_rules() -> void:
 	check(Game.battery == 0.0 and over == ["x"], "battery 0 emits game_over")
 	Game.new_game()
 	check(Game.use("pc") == false, "PC refuses before 3 notes")
+	Game.text("แม่", "ก่อนบทนี้")
+	Game.begin_stage()
+	Game.text("แม่", "ในบทนี้")
+	Game.restart_stage()
+	check(Game.threads["แม่"].size() == 1, "retrying a chapter drops its texts from the last try (they come again)")
+	Game.new_game()
 
 func t_stages() -> void:
 	for i in Game.STAGES.size():
@@ -379,6 +386,41 @@ func t_flow() -> void:
 	await shot("gameover.png")
 	main.queue_free()
 	await frames(2)
+
+# With cutscenes on (the default), clearing a chapter shows the performance review and then
+# goes on to the next chapter. A restart must not get the old chapter's timed texts.
+func t_review_flow() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	Game.skip_cutscenes = false
+	Game.new_game()
+	Game.stage = 0
+	main._story_seen.append_array([0, 1])   # no story text on black: straight to the clock card
+	main.start_stage()
+	var t := 0.0
+	while (main.level == null or Game.in_cutscene) and t < 15.0:
+		await get_tree().create_timer(0.25).timeout
+		t += 0.25
+	check(main.level != null, "chapter 1 loads with cutscenes on")
+	Game.stage_clear()
+	t = 0.0
+	while not main.screens.review.visible and t < 5.0:
+		await get_tree().create_timer(0.25).timeout
+		t += 0.25
+	check(main.screens.review.visible, "clearing it shows the performance review")
+	await get_tree().create_timer(1.0).timeout
+	main._review_done = true
+	t = 0.0
+	while (Game.stage != 1 or main.level == null or not main.playing) and t < 15.0:
+		await get_tree().create_timer(0.25).timeout
+		t += 0.25
+	check(Game.stage == 1 and main.level != null and main.playing, "after the review chapter 2 starts")
+	Game.skip_cutscenes = true
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
 
 # Character lineup screenshot (for review / report), not an assertion-heavy test.
 func t_lineup() -> void:
@@ -1606,6 +1648,13 @@ func t_loop() -> void:
 	loop._round(true)
 	await frames(3)
 	check(lvl.get_child_count() <= before + 2, "stairs: every anomaly applies and is cleaned up (%d -> %d nodes)" % [before, lvl.get_child_count()])
+	var door: Node3D = loop._door_at(loop.cfg().door_a)
+	var door_col := func() -> bool: return door.find_children("*", "CollisionShape3D", false, false).any(func(c): return not c.disabled)
+	loop.anomaly = "door"
+	loop._apply("door")
+	var open_ok: bool = door != null and not door.visible and not door_col.call()
+	loop._round(true)
+	check(open_ok and door.visible and door_col.call(), "stairs: the open door can be walked through, and closes again")
 	loop._round(true)
 	loop.anomaly = "staff_end"
 	loop._apply("staff_end")
@@ -1739,6 +1788,10 @@ func t_mid_scenes() -> void:
 	Game.skip_cutscene.emit()
 	await get_tree().create_timer(0.5).timeout
 	check(not Game.in_cutscene and not lvl.dark, "breaker: skipping it returns control, lights on")
+	var ran_to := Cutscene.cell(Vector3(27.6, 0, 11.6))
+	check(Vector2(lvl.player.global_position.x - ran_to.x, lvl.player.global_position.z - ran_to.z).length() < 0.5
+		and lvl.npcs[0].global_position.distance_to(Cutscene.cell(Vector3(24.5, 0, 14.6))) < 3.0,   # (he is already moving again)
+		"breaker: skipped, Tong and เต้ still end up where the scene leaves them")
 	main.queue_free()
 	await frames(2)
 	Game.skip_cutscenes = true

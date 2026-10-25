@@ -52,6 +52,7 @@ func build(spec: Dictionary) -> Body:
 	for n in PARTS:
 		var part: Node3D = src.get_node(n)
 		src.remove_child(part)
+		part.owner = null   # it belonged to the .glb scene: no owner in ours (and no warning)
 		add_child(part)
 		parts[n] = part
 	src.free()

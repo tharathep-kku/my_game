@@ -58,6 +58,8 @@ func _wall_label(c: Vector2i, side: String, text: String, size := 40) -> Label3D
 	return l
 
 func _decor() -> void:
+	lvl.goal = laps   # the Inspector's Laps is what opens the door (stage.gd set goal from story.gd first)
+	Game.objective_changed.emit(Game.objective_text())
 	for p in cfg().get("posters", []):
 		posters.append(_wall_label(p[0], p[1], p[2]))
 	var ck: Array = cfg().get("clock", [Vector2i(1, 1), "n"])
@@ -248,7 +250,8 @@ func _apply(a: String) -> void:
 			var d := _door_at(c.door_a)
 			if d:
 				d.visible = false
-				var col: CollisionShape3D = d.get_node_or_null("CollisionShape3D")
+				var cols := d.find_children("*", "CollisionShape3D", false, false)   # baked name is "@CollisionShape3D@n"
+				var col: CollisionShape3D = cols[0] if not cols.is_empty() else null
 				if col:
 					col.disabled = true
 				_undo.append(func():

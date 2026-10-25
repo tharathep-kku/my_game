@@ -119,12 +119,12 @@ static func rich(size := 20, parent: Node = null, font: Font = null) -> RichText
 # "หัวหน้าธนา: งานคืบหน้า..." -> the name in its colour, then the line. "(...)" = a thought, grey.
 static func subtitle_bbcode(text: String) -> String:
 	var t := text.replace("[", "[lb]")
+	if t.begins_with("(") or t.begins_with("ต๋อง: ("):   # a thought (checked first: it has a name too)
+		return "[color=#b8b8c4][i]%s[/i][/color]" % t
 	var i := t.find(": ")
-	if i > 0 and i < 28 and not t.begins_with("("):
+	if i > 0 and i < 28:
 		var who := t.substr(0, i)
 		return "[b][color=#%s]%s[/color][/b]  %s" % [speaker_color(who).to_html(false), who, t.substr(i + 2)]
-	if t.begins_with("(") or t.begins_with("ต๋อง: ("):
-		return "[color=#b8b8c4][i]%s[/i][/color]" % t
 	return t
 
 static func panel(style: StyleBox, parent: Node = null) -> PanelContainer:

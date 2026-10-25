@@ -282,9 +282,9 @@ func start_stage() -> void:
 		card_fx.hide()
 	level = load(Game.scene_path()).instantiate()
 	tut_hint.visible = Game.tutorial
+	Game.begin_stage()   # before the level is in: its first texts belong to this try
 	view.add_child(level)
 	Game.save_progress()
-	Game.begin_stage()
 	Game.busy = false
 	playing = true
 	get_tree().paused = false
@@ -308,7 +308,7 @@ func start_stage() -> void:
 	note_panel.hide()
 	_close_keypad()
 	for t in Game.stage_data().get("texts", []):   # [delay, thread, msg] scheduled phone texts
-		get_tree().create_timer(t[0], false).timeout.connect(func(): if playing: Game.text(t[1], t[2]))
+		get_tree().create_timer(t[0], false).timeout.connect(func(): if playing and my_load == _load_id: Game.text(t[1], t[2]))
 	await Cutscene.new().play(level, Game.stage_data().get("intro", []))
 	if my_load != _load_id:
 		return
@@ -507,6 +507,7 @@ func _on_stage_cleared() -> void:
 		skip_tutorial()
 		return
 	if not Game.skip_cutscenes:   # the performance review
+		stop_play()   # before taking my_load: stop_play() bumps it
 		var my_load := _load_id
 		await _review()
 		if my_load != _load_id:
@@ -535,7 +536,6 @@ func _review() -> void:
 	review_labels.grade.text = g
 	review_labels.boss.text = "หัวหน้าธนา: \"%s\"" % BOSS_SAYS[g]
 	review_labels.best.text = "เกรดดีที่สุดของบทนี้: %s" % Game.grades.get(Game.stage, g)
-	stop_play()
 	fade.color.a = 0.0
 	show_screen("review")
 	_review_done = false
@@ -2154,7 +2154,7 @@ func _build_pause() -> void:
 	p.set_meta("first", resume)
 	Kit.button("ตั้งค่า", func(): _settings_back = "pause"; show_screen("settings"), v, 21)
 	skip_tut_btn = Kit.button("ข้ามบทนำ → บทที่ 1", skip_tutorial, v, 21)
-	Kit.button("เริ่มบทนี้ใหม่", func(): get_tree().paused = false; Game.reset_stage(); start_stage(), v, 21)
+	Kit.button("เริ่มบทนี้ใหม่", func(): get_tree().paused = false; Game.restart_stage(); start_stage(), v, 21)
 	Kit.button("เมนูหลัก", func(): get_tree().paused = false; stop_play(); show_screen("menu"), v, 21)
 	var paper := Kit.panel(Kit.paper_box(), p)
 	_at(paper, Vector2(450, 70), Vector2(450, 580))
@@ -2198,7 +2198,7 @@ func _build_over() -> void:
 	h.add_theme_constant_override("separation", 16)
 	_at(h, Vector2(200, 628), Vector2(560, 56))
 	o.add_child(h)
-	var retry := Kit.button("ลองใหม่ (บทนี้)", func(): Game.reset_stage(); start_stage(), h, 20, 272, true)
+	var retry := Kit.button("ลองใหม่ (บทนี้)", func(): Game.restart_stage(); start_stage(), h, 20, 272, true)
 	o.set_meta("first", retry)
 	Kit.button("เมนูหลัก", func(): show_screen("menu"), h, 20, 272, true)
 

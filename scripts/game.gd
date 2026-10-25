@@ -70,6 +70,7 @@ var grades := {}               # chapter -> best performance-review grade
 var stage_caught := 0
 var stage_hints0 := 0
 var stage_reads := 0
+var _threads_at_start := {}    # the phone as this chapter began: a retry starts from it again
 var save_path := "user://save_v4.cfg"       # tests point these elsewhere (v4: 7 stages, old saves do not fit)
 var settings_path := "user://settings.cfg"
 var phone_taken := false
@@ -204,6 +205,7 @@ static func all_docs() -> Array:
 
 # A new chapter starts (main.gd): remember how far the player has got, zero this chapter's stats.
 func begin_stage() -> void:
+	_threads_at_start = threads.duplicate(true)
 	stage_caught = 0
 	stage_hints0 = hints
 	stage_reads = 0
@@ -288,6 +290,11 @@ func new_game() -> void:
 	tutorial = false
 	reset_stage()
 
+# Retry / restart this chapter: its timed texts come again, so the copies from the last try go.
+func restart_stage() -> void:
+	threads = _threads_at_start.duplicate(true)
+	reset_stage()
+
 func reset_stage() -> void:
 	battery = MAX_BATTERY
 	goal_count = 0
@@ -313,6 +320,8 @@ func level_data() -> Dictionary:
 
 func objective_text() -> String:
 	var o: String = stage_data().objective
+	if o.count("%d") == 2:   # "(done/total)": the total is the level's goal (fire stairs: Loop's Laps)
+		return o % [goal_count, level.goal if is_instance_valid(level) else stage_data().get("goal", 0)]
 	return o % goal_count if "%d" in o else o
 
 func damage(amount: float, cause := "") -> void:

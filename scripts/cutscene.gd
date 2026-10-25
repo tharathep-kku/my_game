@@ -40,6 +40,7 @@ var _active := false
 var _look := Vector3.ZERO   # what the camera is looking at (world), so walks turn the head smoothly
 var _stride := 0.0          # metres walked: bob phase + when the next footstep lands
 var _bodies := {}           # extras by id ("body" steps)
+var _moves := {}            # who -> [tween, where it ends]: a skip puts them at the end
 var _shake := 0.0           # camera shake strength while _shake_t > 0
 var _shake_t := 0.0
 
@@ -69,11 +70,23 @@ func play(lvl: Node3D, steps: Array) -> void:
 			c.body.visible = false
 			extras.append(c.body)
 	for st in steps:
-		if skipping:
-			break
+		if skipping:   # skipped: no more shots, but everyone still ends up where the scene leaves them
+			if st[0] in ["npc", "warp"]:
+				await _run(st)
+			elif st[0] == "move":
+				_moves[st[1]] = [null, cell(Vector3(st[2].x, 0, st[2].z))]
+			continue
 		await _run(st)
 	if not is_instance_valid(lvl):
 		return
+	if skipping:
+		for id in _moves:
+			var w := _who(id)
+			if _moves[id][0]:
+				_moves[id][0].kill()
+			if w:
+				var to: Vector3 = _moves[id][1]
+				w.global_position = Vector3(to.x, w.global_position.y, to.z)
 	for b in extras:
 		if is_instance_valid(b):
 			b.visible = true
@@ -231,6 +244,7 @@ func _move(id: String, to: Vector3, secs: float, anim: String) -> void:
 	if Vector2(d.x, d.z).length() > 0.01:
 		w.rotation.y = atan2(-d.x, -d.z)
 	var tw := create_tween()
+	_moves[id] = [tw, to]
 	tw.tween_method(func(k: float):
 		if is_instance_valid(w):
 			w.global_position = from.lerp(to, k)
