@@ -139,6 +139,8 @@ func _ready() -> void:
 	_flicker_t = randf_range(flicker.x, flicker.y)
 	if wet_start > 0:
 		_scatter_wet()
+	if with_player and stage_index >= 0:
+		_start_quests()
 
 # Fog hides everything past ~30 m, so don't pay for it: small props (desks are 4 models each)
 # stop drawing at 30 m and far lights fade out. Big meshes (walls, floor) are left alone,
@@ -534,6 +536,54 @@ func _start_finale() -> void:
 		extras.append(n)
 	for n in npcs:
 		n.enrage()
+
+# ---------- jobs (story.gd "quests", Game "งาน") ----------
+# Jobs already under way (continue / retry) get their item back; new ones arrive `at` seconds in,
+# or once the chapter's goals are done ("when": "goals"). "needs": an earlier job finished first.
+func _start_quests() -> void:
+	for q in data.get("quests", []):
+		if Game.quest_done(q.id):
+			continue
+		if Game.quests.has(q.id):
+			spawn_quest_step(q.id)
+		elif q.get("when", "start") == "start" and (q.get("needs", "") == "" or Game.quest_done(q.needs)):
+			get_tree().create_timer(q.get("at", 10.0), false).timeout.connect(_offer_quest.bind(q.id))
+
+var _job_tables := {}
+
+func _offer_quest(id: String) -> void:
+	Game.offer_quest(id)
+
+func quests_on_goals() -> void:
+	for q in data.get("quests", []):
+		if q.get("when", "start") == "goals" and not Game.quests.has(q.id) and (q.get("needs", "") == "" or Game.quest_done(q.needs)):
+			Game.offer_quest(q.id)
+
+# The current step's thing, where it is (a purple glow, marked on screen for a while).
+func spawn_quest_step(id: String) -> void:
+	var st := Game.quest_step(id)
+	if st.is_empty():
+		return
+	for it in $Items.get_children():   # never two of the same
+		if it.get_meta("quest", "") == id and not it.used:
+			it.queue_free()
+	var h: float = st.get("y", 0.8)
+	if h > 0.5 and not _job_tables.has(st.at):   # on a little side table (you walk through it: corridors stay open)
+		_job_tables[st.at] = true
+		var t: Node3D = load("res://assets/models/sideTableDrawers.glb").instantiate()
+		var ab := AABB()
+		for c in t.find_children("*", "MeshInstance3D", true, false):
+			var cab: AABB = c.transform * c.get_aabb()
+			ab = cab if ab.size == Vector3.ZERO else ab.merge(cab)
+		t.scale = Vector3.ONE * 2.0
+		t.position = cell_pos(st.at) - Vector3(ab.get_center().x, ab.position.y, ab.get_center().z) * 2.0
+		add_child(t)
+	var it := StageBuilder.make_item("quest", cell_pos(st.at) + Vector3.UP * h, Vector3(0.3, 0.1, 0.24), Color(0.78, 0.55, 1.0))
+	it.title = st.item
+	it.text = st.get("text", "")
+	it.set_meta("quest", id)
+	$Items.add_child(it)
+	_marker(it, Color(0.78, 0.55, 1.0), 0.5, 30.0, st.item)
 
 func spawn_throwable(pos: Vector3) -> void:
 	$Items.add_child(StageBuilder.make_item("throwable", Vector3(pos.x, 0.08, pos.z), Vector3(0.14, 0.16, 0.14), Color(0.9, 0.9, 0.95)))

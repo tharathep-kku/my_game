@@ -77,6 +77,7 @@ func _ready() -> void:
 	await t_heart()
 	await t_new_scares()
 	await t_mid_scenes()
+	await t_quests()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -422,6 +423,57 @@ func t_review_flow() -> void:
 	await frames(2)
 	Game.new_game()
 
+# Jobs ("งาน"): offered by text, a thing per step, story on each, a payoff; a required job holds
+# the exit; a retry puts them back the way the chapter began.
+func t_quests() -> void:
+	var ids := {}
+	var ok := true
+	for e in Game.all_quests():
+		var q: Dictionary = e.q
+		ok = ok and not ids.has(q.id) and q.has("from") and q.has("ask") and q.has("title") and not q.steps.is_empty()
+		ids[q.id] = true
+		for st in q.steps:
+			ok = ok and st.has("do") and st.at is Vector2i and st.has("item")
+			if st.has("scare"):
+				ok = ok and (st.scare.kind in ["lights_out", "sound"] or Story.BODIES.has(st.scare.get("preset", "")))
+	for e in Game.all_quests():
+		ok = ok and (e.q.get("needs", "") == "" or ids.has(e.q.needs))
+	check(ok and ids.size() >= 3, "jobs: every job is complete (%d jobs)" % ids.size())
+	Game.new_game()
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(5)
+	Game.begin_stage()
+	var mine := func(id: String) -> Array: return kinds(lvl, "quest").filter(func(it): return not it.used and it.get_meta("quest") == id)
+	Game.battery = 50.0
+	Game.offer_quest("mum_lunch")
+	var it: Array = mine.call("mum_lunch")
+	check(Game.threads.has("แม่") and it.size() == 1 and it[0].global_position.distance_to(lvl.cell_pos(Vector2i(9, 19))) < 0.5, "jobs: a text offers it, the first step's thing appears")
+	it[0].interact()
+	await frames(2)
+	check(Game.quests.mum_lunch == 1 and mine.call("mum_lunch").size() == 1 and Game.docs_found.has("หยิบข้าวกล่องของแม่"), "jobs: a step done (its note read), the next thing appears")
+	mine.call("mum_lunch")[0].interact()
+	await frames(2)
+	check(Game.quest_done("mum_lunch") and Game.battery == 75.0 and mine.call("mum_lunch").is_empty(), "jobs: finished, the payoff lands (Social Battery +25)")
+	Game.goal_count = lvl.goal - 1
+	Game.collect()
+	check(not lvl.exit_open and Game.quests.has("boss_bind") and Game.objective_text().begins_with("งานด่วน"), "jobs: goals done, a required job holds the exit and is the objective")
+	for k in 2:
+		mine.call("boss_bind")[0].interact()
+		await frames(2)
+	check(lvl.exit_open and Game.quest_done("boss_bind"), "jobs: the required job done, the exit opens")
+	Game.restart_stage()
+	check(Game.quests.is_empty(), "jobs: a retry puts the jobs back the way the chapter began")
+	Game.quests = {"fon_1": 1}
+	Game.save_progress()
+	Game.new_game()
+	Game.load_progress()
+	check(Game.quests.get("fon_1") == 1, "jobs: saved with the checkpoint")
+	await done(lvl)
+	Game.clear_save()
+
 # Character lineup screenshot (for review / report), not an assertion-heavy test.
 func t_lineup() -> void:
 	var lvl := await make(["###########", "#.........#", "#.M.S.G.R.#", "#..L...L..#", "#.........#", "#....P....#", "###########"])
@@ -733,6 +785,15 @@ func t_reach() -> void:
 		check(data.get("items", []).size() == data.map.reduce(func(a, r): return a + r.count("y"), 0), "stage %d: one item per y" % (i + 1))
 		check(kinds(lvl, "file").all(func(it): return it.title != ""), "stage %d: goal items have names" % (i + 1))
 		check(data.map.reduce(func(a, r): return a + r.count("Z"), 0) == 1, "stage %d: one dream clue" % (i + 1))
+		var qbad := []   # every job step: a spot Tong can walk up to from the start
+		for q in data.get("quests", []):
+			for st in q.steps:
+				var p: Vector3 = lvl.cell_pos(st.at)
+				var qp := NavigationServer3D.map_get_closest_point(map, p)
+				var path := NavigationServer3D.map_get_path(map, lvl.spawn, qp, true)
+				if Vector2(qp.x - p.x, qp.z - p.z).length() > 1.0 or path.is_empty() or path[path.size() - 1].distance_to(qp) > 0.3:
+					qbad.append("%s@%s" % [q.id, st.at])
+		check(qbad.is_empty(), "stage %d: every job step reachable %s" % [i + 1, qbad])
 		await done(lvl)
 	# play each intro for a moment, then skip: control returns
 	Game.skip_cutscenes = false

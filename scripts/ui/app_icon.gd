@@ -2,7 +2,7 @@
 class_name AppIcon
 extends Control
 
-var kind := "chat"   # chat / gps / docs / map
+var kind := "chat"   # chat / gps / docs / map / jobs
 var tint := Color("#3dbb6b")
 
 func _init(k := "chat", c := Color("#3dbb6b")) -> void:
@@ -37,3 +37,10 @@ func _draw() -> void:
 			draw_line(c + Vector2(-5, -16), c + Vector2(-5, 12), tint, 2.0)
 			draw_line(c + Vector2(5, -12), c + Vector2(5, 16), tint, 2.0)
 			draw_circle(c + Vector2(10, -2), 3.5, Color("#ff4d5e"))
+		"jobs":   # a clipboard with ticks
+			draw_rect(Rect2(c - Vector2(12, 14), Vector2(24, 31)), w)
+			draw_rect(Rect2(c - Vector2(6, 18), Vector2(12, 7)), Color(0.8, 0.8, 0.85))
+			for i in 3:
+				var y := -5.0 + i * 8.0
+				draw_polyline(PackedVector2Array([c + Vector2(-8, y), c + Vector2(-5, y + 3), c + Vector2(-1, y - 3)]), tint, 2.0)
+				draw_line(c + Vector2(2, y), c + Vector2(8, y), tint, 2.0)

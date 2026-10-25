@@ -11,7 +11,7 @@ const PROMPTS := {
 	"hide_desk": "[E] มุดใต้โต๊ะ", "hide_locker": "[E] ซ่อนในล็อกเกอร์", "hide_stall": "[E] หลบในห้องน้ำ",
 }
 
-## doc / note / pc / coffee / coffee_goal / phone / guard_phone / read / clue / powerbank / throwable / hide / breaker / scanner / fuse / fuse_box / file (goal: Title = its name, Text = what it says)
+## doc / note / pc / coffee / coffee_goal / phone / guard_phone / read / clue / powerbank / throwable / hide / breaker / scanner / fuse / fuse_box / file (goal: Title = its name, Text = what it says) / quest (a job's step, made at runtime from story.gd "quests")
 @export var kind := ""
 @export_group("Note (read / note)")
 ## Heading shown in the note reader
@@ -85,6 +85,8 @@ func usable() -> bool:
 func prompt() -> String:
 	if kind == "file":
 		return "[E] เก็บ" + title
+	if kind == "quest":   # a job's step: the item says what you do with it
+		return "[E] " + title
 	return PROMPTS.get("hide_" + hide_type if kind == "hide" else kind, "[E]")
 
 func interact() -> void:
@@ -96,7 +98,7 @@ func interact() -> void:
 	if is_instance_valid(Game.level) and Game.level.has_method("item_used"):
 		Game.level.item_used(kind)
 	# drop the item mesh so it reads as taken; machines/phones stay put
-	if kind in ["doc", "note", "guard_phone", "clue", "powerbank", "throwable", "fuse", "file"]:
+	if kind in ["doc", "note", "guard_phone", "clue", "powerbank", "throwable", "fuse", "file", "quest"]:
 		for c in get_children():
 			if c is Node3D and not c is CollisionShape3D:
 				c.queue_free()

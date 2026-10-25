@@ -25,7 +25,7 @@ const SPEAKERS := {
 	"ต๋อง": Color("#9fd3ff"), "หัวหน้าธนา": Color("#ffd166"), "ป้าพร": Color("#ff8fb1"),
 	"เต้": Color("#8ef0c8"), "พี่สมชาย": Color("#ff6b6b"), "พี่แหม่ม": Color("#ff9e7a"),
 	"พี่แหม่ม HR": Color("#ff9e7a"), "หมอ": Color("#c5f6ff"), "แม่": Color("#ffe3a3"),
-	"เบอร์ไม่รู้จัก": Color("#ff5d73"), "กลุ่ม IT": Color("#8ef0c8"),
+	"เบอร์ไม่รู้จัก": Color("#ff5d73"), "กลุ่ม IT": Color("#8ef0c8"), "ฝน": Color("#d7b8ff"),
 }
 
 static func speaker_color(name: String) -> Color:

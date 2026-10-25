@@ -16,6 +16,13 @@ const ENDINGS := {
 	"D": ["D · TRUE END", "ตื่นแล้ว", "tong",
 		"ต๋องลืมตาขึ้นที่โรงพยาบาล เตียง 4 ห้อง 7 — ของจริง\nเขาหมดสติที่โต๊ะทำงานมาสามวัน\n\nก่อนหมดสติ เขากดโทรแจ้งตำรวจไว้ทัน\nพี่สมชายถูกจับที่ทางเดินหน้าห้องพักผู้ป่วย\n\nข้อความสุดท้ายที่ต๋องส่งถึงบริษัท:\n\"ผมขอลาออกครับ\""],
 }
+# ฝน's whole story found (her six jobs): what became of her, after each ending.
+const EPILOGUES := {
+	"A": "บทส่งท้าย · ฝน\nรูปที่ต๋องส่งให้แม่ ทำให้ตำรวจเปิดคดีของฝนอีกครั้ง\nหนึ่งเดือนต่อมา ฝนลืมตาขึ้นที่หอผู้ป่วย 5\nคำแรกที่เธอพูดคือ \"กาแฟ... อย่าดื่ม\"",
+	"B": "บทส่งท้าย · ฝน\nต๋องตื่นมาพร้อมชื่อหนึ่งติดอยู่ในหัว: ฝน\nเขาไม่รู้ว่าเป็นใคร จนพยาบาลเข็นเตียงผ่านหน้าห้อง\nป้ายข้อมือเขียนว่า \"ฝน · หอผู้ป่วย 5\" — มีพวงกุญแจรูปแมวผูกอยู่ที่ราวเตียง",
+	"C": "บทส่งท้าย · ฝน\nรูปหลักฐานถึงมือแม่แล้ว ตำรวจกำลังมา\n...แต่คนที่ยืนอยู่หน้าประตูห้องคืนนี้ ก็ได้อ่านข้อความนั้นเหมือนกัน",
+	"D": "บทส่งท้าย · ฝน\nวันที่ตำรวจพาตัวสมชายไป ฝนก็ฟื้น\nสองคนที่ไม่เคยคุยกันเลยในชีวิตจริง จำกันได้ทันทีที่เจอหน้า\n\"เธอคือคนที่เปิดลิ้นชักให้ฉันใช่ไหม\"",
+}
 # How to get each ending: shown on its locked card (the gallery) and after a bad end.
 const ENDING_HINTS := {
 	"A": "ขโมยมือถือพี่สมชาย + หาหลักฐานเรื่องเขาให้ครบ 6 ชิ้น",
@@ -75,6 +82,8 @@ var phone_list: VBoxContainer
 var phone_gps: Control
 var phone_docs: VBoxContainer
 var phone_map: PhoneMap
+var phone_jobs: VBoxContainer   # app 5: jobs under way + the case file of finished ones
+var side_label: Label           # HUD: the side job you're on, under the sticky note
 var phone_scroll: ScrollContainer
 var phone_foot: Label
 var _seen := {}          # thread -> messages already shown: the phone opens at the first new one
@@ -217,6 +226,7 @@ func _ready() -> void:
 	Game.note_opened.connect(_on_note)
 	Game.code_requested.connect(_on_code_requested)
 	Game.scare_face.connect(_face_slam)
+	Game.quests_changed.connect(_on_quests)
 	Game.fade.connect(func(a, secs): _fade_to(a, secs))
 	Game.overlay.connect(func(kind): peephole.visible = kind == "peephole")
 	apply_settings()
@@ -304,6 +314,7 @@ func start_stage() -> void:
 		create_tween().tween_property(saved_label, "modulate:a", 0.0, 1.0).set_delay(2.5)
 	stage_time = 0.0
 	phone_map.reset()
+	_on_quests()
 	close_phone()
 	note_panel.hide()
 	_close_keypad()
@@ -528,11 +539,15 @@ func _on_stage_cleared() -> void:
 func _review() -> void:
 	var found_clue: bool = Game.clues.has(Game.stage)
 	var evidence := Game.hints - Game.stage_hints0
-	var g := Game.grade_for(Game.stage_caught, stage_time, found_clue, evidence)
+	var chapter_jobs := Game.all_quests().filter(func(e): return e.chapter == Game.stage)
+	var jobs_done := chapter_jobs.filter(func(e): return Game.quest_done(e.q.id) and not e.q.get("main", false)).size()
+	var side_jobs := chapter_jobs.filter(func(e): return not e.q.get("main", false)).size()
+	var g := Game.grade_for(Game.stage_caught, stage_time, found_clue, evidence, jobs_done)
 	Game.record_grade(g)
 	review_labels.chapter.text = "บทที่ %d · %s" % [Game.stage + 1, Game.stage_data().title.get_slice(" : ", 1)]
-	review_labels.rows.text = "เวลาที่ใช้\t%s\nโดนจับ\t%d ครั้ง\nหลักฐานเรื่องพี่สมชาย (บทนี้)\t+%d\nเบาะแสความฝัน\t%s\nเอกสารที่อ่าน\t%d" % [
-		_mmss(stage_time), Game.stage_caught, evidence, "พบแล้ว" if found_clue else "ไม่พบ", Game.stage_reads]
+	review_labels.rows.text = "เวลาที่ใช้\t%s\nโดนจับ\t%d ครั้ง\nหลักฐานเรื่องพี่สมชาย (บทนี้)\t+%d\nเบาะแสความฝัน\t%s\nเอกสารที่อ่าน\t%d%s" % [
+		_mmss(stage_time), Game.stage_caught, evidence, "พบแล้ว" if found_clue else "ไม่พบ", Game.stage_reads,
+		("\nงานเสริมที่ทำเสร็จ\t%d / %d" % [jobs_done, side_jobs]) if side_jobs > 0 else ""]
 	review_labels.grade.text = g
 	review_labels.boss.text = "หัวหน้าธนา: \"%s\"" % BOSS_SAYS[g]
 	review_labels.best.text = "เกรดดีที่สุดของบทนี้: %s" % Game.grades.get(Game.stage, g)
@@ -592,6 +607,12 @@ func _show_ending(id: String) -> void:
 	end_labels.title.text = e[1]
 	end_labels.face.set_preset(e[2])
 	end_labels.body.text = e[3] + ("" if id != "C" else "\n\n(ยังมีทางจบอื่นอีก... ดูคำใบ้ได้ที่เมนู \"ฉากจบ\")")
+	end_labels.epi.text = ""
+	if Game.quest_done("fon_6"):   # her whole story: what became of her
+		end_labels.epi.text = EPILOGUES[id]
+	elif Game.quests.keys().any(func(k): return k.begins_with("fon_")):
+		end_labels.epi.text = "เรื่องของฝนยังไม่จบ...\nทำงานของเธอให้ครบทั้ง 6 งาน (งานจาก \"เบอร์ไม่รู้จัก\") แล้วจะรู้ว่าเธอเป็นอย่างไร"
+	end_labels.epi_box.visible = end_labels.epi.text != ""
 	end_labels.new.visible = first
 	end_labels.stats.text = "โดนจับ %d ครั้ง  ·  หลักฐานเรื่องพี่สมชาย %d/%d  ·  เบาะแสความฝัน %d/%d  ·  มือถือพี่สมชาย: %s" % [
 		Game.times_caught, Game.hints, Game.EVIDENCE_NEEDED, Game.clues.size(), Game.CLUE_TOTAL, "ขโมยมา" if Game.phone_taken else "ไม่ได้แตะ"]
@@ -650,6 +671,8 @@ func _unhandled_input(e: InputEvent) -> void:
 			app = "docs"
 		elif e is InputEventKey and e.pressed and e.physical_keycode == KEY_4:
 			app = "map"
+		elif e is InputEventKey and e.pressed and e.physical_keycode == KEY_5:
+			app = "jobs"
 		if app != "":
 			_show_app(app)
 			get_viewport().set_input_as_handled()
@@ -709,12 +732,15 @@ func _show_app(app: String) -> void:
 	phone_docs.visible = app == "docs"
 	phone_docs.get_parent().visible = app == "docs"   # its ScrollContainer: left showing, it took half the phone from the chat
 	phone_map.visible = app == "map"
+	phone_jobs.get_parent().visible = app == "jobs"
 	Game.sfx("metalClick", null, -14.0)
 	if app == "chat":
 		var first: String = Game.threads.keys()[0] if not Game.threads.is_empty() else ""
 		_show_thread(phone_thread if phone_thread != "" else first)
 	elif app == "docs":
 		_show_docs()
+	elif app == "jobs":
+		_show_jobs()
 
 func close_phone() -> void:
 	if phone and phone.visible:
@@ -799,6 +825,37 @@ func _show_docs() -> void:
 		Kit.label(entry.title, 15, Color(0.5, 0.08, 0.1), Kit.HAND, v)
 		Kit.label(entry.text, 13, Kit.INK, Kit.BODY, v)
 		phone_docs.add_child(bubble)
+
+# Jobs app: the ones under way (what to do next), then the case file: what each finished job told
+# you, in story order. ฝน's arc gets its own count.
+func _show_jobs() -> void:
+	for c in phone_jobs.get_children():
+		c.queue_free()
+	if Game.quests.is_empty():
+		Kit.label("ยังไม่มีใครส่งงานมา\n(งานจะมาทางแชท ระหว่างเล่น)", 14, Kit.DIM, Kit.UI, phone_jobs)
+		return
+	var fon := Game.all_quests().filter(func(e): return e.q.id.begins_with("fon_"))
+	var fon_done := fon.filter(func(e): return Game.quest_done(e.q.id)).size()
+	if fon_done > 0:
+		Kit.label("เรื่องของฝน  %d / %d" % [fon_done, fon.size()], 15, Color(1, 0.55, 0.65), Kit.TITLE, phone_jobs)
+	var doing := Game.all_quests().filter(func(e): return Game.quests.has(e.q.id) and not Game.quest_done(e.q.id))
+	if not doing.is_empty():
+		Kit.label("กำลังทำ", 13, Kit.DIM, Kit.UI, phone_jobs)
+	for e in doing:
+		var b := Kit.panel(Kit.box(Color(0.32, 0.12, 0.42, 0.85), Color(0.78, 0.55, 1.0, 0.6), 1, 10, 9), phone_jobs)
+		var v := VBoxContainer.new()
+		b.add_child(v)
+		Kit.label("%s%s · จาก %s" % ["★ " if e.q.get("main", false) else "", e.q.title, e.q.from], 14, Color.WHITE, Kit.TITLE, v)
+		Kit.label("→ " + Game.quest_step(e.q.id).do, 13, Color(0.9, 0.85, 1.0), Kit.BODY, v)
+	var done := Game.all_quests().filter(func(e): return Game.quest_done(e.q.id))
+	if not done.is_empty():
+		Kit.label("แฟ้มคดี (งานที่เสร็จแล้ว)", 13, Kit.DIM, Kit.UI, phone_jobs)
+	for e in done:
+		var b := Kit.panel(Kit.box(Kit.PAPER, Color(0, 0, 0, 0), 0, 8, 9), phone_jobs)
+		var v := VBoxContainer.new()
+		b.add_child(v)
+		Kit.label("บทที่ %d · %s" % [e.chapter + 1, e.q.title], 14, Color(0.5, 0.08, 0.1), Kit.HAND, v)
+		Kit.label(e.q.get("log", e.q.get("done", "")), 13, Kit.INK, Kit.BODY, v)
 
 func _on_phone_message(thread: String, m: Dictionary) -> void:
 	if phone.visible and phone_app == "chat":
@@ -915,6 +972,15 @@ func _gps_target() -> Dictionary:
 			best = it
 	if best:
 		return {"pos": best.global_position, "label": level.goal_name(best)}
+	var job: Node3D = null   # nothing else to do here: the nearest job step (a required job's, too)
+	for it in items.get_children():
+		if it.get("kind") == "quest" and not it.used:
+			var d: float = it.global_position.distance_to(Game.player.global_position)
+			if job == null or d < best_d:
+				best_d = d
+				job = it
+	if job:
+		return {"pos": job.global_position, "label": "งาน: " + job.title}
 	return {}
 
 # Note reader: the paper's text + what reading it gave you. Walk away (or Esc/Tab) to close.
@@ -1031,7 +1097,7 @@ func _process(dt: float) -> void:
 		if Game.typing:
 			phone_foot.text = "กำลังพิมพ์" + ".".repeat(1 + int(Time.get_ticks_msec() / 400) % 3)
 		elif phone_app == "":
-			phone_foot.text = "1 แชท · 2 GPS · 3 เอกสาร · 4 แผนที่ · Esc ปิด"
+			phone_foot.text = "1 แชท · 2 GPS · 3 เอกสาร · 4 แผนที่ · 5 งาน · Esc ปิด"
 		else:
 			phone_foot.text = "[Esc] ปิด" if Game.phone_lock else "[Esc] กลับ · [Tab] ปิด"
 		if phone_app == "gps":
@@ -1118,6 +1184,19 @@ func _on_objective(t: String) -> void:
 		Kit.ui_sound("pen", -14.0)
 		objective_note.scale = Vector2(1.08, 1.08)
 		create_tween().tween_property(objective_note, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK)
+
+# A job arrived / moved on / finished: the side-job line under the sticky note, the phone app.
+func _on_quests() -> void:
+	var side := ""
+	for e in Game.all_quests():
+		if not e.q.get("main", false) and Game.quests.has(e.q.id) and not Game.quest_done(e.q.id) and e.chapter == Game.stage:
+			side = "งานเสริม · %s\n%s" % [e.q.title, Game.quest_step(e.q.id).do]
+	side_label.text = side
+	side_label.visible = side != ""
+	if phone.visible and phone_app == "jobs":
+		_show_jobs()
+	if playing and not Game.quests.is_empty():
+		_tip("jobs", "มีงานเข้ามาทางแชท! ของที่ต้องไปหาเรืองแสงสีม่วง · ดูงานทั้งหมดในมือถือ (Tab แล้วกด 5)")
 
 func _on_message(text: String, secs: float) -> void:
 	subtitle.text = Kit.subtitle_bbcode(text)
@@ -1344,6 +1423,8 @@ func _build_hud() -> void:
 	Kit.label("ภารกิจ", 15, Color(0.7, 0.12, 0.12), Kit.HAND, ov)
 	objective = Kit.label("", 16, Kit.INK, Kit.HAND, ov)
 	objective.custom_minimum_size.x = 286
+	side_label = Kit.label("", 14, Color(0.42, 0.16, 0.55), Kit.HAND, ov)   # the side job, in purple pen under it
+	side_label.custom_minimum_size.x = 286
 	beacons = Control.new()
 	beacons.set_anchors_preset(PRESET_FULL_RECT)
 	beacons.mouse_filter = MOUSE_FILTER_IGNORE
@@ -1575,7 +1656,7 @@ func _build_phone() -> void:
 	var date := Kit.label("วันศุกร์ · กะดึก", 15, Color(0.85, 0.85, 0.95), Kit.UI, phone_home)
 	date.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 40
+	gap.custom_minimum_size.y = 8
 	phone_home.add_child(gap)
 	var grid := GridContainer.new()
 	grid.columns = 2
@@ -1583,10 +1664,11 @@ func _build_phone() -> void:
 	grid.add_theme_constant_override("v_separation", 14)
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	phone_home.add_child(grid)
-	for app in [["chat", "1 · แชท", Color("#2fae5f")], ["gps", "2 · GPS", Color("#2f6fd6")], ["docs", "3 · เอกสาร", Color("#d6902f")], ["map", "4 · แผนที่", Color("#8a3fd1")]]:
+	for app in [["chat", "1 · แชท", Color("#2fae5f")], ["gps", "2 · GPS", Color("#2f6fd6")], ["docs", "3 · เอกสาร", Color("#d6902f")],
+			["map", "4 · แผนที่", Color("#8a3fd1")], ["jobs", "5 · งาน", Color("#c23b4e")]]:
 		var b := Button.new()
 		b.flat = true
-		b.custom_minimum_size = Vector2(100, 92)
+		b.custom_minimum_size = Vector2(100, 84)
 		b.focus_mode = Control.FOCUS_NONE
 		b.pressed.connect(_show_app.bind(app[0]))
 		var bv := VBoxContainer.new()
@@ -1637,6 +1719,14 @@ func _build_phone() -> void:
 	phone_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	phone_map.custom_minimum_size = Vector2(246, 380)
 	pv.add_child(phone_map)
+	var jobs_scroll := ScrollContainer.new()
+	jobs_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	jobs_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	pv.add_child(jobs_scroll)
+	phone_jobs = VBoxContainer.new()
+	phone_jobs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	phone_jobs.add_theme_constant_override("separation", 8)
+	jobs_scroll.add_child(phone_jobs)
 	phone_foot = Kit.label("[Esc] ปิด", 12, Color(0.7, 0.7, 0.8), Kit.UI, pv)
 	phone_foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var bar := Panel.new()   # home indicator
@@ -2168,8 +2258,11 @@ func _refresh_pause() -> void:
 		return
 	screens.pause.get_meta("first").grab_focus.call_deferred()
 	var d := Game.stage_data()
-	pause_info.text = "[b][font_size=24]%s[/font_size][/b]\n[color=#7a6f66]%s · ความยาก: %s[/color]\n\n[b]ภารกิจ[/b]\n%s\n\n[b]สิ่งที่สะสม (ทั้งเกม)[/b]\nเบาะแสความฝัน  %d / %d\nหลักฐานเรื่องพี่สมชาย  %d / %d\nมือถือพี่สมชาย  %s\nโดนจับ  %d ครั้ง\n\n[b]ปุ่ม[/b]\nWASD เดิน · Shift วิ่ง · C ก้มย่อง\nE ใช้ของ / ซ่อน / คุย · Space ค้าง กลั้นหายใจ\nQ ขว้างของล่อ · F ไฟฉาย · Tab มือถือ (4 = แผนที่)" % [
-		d.title, clock_text(), ["ง่าย", "ปกติ", "ยาก"][Game.difficulty], Game.objective_text(),
+	var jobs := ""
+	for e in Game.all_quests().filter(func(x): return x.chapter == Game.stage and Game.quests.has(x.q.id)):
+		jobs += "\n%s %s%s" % ["✓" if Game.quest_done(e.q.id) else "•", e.q.title, "" if Game.quest_done(e.q.id) else " → " + Game.quest_step(e.q.id).do]
+	pause_info.text = "[b][font_size=24]%s[/font_size][/b]\n[color=#7a6f66]%s · ความยาก: %s[/color]\n\n[b]ภารกิจ[/b]\n%s%s\n\n[b]สิ่งที่สะสม (ทั้งเกม)[/b]\nเบาะแสความฝัน  %d / %d\nหลักฐานเรื่องพี่สมชาย  %d / %d\nมือถือพี่สมชาย  %s\nโดนจับ  %d ครั้ง\n\n[b]ปุ่ม[/b]\nWASD เดิน · Shift วิ่ง · C ก้มย่อง\nE ใช้ของ / ซ่อน / คุย · Space ค้าง กลั้นหายใจ\nQ ขว้างของล่อ · F ไฟฉาย · Tab มือถือ (4 = แผนที่)" % [
+		d.title, clock_text(), ["ง่าย", "ปกติ", "ยาก"][Game.difficulty], Game.objective_text(), ("\n\n[b]งาน[/b]" + jobs) if jobs != "" else "",
 		Game.clues.size(), Game.CLUE_TOTAL, Game.hints, Game.EVIDENCE_NEEDED, "อยู่ในมือ" if Game.phone_taken else "ยังไม่ได้", Game.times_caught]
 
 # Game over = a warning letter from HR.
@@ -2269,7 +2362,16 @@ func _build_ending() -> void:
 	end_labels.letter = Kit.label("", 22, Kit.YELLOW, Kit.TITLE, tv)
 	end_labels.title = Kit.label("", 46, Color.WHITE, Kit.TITLE, tv)
 	end_labels.new = Kit.label("ปลดล็อกฉากจบใหม่!", 16, Kit.GREEN, Kit.TITLE, tv)
-	end_labels.body = Kit.label("", 18, Color(0.88, 0.88, 0.9), Kit.BODY, v)
+	var row := HBoxContainer.new()   # the ending on the left; ฝน's epilogue (once her story is found) on the right
+	row.add_theme_constant_override("separation", 16)
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(row)
+	end_labels.body = Kit.label("", 18, Color(0.88, 0.88, 0.9), Kit.BODY, row)
+	end_labels.body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	end_labels.epi_box = Kit.panel(Kit.box(Color(0.22, 0.12, 0.3, 0.9), Color(0.84, 0.72, 1.0, 0.5), 1, 6, 12), row)
+	end_labels.epi_box.custom_minimum_size.x = 290
+	end_labels.epi_box.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	end_labels.epi = Kit.label("", 16, Color(0.93, 0.88, 1.0), Kit.HAND, end_labels.epi_box)
 	end_labels.stats = Kit.label("", 14, Kit.DIM, Kit.UI, v)
 	end_labels.gallery = HBoxContainer.new()
 	end_labels.gallery.add_theme_constant_override("separation", 10)

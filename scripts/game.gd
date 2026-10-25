@@ -19,10 +19,13 @@ signal hidden_changed(kind: String)   # "" = came out
 signal scare_face(preset: String, sfx: String)   # non-lethal face slam (cutscenes, "face" scares)
 signal fade(alpha: float, secs: float)   # cutscene "fade" step: black over the picture
 signal overlay(kind: String)             # "peephole" / "" (main.gd)
+signal quests_changed                    # a job was offered / moved on / finished (HUD, phone)
 
 const MAX_BATTERY := 100.0
 const HINT_TOTAL := 4           # one guard phone call per stage
 const EVIDENCE_NEEDED := 6      # Ending A/D: calls answered + cameos spotted + evidence notes read
+const REWARD_TIPS := {"battery": "Social Battery +25", "phone": "แบตมือถือ +50%", "evidence": "หลักฐานเรื่องพี่สมชาย +1",
+	"reveal": "รู้แล้วว่าของที่ต้องเก็บอยู่ไหน (ลูกศรเหลือง)"}
 const REVEAL_TIPS := {
 	"goals": "รู้แล้วว่าของที่ต้องเก็บอยู่ไหน → ดูลูกศรสีเหลืองบนจอ (40 วินาที)",
 	"hides": "รู้แล้วว่าซ่อนตรงไหนได้ → ดูป้ายสีเขียวบนจอ (40 วินาที)",
@@ -71,6 +74,9 @@ var stage_caught := 0
 var stage_hints0 := 0
 var stage_reads := 0
 var _threads_at_start := {}    # the phone as this chapter began: a retry starts from it again
+# Jobs ("งาน", story.gd "quests"): offered by text, a few steps each, story on every step.
+var quests := {}               # job id -> steps done (offered = in here; finished = all steps done)
+var _quests_at_start := {}
 var save_path := "user://save_v4.cfg"       # tests point these elsewhere (v4: 7 stages, old saves do not fit)
 var settings_path := "user://settings.cfg"
 var phone_taken := false
@@ -201,11 +207,16 @@ static func all_docs() -> Array:
 		for key in ["notes", "items", "postits"]:
 			for d in Story.STAGES[i].get(key, []):
 				out.append({"title": d.title, "text": d.text, "chapter": i})
+		for q in Story.STAGES[i].get("quests", []):   # what a job's steps let you read
+			for st in q.steps:
+				if st.has("text"):
+					out.append({"title": st.item, "text": st.text, "chapter": i})
 	return out
 
 # A new chapter starts (main.gd): remember how far the player has got, zero this chapter's stats.
 func begin_stage() -> void:
 	_threads_at_start = threads.duplicate(true)
+	_quests_at_start = quests.duplicate()
 	stage_caught = 0
 	stage_hints0 = hints
 	stage_reads = 0
@@ -213,9 +224,10 @@ func begin_stage() -> void:
 		reached = stage
 		save_profile()
 
-# Performance review: 0..100 score -> S/A/B/C/D.
-static func grade_for(caught: int, secs: float, found_clue: bool, evidence: int) -> String:
-	var score := 100 - caught * 15 - maxf(0.0, secs / 60.0 - 8.0) * 3.0 + (10 if found_clue else 0) + evidence * 5
+# Performance review: 0..100 score -> S/A/B/C/D. Side jobs done count for it (and the time they take
+# is allowed for: 4 minutes each).
+static func grade_for(caught: int, secs: float, found_clue: bool, evidence: int, jobs := 0) -> String:
+	var score := 100 - caught * 15 - maxf(0.0, secs / 60.0 - 8.0 - jobs * 4.0) * 3.0 + (10 if found_clue else 0) + evidence * 5 + jobs * 5
 	if score >= 100:
 		return "S"
 	if score >= 85:
@@ -243,7 +255,7 @@ func save_progress() -> void:
 	if tutorial:
 		return
 	var cf := ConfigFile.new()
-	for k in ["stage", "times_caught", "noticed", "clues", "phone_taken", "phone_battery"]:
+	for k in ["stage", "times_caught", "noticed", "clues", "phone_taken", "phone_battery", "quests"]:
 		cf.set_value("run", k, get(k))
 	cf.save(save_path)
 
@@ -260,7 +272,7 @@ func load_progress() -> bool:
 	if cf.load(save_path) != OK:
 		return false
 	new_game()
-	for k in ["stage", "times_caught", "noticed", "clues", "phone_taken", "phone_battery"]:
+	for k in ["stage", "times_caught", "noticed", "clues", "phone_taken", "phone_battery", "quests"]:
 		set(k, cf.get_value("run", k, get(k)))
 	hints = noticed.size()
 	return true
@@ -286,6 +298,7 @@ func new_game() -> void:
 	phone_battery = 100.0
 	threads.clear()
 	read_log.clear()
+	quests.clear()
 	phone_taken = false
 	tutorial = false
 	reset_stage()
@@ -293,6 +306,7 @@ func new_game() -> void:
 # Retry / restart this chapter: its timed texts come again, so the copies from the last try go.
 func restart_stage() -> void:
 	threads = _threads_at_start.duplicate(true)
+	quests = _quests_at_start.duplicate()
 	reset_stage()
 
 func reset_stage() -> void:
@@ -320,6 +334,11 @@ func level_data() -> Dictionary:
 
 func objective_text() -> String:
 	var o: String = stage_data().objective
+	if is_instance_valid(level) and goal_count >= level.goal:
+		for id in level_quest_ids(true):   # goals done, a required job left: that's the objective now
+			if not quest_done(id):
+				var st := quest_step(id)
+				return "งานด่วน (%s): %s" % [quest_def(id).title, st.do] if not st.is_empty() else "งานด่วน: %s" % quest_def(id).title
 	if o.count("%d") == 2:   # "(done/total)": the total is the level's goal (fire stairs: Loop's Laps)
 		return o % [goal_count, level.goal if is_instance_valid(level) else stage_data().get("goal", 0)]
 	return o % goal_count if "%d" in o else o
@@ -349,8 +368,10 @@ func catch(npc: Node) -> void:
 
 func collect() -> void:
 	goal_count += 1
+	if is_instance_valid(level) and goal_count >= level.goal and level.has_method("quests_on_goals"):
+		level.quests_on_goals()   # jobs that come once the chapter's goals are done
 	objective_changed.emit(objective_text())
-	if level and goal_count >= level.goal:
+	if level and goal_count >= level.goal and not main_quests_pending():
 		level.unlock_exit()
 	if is_instance_valid(level) and level.has_method("goal_reached"):
 		level.goal_reached(goal_count)
@@ -364,11 +385,104 @@ func _log_read(title: String, text: String) -> void:
 		docs_found[title] = true
 		save_profile()
 
+# ---------- jobs ("งาน") ----------
+# Every job in story order, with its chapter: [{q, chapter}].
+static func all_quests() -> Array:
+	var out := []
+	for i in Story.STAGES.size():
+		for q in Story.STAGES[i].get("quests", []):
+			out.append({"q": q, "chapter": i})
+	return out
+
+static func quest_def(id: String) -> Dictionary:
+	for e in all_quests():
+		if e.q.id == id:
+			return e.q
+	return {}
+
+func quest_done(id: String) -> bool:
+	return quests.has(id) and quests[id] >= quest_def(id).get("steps", []).size()
+
+# The step Tong is on ({} = not offered yet, or finished).
+func quest_step(id: String) -> Dictionary:
+	if not quests.has(id) or quest_done(id):
+		return {}
+	return quest_def(id).steps[quests[id]]
+
+# Jobs of the level being played (main_only: the ones the exit waits for).
+func level_quest_ids(main_only := false) -> Array:
+	var out := []
+	for q in level_data().get("quests", []):
+		if not main_only or q.get("main", false):
+			out.append(q.id)
+	return out
+
+func main_quests_pending() -> bool:
+	return level_quest_ids(true).any(func(id): return not quest_done(id))
+
+# A job arrives by text; its first step's item appears (stage.gd).
+func offer_quest(id: String) -> void:
+	if quests.has(id):
+		return
+	var q := quest_def(id)
+	quests[id] = 0
+	text(q.from, q.ask)
+	if is_instance_valid(level) and level.has_method("spawn_quest_step"):
+		level.spawn_quest_step(id)
+	quests_changed.emit()
+	objective_changed.emit(objective_text())
+
+# Tong did the step this item is for: its story plays, then the next step (or the payoff).
+func _quest_advance(id: String) -> void:
+	var q := quest_def(id)
+	var st: Dictionary = q.steps[quests[id]]
+	sfx(st.get("sfx", "bookFlip1"))
+	quests[id] += 1
+	var done := quest_done(id)
+	var tip: String = ("งานเสร็จ: %s%s" % [q.title, (" · " + REWARD_TIPS[q.reward]) if REWARD_TIPS.has(q.get("reward", "")) else ""]) if done \
+		else ("ต่อไป: " + q.steps[quests[id]].do)
+	if st.has("text"):
+		_log_read(st.item, st.text)
+		note_opened.emit(st.item, st.text, tip)
+	if st.has("say"):
+		say(st.say, st.get("secs", 3.5))
+	elif not st.has("text"):
+		say("ต๋อง: (%s) — %s" % [st.item, tip], 3.0)
+	if is_instance_valid(level):
+		if not done and level.has_method("spawn_quest_step"):
+			level.spawn_quest_step(id)
+		if st.has("scare"):
+			level.scare(st.scare)
+		if st.has("scene"):
+			level.play_scene(st.scene)
+	if done:
+		_quest_finish(id, q)
+	quests_changed.emit()
+	objective_changed.emit(objective_text())
+
+func _quest_finish(id: String, q: Dictionary) -> void:
+	if q.has("done"):
+		get_tree().create_timer(2.5, false).timeout.connect(text.bind(q.from, q.done))   # the reply, a moment later
+	match q.get("reward", ""):
+		"battery":
+			heal(25.0)
+		"phone":
+			phone_battery = minf(phone_battery + 50.0, 100.0)
+		"evidence":
+			notice("job_" + id)
+		"reveal":
+			if is_instance_valid(level):
+				level.reveal("goals")
+	if q.get("main", false) and is_instance_valid(level) and goal_count >= level.goal and not main_quests_pending():
+		level.unlock_exit()
+
 # Pickups call this. Returns true when the item is used up.
 func use(kind: String, node: Node = null) -> bool:
 	match kind:
 		"doc":
 			sfx("bookFlip1"); say("ได้เอกสารงบดุลมา 1 ชุด", 2.0); collect()
+		"quest":
+			_quest_advance(node.get_meta("quest"))
 		"file":   # this stage's goal item (story.gd "items"): picking it up reads it too
 			sfx("bookFlip1")
 			collect()

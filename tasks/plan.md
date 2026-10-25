@@ -1,34 +1,38 @@
-# Plan v5: from "works" to "feels finished" (UI, presentation, replay value)
+# Plan v6: longer, with more story (side jobs, a story arc, a case file)
 
-v4 archived in `tasks/archive/`. Baseline before v5: 436 checks pass (only the fps checks fail on a
-software renderer).
+v5 archived in `tasks/archive/`. Baseline: 443 checks pass (only fps checks fail on a software renderer).
 
-## Request (2026-10-24)
-The user rates the game 20/100: the UI is plain. Goal: 80/100. Free hand.
+## Request (2026-10-25)
+"The game is quite short. Improve what you think is interesting, add story systems."
 
-## Identity
-"Someone is watching": CCTV on-screen text (REC, CAM, timestamp) frames the transitions, and the
-company's paperwork frames the results (performance review, HR warning letter, certificate).
-Fonts: Kanit (titles, UI), Sriracha (handwriting on notes and sticky notes), Sarabun (body).
+## Assessment
+- Walking every chapter's goals straight to the exit takes 0.5-1.5 min per chapter (BFS over the
+  maps); with stealth and hiding, the whole game is roughly 40-60 min.
+- The story is strong but thin on the ground: told in phone texts, notes and the chapter cards.
+  There is little to do off the main path, and nothing that pays off across chapters except the
+  evidence/clue counts for the endings.
+
+## Idea
+A data-driven job system ("งาน"): characters text Tong a job; each job is a few steps (go to a room,
+pick something up / put it somewhere), with story on every step (a note, a line, a scare, a short
+scene) and a payoff (Social Battery, phone battery, evidence, a case-file entry).
+- Side jobs: optional, 1-2 per chapter, across three arcs:
+  - ฝน: the night-shift accountant before Tong, who "resigned" last year. Six jobs uncover what the
+    guard did to her. Completing the arc adds an epilogue to the endings.
+  - แม่: small jobs that are echoes of what Mum is doing at Tong's hospital bed. Heal.
+  - เต้ / กลุ่ม IT: comic errands with useful rewards (phone battery, reveal goals).
+- Main jobs: one required job in the shortest chapters (the exit stays shut until it's done).
+- Phone app 5 "งาน": jobs in progress, and the case file of finished ones (the story so far).
 
 ## Steps
-- [x] U1 UI kit (`scripts/ui/kit.gd`): theme, fonts, colours, panel/button styles, sounds
-- [x] U2 Profile (`Game`): chapters reached, endings seen, documents found, best grade per chapter
-- [x] U3 Main menu: live 3D office behind it, glitch title, Tong's ID badge with progress, chapter
-      select, document archive, endings gallery, credits, menu music
-- [x] U4 HUD: battery widget, stamina, phone battery while the flashlight is on, objective sticky
-      note, subtitles with the speaker's name in colour, key-cap prompt, low-battery vignette,
-      first-time tips
-- [x] U5 Phone: smartphone frame, home screen icons, chat with avatars + times, map app (rooms you
-      have walked through), docs
-- [x] U6 Screens: chapter card as a CCTV feed (typewriter), stage clear = performance review with a
-      grade stamp, game over = HR warning letter, ending = certificate + endings gallery, pause =
-      coffee break (objective, clues, evidence, settings)
-- [x] U7 Settings: difficulty, brightness, FOV, VHS strength, subtitle size, invert Y, fullscreen
-- [x] U8 Audio: menu music box, UI hover/click/typewriter/stamp sounds
-- [x] U9 Tests green, docs, web build, push
+- [x] J1 Engine: quests in story.gd, Game state (save, retry snapshot), runtime items, objective,
+      rewards, exit gating, GPS, tests
+- [x] J2 UI: HUD side-job line, phone app "งาน", pause sheet, review row + grade bonus, archive
+- [x] J3 Content: ~12 jobs over chapters 1-4, 6, 7 (Thai), epilogue on the endings
+- [ ] J4 Checks: reachability test for every job cell, full suite, visual pass, docs, web build, push
 
-## Done (v5)
-- Extra polish: chase music while hunted, "checkpoint saved" note, restart chapter from pause,
-  Continue names the saved chapter, credits roll, a random HR tip on the warning letter.
-- Stage titles now read "บทที่ N : ..." everywhere.
+## Done (v6)
+- 13 jobs: ฝน ×6 (chapters 1, 2, 3, 4, 6, 7, chained), แม่ ×3, เต้/IT ×2, required ×2 (chapters 1, 3).
+- Endings: ฝน's epilogue panel per ending (or a nudge if her story was started but not finished).
+- Review: side jobs done x/y, +5 score each (and 4 more minutes allowed before the time penalty).
+- Tests: t_quests (engine), t_reach (every job step reachable from the spawn).

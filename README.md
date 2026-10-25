@@ -32,6 +32,7 @@ WASD move · Shift sprint (uses stamina) · C / Ctrl crouch (toggle, silent) · 
 - **Story cutscenes mid-stage:** brewing ป้าพร's coffee, flipping the breaker, putting the fuse in: each plays a short scene (the coworker turns on you, Tong runs) and play picks up where he ran to.
 - **Night faces:** after dark every coworker has a night model (glowing eyes, the grin torn to the ears, hair over the face...). By day, in the intro, they look like themselves.
 - **Phone:** chats from แม่, หัวหน้าธนา, the IT group and an unknown number tell the story. The flashlight drains phone battery, and power banks refill it.
+- **Jobs ("งาน"):** people text Tong jobs during a chapter (13 in all). Each is 2 steps: go somewhere and use the purple-glowing thing (on a little side table), with a note, a line, a scare or a short scene on every step and a payoff when it's done (Social Battery, phone battery, evidence against พี่สมชาย, or the goals marked on screen). Side jobs are optional; a **required job** (★, chapters 1 and 3) keeps the exit shut until it's done and becomes the objective. Three threads: **ฝน** (6 jobs from the unknown number: the night-shift accountant before Tong, who "resigned"; finishing her story adds an epilogue to every ending), **แม่** (3) and **เต้ / IT** (2). Phone app 5 lists the jobs under way and the case file of finished ones. Side jobs count on the performance review.
 
 ## Stages (each ~30x22 cells = 60x44 m, multi-room)
 | # | Place | Coworker | Goal | Core mechanic |
@@ -61,7 +62,7 @@ Rough first-play time: about 2–3 h (the stairs alone take 20–40 min); playin
 - **Main menu:** the office lives behind it (a 3D camera pans, lights flicker, a coworker appears and vanishes), glitching title, Tong's staff ID with your progress, menu music. Continue names the saved chapter.
 - **Profile** (`user://profile.cfg`, kept across runs): chapter select (chapters you reached), document archive (every note you read), endings gallery, best grade per chapter.
 - **HUD:** battery widget with Tong's face, stamina, phone battery while the flashlight is on, objective sticky note, coloured speaker names in subtitles, key-cap prompts, first-time tips, low-battery vignette, chase music while hunted.
-- **Phone (Tab):** home screen with apps: 1 chat (avatars, times), 2 GPS, 3 documents, 4 map (rooms you walked through).
+- **Phone (Tab):** home screen with apps: 1 chat (avatars, times), 2 GPS, 3 documents, 4 map (rooms you walked through), 5 jobs (under way + case file).
 - **Pause = coffee break:** objective, collectibles, controls; resume, settings, restart chapter, main menu.
 - **Settings:** difficulty (easy/normal/hard: battery drain and coworker speed), mouse sensitivity, volume (all/music), brightness, FOV, VHS strength, subtitle size, invert Y, fullscreen, skip cutscenes.
 
