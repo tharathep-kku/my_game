@@ -1558,7 +1558,7 @@ func t_tutorial() -> void:
 		check(c.usable() and c.prompt().contains(c.display_name), "%s can be talked to" % c.display_name)
 		c.interact()
 	check(said.size() == 4 and said[0] == sweeper.lines[0], "each coworker answers with their own line")
-	await frames(3)
+	await pframes(3)   # (the phase moves on in _process)
 	check(tut.phase == "dusk", "said hello to everyone: the afternoon starts to go (%s, busy %s, cutscene %s, talked %s)" % [tut.phase, Game.busy, Game.in_cutscene, str(crew.map(func(c): return c.talked))])
 	tut.dusk_secs = 2.0
 	await wait_phase(tut, "night", 20.0)
