@@ -158,6 +158,21 @@ func _setup_buses() -> void:
 		AudioServer.add_bus_effect(b, lp)
 		AudioServer.set_bus_effect_enabled(b, AudioServer.get_bus_effect_count(b) - 1, false)
 
+# The SFX reverb fits the floor: the office is soft and dead, the hospital rings, the stairwell
+# echoes. [room size, damping, wet]
+const ROOMS := {"carpet": [0.45, 0.75, 0.12], "tile": [0.7, 0.35, 0.24], "concrete": [0.9, 0.25, 0.34]}
+
+func set_room(kind: String) -> void:
+	var bus := AudioServer.get_bus_index("SFX")
+	if bus < 0 or AudioServer.get_bus_effect_count(bus) == 0:
+		return
+	var rev := AudioServer.get_bus_effect(bus, 0) as AudioEffectReverb
+	var r: Array = ROOMS.get(kind, ROOMS.carpet)
+	if rev:
+		rev.room_size = r[0]
+		rev.damping = r[1]
+		rev.wet = r[2]
+
 # --- settings + save (ConfigFile in user://) ---
 func load_settings() -> void:
 	var cf := ConfigFile.new()
@@ -650,6 +665,11 @@ func ending() -> String:
 
 # --- audio helpers ---
 func stream(sfx_name: String) -> AudioStream:
+	if sfx_name.begins_with("footstep0"):   # footsteps sound like the floor (tools/synth_horror.py)
+		var floor_kind := "carpet"
+		if is_instance_valid(level) and level.get("data") is Dictionary:
+			floor_kind = level.data.get("hd_floor", "carpet")
+		sfx_name = "step_%s_%s" % [floor_kind, sfx_name.right(1)]
 	var path := "res://assets/sfx/%s.wav" % sfx_name
 	if not ResourceLoader.exists(path):
 		path = "res://assets/sfx/%s.ogg" % sfx_name

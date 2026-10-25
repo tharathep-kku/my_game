@@ -94,6 +94,8 @@ func _ready() -> void:
 		if l is OmniLight3D:
 			lights.append(l)
 	_optimize()
+	Game.set_room(data.get("hd_floor", "carpet"))
+	_light_hums()
 	if not Game.retro:   # HD look: real textures on the walls and floors, shadows on High
 		HD.dress(self, data.get("hd_floor", "carpet"))
 		HD.lights(lights)
@@ -108,6 +110,9 @@ func _ready() -> void:
 		_env = we.environment
 		if not Game.retro:
 			HD.environment(_env)
+			# polished hospital vinyl mirrors the lights (High, desktop renderer)
+			_env.ssr_enabled = HD.forward_plus() and Game.graphics >= 2 and data.get("hd_floor", "") == "tile"
+			_env.ssr_max_steps = 48
 		_ambient = _env.ambient_light_energy
 		_night = {"ambient": _env.ambient_light_color, "fog": _env.fog_density, "vfog": _env.volumetric_fog_density,
 			"light": lights[0].light_color if not lights.is_empty() else Color.WHITE,
@@ -223,6 +228,32 @@ func respawn() -> void:
 		rage()
 
 # ---------- lights ----------
+# Every tube buzzes faintly (you hear the one over your head); a dead one is silent. When lights
+# go out or come back, the one nearest Tong clunks off / ticks back on.
+func _light_hums() -> void:
+	var s := Game.looped("light_hum")
+	for l: OmniLight3D in lights:
+		var p := AudioStreamPlayer3D.new()
+		p.name = "Hum"
+		p.stream = s
+		p.bus = "Amb"
+		p.volume_db = -20.0
+		p.unit_size = 1.2
+		p.max_distance = 8.0
+		p.pitch_scale = randf_range(0.985, 1.015)   # neighbouring tubes beat against each other
+		l.add_child(p)
+		p.play(randf() * 3.9)
+		l.visibility_changed.connect(_on_light_toggled.bind(l, p))
+
+func _on_light_toggled(l: OmniLight3D, hum: AudioStreamPlayer3D) -> void:
+	hum.stream_paused = not l.visible
+	if not is_instance_valid(player) or l.global_position.distance_to(player.global_position) > 9.0:
+		return
+	for o: OmniLight3D in lights:
+		if o.global_position.distance_squared_to(player.global_position) < l.global_position.distance_squared_to(player.global_position):
+			return
+	Game.sfx("lights_on" if l.visible else "lights_off", l, -3.0)
+
 # Lights off/on. Emergency lights (red, "Emergency" node) come on whenever the lights are out.
 func set_dark(on: bool) -> void:
 	dark = on
@@ -244,8 +275,7 @@ func restore_power() -> void:
 func fuse_power_cut() -> void:
 	fuse_dark = true
 	power_out = true
-	Game.sfx("metalClick", null, -4.0)
-	set_dark(true)
+	set_dark(true)   # (the nearest tube clunks off: _on_light_toggled)
 
 # The lights die for a few seconds (scare / flicker). Coworkers keep moving; you can't watch them.
 func blackout(secs: float) -> void:
@@ -253,7 +283,6 @@ func blackout(secs: float) -> void:
 		return
 	_blackout_id += 1
 	var my := _blackout_id
-	Game.sfx("metalClick", null, -4.0)
 	set_dark(true)
 	get_tree().create_timer(secs, false).timeout.connect(func():
 		if my == _blackout_id and not power_out:
@@ -586,6 +615,8 @@ func spawn_quest_step(id: String) -> void:
 		t.scale = Vector3.ONE * 2.0
 		t.position = cell_pos(st.at) - Vector3(ab.get_center().x, ab.position.y, ab.get_center().z) * 2.0
 		add_child(t)
+		if not Game.retro:
+			HD.dress_props(t)
 	var it := StageBuilder.make_item("quest", cell_pos(st.at) + Vector3.UP * h, Vector3(0.3, 0.1, 0.24), Color(0.78, 0.55, 1.0))
 	it.title = st.item
 	it.text = st.get("text", "")

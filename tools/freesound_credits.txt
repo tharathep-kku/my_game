@@ -1,6 +1,5 @@
 heartbeat.ogg | https://freesound.org/people/Cloud-10/sounds/688735/ | Cloud-10 | CC0
 chase.ogg | https://freesound.org/people/Fission9/sounds/490958/ | Fission9 | CC0
-drone.ogg | https://freesound.org/people/CVLTIV8R/sounds/799354/ | CVLTIV8R | CC0
 door_slam.ogg | https://freesound.org/people/tlcolbe/sounds/406635/ | tlcolbe | CC0
 elevator_ding.ogg | https://freesound.org/people/XfiXy8/sounds/467299/ | XfiXy8 | CC0
 chair_creak.ogg | https://freesound.org/people/nayahnaidoo/sounds/656038/ | nayahnaidoo | CC0

@@ -9,7 +9,6 @@ UA = {"User-Agent": "Mozilla/5.0"}
 # name: (query, min_sec, max_sec, pick)  pick = index among results (see --list)
 WANT = {
     "heartbeat": ("heartbeat", 3, 20, 0),
-    "drone": ("dark ambient drone", 20, 120, 0),
     "door_slam": ("door slam", 0.3, 3, 0),
     "elevator_ding": ("elevator ding", 0.3, 4, 0),
     "chair_creak": ("chair creak", 0.3, 4, 0),

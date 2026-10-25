@@ -82,6 +82,7 @@ func _ready() -> void:
 	await t_director()
 	await t_objective_fold()
 	await t_hd_look()
+	await t_sound_bed()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -580,6 +581,26 @@ func t_hd_look() -> void:
 	var props := lvl.find_children("*", "MeshInstance3D", true, false).filter(func(mi): return mi.material_override == null and mi.mesh and mi.get_surface_override_material_count() > 0 and mi.get_surface_override_material(0) is StandardMaterial3D and mi.get_surface_override_material(0).albedo_texture != null)
 	check(props.size() > 20, "HD: the furniture gets surfaces (%d meshes)" % props.size())
 	check(lvl.player.flashlight.get_node_or_null("Core") != null and HD.look == 0.0, "HD: the torch has its hot core, the shaders are in HD mode")
+	# realistic furniture in place of the Kenney models, fitted to the same box
+	var desks := lvl.find_children("Desk*", "StaticBody3D", true, false)
+	var swapped := desks.filter(func(d): return d.find_child("Real", true, false) != null)
+	check(desks.size() > 0 and swapped.size() == desks.size(), "HD: every desk is the realistic model (%d/%d)" % [swapped.size(), desks.size()])
+	if desks.size() > 0:
+		var real: Node3D = desks[0].find_child("Real", true, false)
+		var kenney: Node3D = real.get_parent()
+		var ab := HD._bounds(real)
+		ab = real.transform * ab
+		check(absf(ab.position.y) < 0.01 and absf(ab.end.y * kenney.scale.y - 0.77) < 0.03, "HD: the real desk stands on the floor with its top at desk height (%.2f m)" % (ab.end.y * kenney.scale.y))
+		check(kenney.get_children().all(func(c): return c == real or not c is VisualInstance3D), "HD: the Kenney meshes are gone")
+	# fixtures: troffers in place of the flat panels, things on the walls and ceiling, an exit sign
+	var troffers: int = lvl.find_children("*", "Node3D", true, false).filter(func(n): return n.get_meta("fixture", "") == "troffer").size()
+	var panels_hidden: bool = lvl.lights.all(func(l): return l.get_node_or_null("Panel") == null or not l.get_node("Panel").visible)
+	check(panels_hidden and troffers >= lvl.lights.size(), "HD: every ceiling light is a recessed fitting (%d for %d lights)" % [troffers, lvl.lights.size()])
+	var decor := {}
+	for n in lvl.get_children():
+		if n.has_meta("fixture"):
+			decor[n.get_meta("fixture")] = true
+	check(decor.has("outlet") and decor.has("vent") and decor.has("exit_sign"), "HD: sockets, vents and an exit sign dressed on %s" % [str(decor.keys())])
 	await done(lvl)
 	var main: Control = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
@@ -592,6 +613,37 @@ func t_hd_look() -> void:
 	main.apply_settings()
 	main.queue_free()
 	await frames(2)
+
+# Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.
+func t_sound_bed() -> void:
+	Game.new_game()
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(3)
+	check(Game.stream("footstep02").resource_path.ends_with("step_carpet_2.ogg"), "office footsteps are on carpet")
+	var rev := AudioServer.get_bus_effect(AudioServer.get_bus_index("SFX"), 0) as AudioEffectReverb
+	check(rev and is_equal_approx(rev.room_size, Game.ROOMS.carpet[0]), "the office reverb is small and dead")
+	var l: OmniLight3D = lvl.lights[0]
+	var hum := l.get_node_or_null("Hum") as AudioStreamPlayer3D
+	check(hum != null and hum.playing and not hum.stream_paused, "a ceiling light hums")
+	lvl.set_dark(true)
+	await frames(1)
+	check(hum.stream_paused, "a dead light is silent")
+	lvl.set_dark(false)
+	await frames(1)
+	check(not hum.stream_paused, "...and hums again when the power is back")
+	await done(lvl)
+	var j := idx("stage_hospital")
+	Game.stage = j
+	lvl = stage_scene(j)
+	add_child(lvl)
+	await frames(3)
+	check(Game.stream("footstep00").resource_path.ends_with("step_tile_0.ogg") and is_equal_approx(rev.room_size, Game.ROOMS.tile[0]), "hospital: footsteps on vinyl, a ringing room")
+	await done(lvl)
+	for n in ["ambience", "drone", "chase_theme", "menu_theme", "light_hum", "lights_off", "lights_on", "pickup", "ui_click"]:
+		check(Game.stream(n) is AudioStreamOggVorbis, "%s is the new synthesized sound" % n)
 
 # Character lineup screenshot (for review / report), not an assertion-heavy test.
 func t_lineup() -> void:
@@ -1199,7 +1251,7 @@ func t_models() -> void:
 		add_child(b)
 		b.build(Story.BODIES[p])
 		var ok := ["LegL", "LegR", "ArmL", "ArmR", "Torso", "Neck", "NeckMesh", "Head"].all(func(k): return b.parts.has(k) and b.parts[k] is Node3D)
-		check(ok and b.head_top() > 1.7 and b.head_top() < 3.2, "model %s builds with all parts (head top %.2f m)" % [p, b.head_top()])
+		check(ok and b.head_top() > (1.45 if b.real else 1.7) and b.head_top() < 3.2, "model %s builds with all parts (head top %.2f m)" % [p, b.head_top()])
 		b.queue_free()
 	await frames(1)
 

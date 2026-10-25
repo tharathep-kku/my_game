@@ -247,8 +247,16 @@ Blender ติดตั้งผ่าน Steam (5.2) เปิด `.blend` ไ�
 - ค่าทั้งหมดอยู่ใน `scripts/hd.gd`: ความหยาบ/นูนของแต่ละพื้นผิว (`KINDS`) · แสงไฟเพดาน (`lights()`: ความสว่าง ระยะ หมอก) · บรรยากาศ (`environment()`: tonemap, glow, SSAO, หมอก volumetric) · ไฟฉาย (`flashlight()`) · จำนวนไฟที่มีเงาตามคุณภาพ (`shadow_count()`)
 - พื้นแต่ละบท: ใส่ `"hd_floor": "tile"` / `"concrete"` ในข้อมูลบทนั้นใน `scripts/story.gd` (ไม่ใส่ = พรม)
 - texture สร้างจาก `tools/make_hd_textures.py` (แก้แล้วรัน `python tools/make_hd_textures.py`)
-- ตัวละคร: `tools/blender/build_characters.py` ใส่ขอบมน (Bevel) ให้ทุกชิ้นตอน export
+- **คนสมจริง** (`assets/characters/real/<ชื่อ>.glb`): สร้างจาก MakeHuman (CC0) ด้วย `tools/blender/build_humans.py` — รูปร่าง (อายุ อ้วน/ผอม สูง/เตี้ย) เสื้อผ้า ผม สีผิว ของถือ อยู่ใน `CHARS` / `PAL` ท้ายไฟล์ แก้แล้วรัน `blender --background --python tools/blender/build_humans.py -- manager` (หรือ `pip install bpy` แล้ว `python tools/blender/build_humans.py`) · ถ้ามีไฟล์ real ชื่อเดียวกับโมเดลเดิม เกมใช้ตัวสมจริงเอง (ภาพย้อนยุคใช้ตัวบล็อกเดิม) · ความสูงรวม: `REAL_SCALE` ใน `scripts/body.gd`
+- **เฟอร์นิเจอร์สมจริง** (`assets/models/real/`): `tools/blender/build_props.py` สร้างโต๊ะ เก้าอี้ จอ คีย์บอร์ด ตู้ ฯลฯ ชื่อเดียวกับโมเดล Kenney → เกมสลับให้เองตอนโหลดด่าน โดยยืดให้พอดีกล่องของเดิม (ตำแหน่ง/การชนไม่เปลี่ยน) · ชื่อ material บอกพื้นผิว: `wood_` `plastic_` `fabric_` `metal_` `concrete_` `screen_` `glow_<สี>`
+- **ของประดับผนัง/เพดาน** ใส่เองตอนโหลดด่าน (`_decorate()` ใน `hd.gd`): ปลั๊กไฟ บอร์ดประกาศ ถังดับเพลิง ช่องแอร์ เครื่องจับควัน สปริงเกอร์ ป้ายทางออก — ตำแหน่งเดิมทุกครั้ง ไม่บังหน้าต่าง/ป้าย/ประตู/ของที่เก็บได้ ปรับความถี่ที่ตัวเลข `roll` ในฟังก์ชันนั้น · ไฟเพดานกลายเป็นโคมฝังฝ้า (`lights()`)
+- ตัวละครแบบบล็อก (ภาพย้อนยุค): `tools/blender/build_characters.py` ใส่ขอบมน (Bevel) ให้ทุกชิ้นตอน export
 - ตั้งค่าในเกม: คุณภาพกราฟิก ต่ำ/กลาง/สูง · ความละเอียด 3D · ภาพย้อนยุค (PSX) = หน้าตาเดิมทุกอย่าง
+
+### เสียงบรรยากาศ
+- เสียงพื้นหลังทั้งหมดสังเคราะห์จาก `tools/synth_horror.py` (`pip install numpy scipy soundfile` แล้วรัน `python tools/synth_horror.py` หรือเฉพาะบางอัน เช่น `python tools/synth_horror.py drone chase_theme`): เสียงห้องออฟฟิศกลางคืน (`ambience`) · ความหลอนใต้พื้น (`drone`) · เพลงตอนโดนไล่ (`chase_theme`: เสียงหัวใจ เครื่องสายต่ำ เสียงไต่ขึ้นไม่สิ้นสุด) · เพลงเมนู · เสียงหวี่ของไฟแต่ละดวง (`light_hum`) · ไฟดับ/ไฟติด · เสียงเท้าแยกตามพื้น
+- เสียงเท้า: ทุกที่ที่เรียก `footstep00`–`03` เกมเปลี่ยนเป็น `step_<พื้น>_N` ตาม `hd_floor` ของบทเอง (พรม = นุ่มทึบ, กระเบื้อง = ส้นกระทบดังก้อง, ปูน = ก้องยาว)
+- เสียงสะท้อนของห้องตามพื้น: `ROOMS` ใน `scripts/game.gd` (ขนาดห้อง ความทึบ ความก้อง)
 
 ### หน้าตา UI
 สี ฟอนต์ สไตล์ปุ่ม/กล่อง และเสียงปุ่ม อยู่ที่เดียวใน `scripts/ui/kit.gd` (เช่น `RED`, `PAPER`, `STICKY`, สีชื่อคนพูดใน `SPEAKERS`) แก้ตรงนั้นแล้วทั้งเกมเปลี่ยนตาม

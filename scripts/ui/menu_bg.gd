@@ -53,6 +53,8 @@ func _ready() -> void:
 	for l in office.get_node("Lights").get_children():
 		if l is OmniLight3D:
 			lights.append(l)
+	if not Game.retro:
+		HD.lights(lights)
 	cam = Camera3D.new()
 	cam.fov = 62.0
 	vp.add_child(cam)

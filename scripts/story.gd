@@ -151,7 +151,7 @@ const STAGES := [
 			["wait", 1.5],
 			["text", "หัวหน้าธนา", "ก่อนกลับ เอางบดุล 3 ชุดมาให้ผมด้วยนะจ๊ะ ^_^"],
 			["say", "ต๋อง: ...หัวหน้ายังไม่กลับอีกเหรอ", 2.5],
-			["lights", false], ["sfx", "metalClick"], ["wait", 0.2], ["lights", true], ["wait", 0.6],
+			["lights", false], ["wait", 0.2], ["lights", true], ["wait", 0.6],
 			["lights", false], ["wait", 0.12], ["lights", true], ["wait", 0.9],
 			["say", "ต๋อง: ...ไฟเป็นอะไรอีกล่ะ", 1.8],
 			["lights", false], ["sfx", "squeak"], ["wait", 0.8],

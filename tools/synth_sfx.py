@@ -67,17 +67,13 @@ for i in range(n):
     sp.append(0.6 * y * (1 - i / n) ** 2)
 save("splash", sp)
 
-# fluorescent ambience: 120Hz buzz + faint hiss, loopable (whole cycles)
-n = SR * 2; amb = []
-for i in range(n):
-    amb.append(0.08 * math.sin(2*math.pi*120*i/SR) + 0.04 * math.sin(2*math.pi*240*i/SR) + 0.01 * random.uniform(-1, 1))
-save("ambience", amb)
+# (the ambience now comes from tools/synth_horror.py)
 
 # scare sting: dissonant stab
 pass  # replaced by freesound: save("sting", tone([233, 247, 370, 523], 1.2, 0.5, lambda x: (x / math.pi % 2) - 1))
 
 # pickup blip / coffee pour
-save("pickup", tone([880], 0.08, 0.3) + tone([1320], 0.12, 0.3))
+# (pickup now comes from tools/synth_horror.py)
 n = int(1.0 * SR); y = 0; pour = []
 for i in range(n):
     y = 0.95 * y + 0.05 * random.uniform(-1, 1)

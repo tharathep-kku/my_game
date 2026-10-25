@@ -249,7 +249,6 @@ func fire(kind: String) -> void:
 			ls.sort_custom(func(a, b): return a.global_position.distance_to(p.global_position) > b.global_position.distance_to(p.global_position))
 			for i in ls.size():
 				get_tree().create_timer(i * 0.14, false).timeout.connect(func(): if is_instance_valid(ls[i]): ls[i].visible = false)
-			_sound("metalClick", p.global_position + Vector3.UP * 2.8, -6.0)
 			get_tree().create_timer(ls.size() * 0.14 + 1.6, false).timeout.connect(_lights_back)
 		"hum":   # Mum's lullaby, from somewhere on the floor
 			var at := _floor_point(12.0, 20.0)
