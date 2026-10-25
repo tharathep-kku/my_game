@@ -1720,6 +1720,8 @@ func t_real_chase() -> void:
 # Floor must not swim: creep forward 2 cm per frame, measure how much the floor (lower part of the
 # screen) changes frame to frame. With per-vertex snapping on the floor quads this jumped around.
 func t_floor_still() -> void:
+	Game.retro = true   # the swim is vertex snapping, a retro-look thing (HD textures move with the view, as they should)
+	HD.apply_look()
 	var lvl := stage_scene(0)
 	add_child(lvl)
 	lvl.set_process(false)   # the dying tube's random flicker isn't the swim being measured
@@ -1749,6 +1751,8 @@ func t_floor_still() -> void:
 	print("FLOOR frame diff median=%.4f max=%.4f" % [diffs[diffs.size() / 2], diffs.back()])
 	check(diffs.back() < 0.004, "floor doesn't swim when you move a little (max frame diff %.4f)" % diffs.back())
 	await done(lvl)
+	Game.retro = false
+	HD.apply_look()
 
 # Standing still in the real game screen (VHS overlay on, calm): the floor should be still too.
 func t_still_screen() -> void:
@@ -1805,7 +1809,7 @@ func t_loop() -> void:
 	check(loop.anomaly == "" and loop.counter.text.contains("0 / 8"), "stairs: first time round is normal, counter at 0")
 	var walk_in := func(a: Area3D) -> void:
 		Game.player.global_position = Vector3(20, 0, 5)   # off the landing first, like walking the corridor
-		await frames(3)
+		await pframes(3)   # process frames: loop.gd notices he left on _process (slow renderers batch physics frames)
 		Game.player.global_position = a.global_position - Vector3.UP
 		await get_tree().create_timer(0.8).timeout
 	await walk_in.call(fwd)

@@ -27,8 +27,8 @@ void fragment() {
 	float ca = (0.0006 + 0.006 * f) * length(d) * 2.0;
 	vec2 dir = normalize(d + 1e-5);
 	vec3 col = vec3(texture(TEXTURE, uv + dir * ca).r, texture(TEXTURE, uv).g, texture(TEXTURE, uv - dir * ca).b);
-	// grain: always a little, more when scared
-	col += (hash(uv * 1024.0 + fract(TIME * 7.0) * 91.0) - 0.5) * (0.035 * strength + 0.09 * f);
+	// grain: barely any when calm (a still picture stays still), more when scared
+	col += (hash(uv * 1024.0 + fract(TIME * 7.0) * 91.0) - 0.5) * (0.006 * strength + 0.1 * f);
 	// drain toward sick grey-red
 	float g = dot(col, vec3(0.299, 0.587, 0.114));
 	col = mix(col, vec3(g * 1.12, g * 0.74, g * 0.7), f * 0.5);
