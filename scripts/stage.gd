@@ -29,6 +29,7 @@ const DISTANT := ["door_slam", "elevator_ding", "chair_creak", "printer", "whisp
 const GOAL_KINDS := ["doc", "note", "pc", "coffee_goal", "breaker", "scanner", "fuse", "fuse_box", "file"]
 const SCAN_SECS := 3.0
 const MOB_SCENES := ["manager", "sweeper", "goblin"]
+const DIRECTOR := preload("res://scripts/director.gd")
 
 var data: Dictionary
 var with_player := true
@@ -46,7 +47,6 @@ var wall_nodes := 0
 var leash := 20.0          ## patrol won't wander farther than this from the player - ~half the map
 var _rng := RandomNumberGenerator.new()
 var _event_t := 12.0
-var _hunch_t := randf_range(10.0, 20.0)
 var dark := false          ## lights are off right now (power cut or a blackout)
 var power_out := false     ## lights stay off until the breaker is flipped
 var fuse_dark := false     ## stage 4: the fuse took the floor's power - dark until the exit, the flashlight lasts longer
@@ -141,6 +141,8 @@ func _ready() -> void:
 		_scatter_wet()
 	if with_player and stage_index >= 0:
 		_start_quests()
+		if not data.has("loop"):   # the night's rhythm + the things that get under his skin
+			add_child(DIRECTOR.new())
 
 # Fog hides everything past ~30 m, so don't pay for it: small props (desks are 4 models each)
 # stop drawing at 30 m and far lights fade out. Big meshes (walls, floor) are left alone,
@@ -696,23 +698,6 @@ func _process(dt: float) -> void:
 	if _event_t <= 0.0 and gloom > 0.5 and is_instance_valid(player) and not Game.in_cutscene:   # nothing creepy by day
 		_event_t = randf_range(14.0, 32.0)
 		distant_event(DISTANT.pick_random())
-	_hunch_t -= dt
-	if _hunch_t <= 0.0 and is_instance_valid(player) and not Game.in_cutscene and not Game.busy:
-		_hunch_t = randf_range(10.0, 20.0)
-		if not player.hidden:   # every 10-20s, a patrolling coworker might just get a hunch
-			var hunch: Array[Npc] = []
-			for n in npcs:
-				if n.state in ["patrol", "investigate"] and not (n is Sweeper) and _rng.randf() < 0.4:
-					hunch.append(n)
-			if not hunch.is_empty():
-				Game.sfx("heartbeat", null, -4.0)   # warning stinger - a beat to react before it comes
-				var pos := player.global_position
-				get_tree().create_timer(0.8, false).timeout.connect(func():
-					if Game.busy or Game.in_cutscene or not is_instance_valid(player) or player.hidden:
-						return
-					for n in hunch:
-						if is_instance_valid(n):
-							n.hear(pos))
 
 # พี่สมชาย standing still at the far end of a sightline. Look at him for half a second:
 # you noticed (hint) and he's gone. Glance away or walk up to him: gone, and you missed it.

@@ -84,6 +84,8 @@ var phone_docs: VBoxContainer
 var phone_map: PhoneMap
 var phone_jobs: VBoxContainer   # app 5: jobs under way + the case file of finished ones
 var side_label: Label           # HUD: the side job you're on, under the sticky note
+var objective_head: Label       # "ภารกิจ" on the note (+ the key, folded)
+var _obj_peek := 0.0            # seconds the folded note stays open after a change
 var phone_scroll: ScrollContainer
 var phone_foot: Label
 var _seen := {}          # thread -> messages already shown: the phone opens at the first new one
@@ -114,6 +116,8 @@ var over_tip: Label
 const TIPS := [
 	"ได้ยินเสียงฝีเท้าใกล้ๆ ให้ก้ม (C) แล้วย่อง — ก้มแล้วไม่มีเสียงเท้าเลย",
 	"ขว้างของ (Q) ไปอีกทาง ศัตรูจะเดินไปดูเสียง",
+	"โดนไล่ไม่ต้องวิ่งไปตลอด: เลี้ยวหลบให้พ้นสายตาสัก 3 วินาที เขาจะเลิกตามแล้วถอยไปอีกฝั่ง",
+	"เสียงฝีเท้าข้างหลังที่หยุดตอนคุณหยุด... หันไปดูก็ไม่มีอะไร มันทำร้ายคุณไม่ได้ เดินต่อไป",
 	"โน้ตทุกใบมีประโยชน์: บอกทางเดินศัตรู ที่ซ่อน หรือของที่ต้องเก็บ",
 	"กาแฟ = Social Battery +40 · พาวเวอร์แบงก์ = แบตมือถือ (ไฟฉาย)",
 	"ในที่มืด ไฟฉายคือเป้าให้ศัตรูเห็นจากไกล ใช้เท่าที่จำเป็น",
@@ -301,6 +305,7 @@ func start_stage() -> void:
 	show_screen("")
 	hud.show()
 	objective.text = Game.objective_text()
+	_obj_peek = 8.0   # the objective, open for a moment as the chapter starts
 	_on_battery(Game.battery)
 	ambience.play()
 	drone.play()
@@ -645,6 +650,11 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if note_panel.visible and (e.is_action_pressed("pause") or e.is_action_pressed("phone")):
 		note_panel.hide()
+		get_viewport().set_input_as_handled()
+		return
+	if e.is_action_pressed("objective"):   # O: keep the objective note open / let it fold
+		Game.objective_pin = not Game.objective_pin
+		Game.save_settings()
 		get_viewport().set_input_as_handled()
 		return
 	if e.is_action_pressed("fps"):   # F3: show frame rate (check 60 fps in the browser)
@@ -1065,10 +1075,12 @@ func _process(dt: float) -> void:
 		hud_face.shake = fear()
 		if note_panel.visible and is_instance_valid(Game.player) and Game.player.global_position.distance_to(_note_at) > 1.2:
 			note_panel.hide()
+		_obj_peek -= dt
+		_fold_objective(Game.objective_pin or _obj_peek > 0.0)
 		var low := Game.battery < 35.0   # red edges throb when Social Battery runs low
 		vignette.modulate.a = lerpf(vignette.modulate.a, (0.45 + 0.35 * sin(Time.get_ticks_msec() * 0.006)) if low else 0.0, dt * 4.0)
 		if t.y > 0.0:
-			_tip("chase", "โดนไล่! วิ่ง (Shift) แล้วหาที่ซ่อน: ล็อกเกอร์ ห้องน้ำ ใต้โต๊ะ (มองแล้วกด E)")
+			_tip("chase", "โดนไล่! วิ่ง (Shift) ให้พ้นสายตาสักพัก เขาจะเลิกตามแล้วถอยไป · หรือหาที่ซ่อน: ล็อกเกอร์ ห้องน้ำ ใต้โต๊ะ (E)")
 		if is_instance_valid(level) and level.get("dark"):
 			_tip("dark", "มืด... เปิดไฟฉาย (F) — แต่ไฟฉายกินแบตมือถือ และศัตรูเห็นแสงได้จากไกล")
 		if is_instance_valid(Game.player):
@@ -1180,10 +1192,21 @@ func _on_objective(t: String) -> void:
 		return
 	objective.text = t
 	objective_note.visible = t != ""
+	_obj_peek = 6.0   # opens by itself for a moment, then folds away again
 	if playing and t != "":   # a little bounce and a pen scribble when it changes
 		Kit.ui_sound("pen", -14.0)
 		objective_note.scale = Vector2(1.08, 1.08)
 		create_tween().tween_property(objective_note, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK)
+
+# The sticky note: open = the objective (+ side job); folded = a small tab in the corner.
+func _fold_objective(open: bool) -> void:
+	var was := objective.visible
+	objective.visible = open
+	side_label.visible = open and side_label.text != ""
+	objective_head.text = "ภารกิจ" if open else "ภารกิจ  ·  กด O"
+	if was != open or objective_note.size.x < 1.0:
+		objective_note.reset_size()
+		objective_note.position.x = 944.0 - objective_note.size.x   # keep it in the corner
 
 # A job arrived / moved on / finished: the side-job line under the sticky note, the phone app.
 func _on_quests() -> void:
@@ -1191,8 +1214,9 @@ func _on_quests() -> void:
 	for e in Game.all_quests():
 		if not e.q.get("main", false) and Game.quests.has(e.q.id) and not Game.quest_done(e.q.id) and e.chapter == Game.stage:
 			side = "งานเสริม · %s\n%s" % [e.q.title, Game.quest_step(e.q.id).do]
+	if side != side_label.text:
+		_obj_peek = 6.0
 	side_label.text = side
-	side_label.visible = side != ""
 	if phone.visible and phone_app == "jobs":
 		_show_jobs()
 	if playing and not Game.quests.is_empty():
@@ -1420,7 +1444,7 @@ func _build_hud() -> void:
 	var ov := VBoxContainer.new()
 	ov.add_theme_constant_override("separation", 0)
 	objective_note.add_child(ov)
-	Kit.label("ภารกิจ", 15, Color(0.7, 0.12, 0.12), Kit.HAND, ov)
+	objective_head = Kit.label("ภารกิจ", 15, Color(0.7, 0.12, 0.12), Kit.HAND, ov, 0, false)
 	objective = Kit.label("", 16, Kit.INK, Kit.HAND, ov)
 	objective.custom_minimum_size.x = 286
 	side_label = Kit.label("", 14, Color(0.42, 0.16, 0.55), Kit.HAND, ov)   # the side job, in purple pen under it
@@ -2173,7 +2197,7 @@ func _build_settings() -> void:
 			Game.set(key, int(v) if key == "sub_size" else v)
 			_setting_changed())
 		row.call(spec[0], sl, key, spec[5])
-	for spec in [["กลับแกนเมาส์ขึ้น-ลง", "invert_y"], ["ข้ามคัตซีนทั้งหมด", "skip_cutscenes"], ["เต็มจอ", "fullscreen"]]:
+	for spec in [["กลับแกนเมาส์ขึ้น-ลง", "invert_y"], ["ข้ามคัตซีนทั้งหมด", "skip_cutscenes"], ["แสดงกระดาษภารกิจตลอด (O)", "objective_pin"], ["เต็มจอ", "fullscreen"]]:
 		if spec[1] == "fullscreen" and OS.has_feature("web"):
 			continue
 		var cb := CheckBox.new()
@@ -2261,7 +2285,7 @@ func _refresh_pause() -> void:
 	var jobs := ""
 	for e in Game.all_quests().filter(func(x): return x.chapter == Game.stage and Game.quests.has(x.q.id)):
 		jobs += "\n%s %s%s" % ["✓" if Game.quest_done(e.q.id) else "•", e.q.title, "" if Game.quest_done(e.q.id) else " → " + Game.quest_step(e.q.id).do]
-	pause_info.text = "[b][font_size=24]%s[/font_size][/b]\n[color=#7a6f66]%s · ความยาก: %s[/color]\n\n[b]ภารกิจ[/b]\n%s%s\n\n[b]สิ่งที่สะสม (ทั้งเกม)[/b]\nเบาะแสความฝัน  %d / %d\nหลักฐานเรื่องพี่สมชาย  %d / %d\nมือถือพี่สมชาย  %s\nโดนจับ  %d ครั้ง\n\n[b]ปุ่ม[/b]\nWASD เดิน · Shift วิ่ง · C ก้มย่อง\nE ใช้ของ / ซ่อน / คุย · Space ค้าง กลั้นหายใจ\nQ ขว้างของล่อ · F ไฟฉาย · Tab มือถือ (4 = แผนที่)" % [
+	pause_info.text = "[b][font_size=24]%s[/font_size][/b]\n[color=#7a6f66]%s · ความยาก: %s[/color]\n\n[b]ภารกิจ[/b]\n%s%s\n\n[b]สิ่งที่สะสม (ทั้งเกม)[/b]\nเบาะแสความฝัน  %d / %d\nหลักฐานเรื่องพี่สมชาย  %d / %d\nมือถือพี่สมชาย  %s\nโดนจับ  %d ครั้ง\n\n[b]ปุ่ม[/b]\nWASD เดิน · Shift วิ่ง · C ก้มย่อง\nE ใช้ของ / ซ่อน / คุย · Space ค้าง กลั้นหายใจ\nQ ขว้างของล่อ · F ไฟฉาย · Tab มือถือ · O กระดาษภารกิจ" % [
 		d.title, clock_text(), ["ง่าย", "ปกติ", "ยาก"][Game.difficulty], Game.objective_text(), ("\n\n[b]งาน[/b]" + jobs) if jobs != "" else "",
 		Game.clues.size(), Game.CLUE_TOTAL, Game.hints, Game.EVIDENCE_NEEDED, "อยู่ในมือ" if Game.phone_taken else "ยังไม่ได้", Game.times_caught]
 

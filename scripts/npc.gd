@@ -38,7 +38,12 @@ var unstick_t := 0.0
 var _stuck_pos := Vector3.ZERO
 var leash_pt := Vector3.ZERO
 var leash_cd := 0.0
-var leashed := true   # patrol drifts toward the player when too far (off: sticks to its route)
+var leashed := false  # patrol drifts toward the player when too far (off by default: the director brings them near)
+var lost_t := 0.0     # chase: seconds since it last saw you
+var last_seen := Vector3.ZERO
+var away_pos := Vector3.ZERO   # "away": where it withdraws to after a chase or a catch (director.gd)
+var away_t := 0.0
+var can_stalk := true          # the director may walk it to somewhere near you, out of view
 var raging := false   # stage chase: comes for you and never gives up (stage.gd rage/finale)
 @onready var body: Body = $Body
 @onready var mark: Label3D = $Mark
@@ -73,6 +78,8 @@ func reset() -> void:
 	unstick_t = 0.0
 	_stuck_pos = home
 	leash_cd = 0.0
+	lost_t = 0.0
+	away_t = 0.0
 	raging = false
 	body.scale = Vector3.ONE   # undo whatever the jumpscare bent
 	body.parts.Neck.rotation = Vector3.ZERO
@@ -113,7 +120,7 @@ func _physics_process(dt: float) -> void:
 		spot()   # enraged: lost you in a hide spot, back on you the moment you come out
 	_think(dt)
 	mark.position.y = body.head_top() + 0.4
-	mark.text = "!" if state in ["chase", "search", "ambush"] else ("?" if alert > 0.05 or state == "investigate" else "")
+	mark.text = "" if Game.difficulty > 0 else ("!" if state in ["chase", "search", "ambush"] else ("?" if alert > 0.05 or state == "investigate" else ""))   # Easy only: no UI over their heads
 	_anim_acc += dt
 	if _anim_acc >= 1.0 / anim_fps:   # jerky stepped animation
 		_anim_t += _anim_acc
@@ -161,15 +168,58 @@ func _think(dt: float) -> void:
 					state = "patrol"
 					alert = 0.0
 		"chase":
-			# Confident it has you: keep coming for your live position no matter what
-			# breaks line of sight (a corner, a light switch) — only a hide spot stops it.
-			# A room-locked mob (home_radius) instead gives up at its own doorway: otherwise
-			# it would walk up to the edge of its territory and camp there, aggroed forever.
+			# It follows you while it can see you, and for a moment after (round a corner it
+			# still knows). Out of sight for longer than lose_secs(): it goes to where it last
+			# saw you and searches there. A stage chase (raging) never lets go.
+			# A room-locked mob (home_radius) gives up at its own doorway: otherwise it would
+			# walk up to the edge of its territory and camp there, aggroed forever.
 			if home_radius > 0.0 and not raging and _out_of_territory(Game.player.global_position):
 				state = "patrol"
 				alert = 0.0
+			elif raging:
+				go_to(Game.player.global_position, minf(chase_speed, rage_speed), dt)
 			else:
-				go_to(Game.player.global_position, minf(chase_speed, rage_speed) if raging else chase_speed, dt)
+				if sees_player(true):
+					lost_t = 0.0
+					last_seen = Game.player.global_position
+				else:
+					lost_t += dt
+				if lost_t > lose_secs():
+					lose_track()
+				else:
+					go_to(Game.player.global_position if lost_t < 1.0 else last_seen, chase_speed, dt)
+		"away":
+			# Withdrawn (director.gd): goes to the far side and stays there a while. It still
+			# catches you if you walk into it, but it isn't looking.
+			away_t -= dt
+			if go_to(away_pos, speed, dt):
+				velocity = Vector3.ZERO
+			if away_t <= 0.0:
+				state = "patrol"
+				alert = 0.0
+
+# Seconds out of sight before a chase gives up (Easy lets go sooner, Hard holds on longer).
+func lose_secs() -> float:
+	return [2.2, 3.2, 4.5][clampi(Game.difficulty, 0, 2)]
+
+# Lost you: walk to where you were last seen and look around there, then back to the route.
+func lose_track() -> void:
+	state = "investigate"
+	inv_pos = last_seen
+	inv_t = 4.0
+	alert = 0.3
+	repath = 0.0
+	lost_t = 0.0
+
+# Director: withdraw to `pos` and keep away for `secs` (relief after a chase or a catch).
+func retreat(pos: Vector3, secs: float) -> void:
+	if raging:
+		return
+	state = "away"
+	away_pos = pos
+	away_t = secs
+	alert = 0.0
+	repath = 0.0
 
 # Where to walk during patrol - the scripted route by default. A mob can override this to
 # do something smarter than pacing a route.
@@ -198,7 +248,7 @@ func search(s: Area3D) -> void:
 # instead of sneaking) stack onto the same alert meter sight uses, so a few footsteps
 # in a row are as damning as being seen — it doesn't need to lay eyes on you.
 func hear(pos: Vector3) -> void:
-	if state in ["patrol", "investigate"]:
+	if state in ["patrol", "investigate"]:   # ("away": it isn't listening)
 		state = "investigate"
 		inv_pos = pos
 		inv_t = 3.5
@@ -215,6 +265,8 @@ func found_player() -> void:
 
 func spot() -> void:
 	state = "chase"
+	lost_t = 0.0
+	last_seen = Game.player.global_position if is_instance_valid(Game.player) else global_position
 	Game.sfx("sting", self, -8.0)
 
 # Stage chase: knows where you are and keeps coming (only a hide spot it didn't see stops it).
@@ -249,7 +301,7 @@ func sees_player(any_angle := false) -> bool:
 func go_to(target: Vector3, spd: float, dt: float) -> bool:
 	if home_radius > 0.0:
 		target = _clamp_to_home(target)
-	spd *= 1.2 * (1.0 + 0.05 * Game.goal_count) * Game.speed_mult()   # base +20% speed, +5% per task you finish, x difficulty
+	spd *= 1.2 * Game.speed_mult()   # base +20% speed, x difficulty (no creep per goal: the director sets the pressure)
 	if unstick_t > 0.0:
 		unstick_t -= dt
 		velocity = -global_basis.z * spd

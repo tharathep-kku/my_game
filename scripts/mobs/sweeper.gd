@@ -15,6 +15,7 @@ func _init() -> void:
 	drain = 30.0
 	anim_mode = "slide"
 	leashed = false   # mops her own route; never drifts toward you
+	can_stalk = false
 	catch_line = "ป้าพร: เหยียบพื้นเปียกป้าทำไม! เดี๋ยวพรมน้ำมนต์ให้... สาธุ! สาธุ!"
 	death_text = "โดนป้าพรบ่นใส่หูพร้อมพรมน้ำมนต์จนถ่านหมด"
 	scare_color = Color(0.08, 0.22, 0.45)

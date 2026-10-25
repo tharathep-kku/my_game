@@ -78,6 +78,9 @@ func _ready() -> void:
 	await t_new_scares()
 	await t_mid_scenes()
 	await t_quests()
+	await t_chase_gives_up()
+	await t_director()
+	await t_objective_fold()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -473,6 +476,88 @@ func t_quests() -> void:
 	check(Game.quests.get("fon_1") == 1, "jobs: saved with the checkpoint")
 	await done(lvl)
 	Game.clear_save()
+
+# A chase ends when Tong is out of sight for a few seconds (no more hunting him down forever),
+# and there is no "!" over their heads unless the game is on Easy.
+func t_chase_gives_up() -> void:
+	var lvl := await make(["###########", "#N.......P#", "#.#########", "#.........#", "###########"])
+	var n: Npc = lvl.npcs[0]
+	var pl = lvl.player
+	n.spot()
+	await frames(5)
+	check(n.state == "chase" and n.mark.text == "", "spotted: it chases, with no mark over its head (normal)")
+	pl.global_position = lvl.cell_pos(Vector2i(9, 3)) + Vector3.UP * 0.1   # round the wall, out of sight
+	var t := 0.0
+	while n.state == "chase" and t < 8.0:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+	check(n.state != "chase" and t > n.lose_secs() - 0.5, "out of sight for %.1f s: it gives up and searches where it saw him" % t)
+	await done(lvl)
+
+# The fear director: a coworker withdraws after a chase, comes looking somewhere near and out of
+# view when it has been quiet, and the psychological events and reactive texts all work.
+func t_director() -> void:
+	Game.new_game()
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(10)
+	NavigationServer3D.map_force_update(lvl.get_world_3d().navigation_map)
+	var d: Node = lvl.find_children("*", "Director", false, false).front() if not lvl.find_children("*", "Director", false, false).is_empty() else null
+	check(d != null, "director: every chapter has one")
+	var n: Npc = lvl.npcs[0]
+	var pl = lvl.player
+	d._relieve(n)
+	check(n.state == "away" and n.away_pos.distance_to(pl.global_position) > 12.0, "director: after a chase it withdraws to the far side (%.0f m)" % n.away_pos.distance_to(pl.global_position))
+	n.reset()
+	await frames(2)
+	var ok: bool = d.stalk()
+	var dist: float = n.inv_pos.distance_to(pl.global_position)
+	check(ok and n.state == "investigate" and dist >= 8.0 and dist <= 16.0, "director: quiet too long -> it comes looking near him (%.0f m), out of view" % dist)
+	n.reset()
+	Game.threads.clear()
+	pl.hide_in(kinds(lvl, "hide")[0])
+	d._hide = 7.5
+	d.react_t = 0.0
+	d._watch_player(0.1, pl)
+	check(Game.threads.has("เบอร์ไม่รู้จัก") and Director.REACT.hide.has(Game.threads["เบอร์ไม่รู้จัก"][-1].text), "director: hiding a while -> the stranger texts about it")
+	pl.unhide()
+	for k in ["steps", "whisper", "lights", "hum", "printer", "peripheral", "monitor", "silence", "clock", "self_text", "mum_call"]:
+		d.fire(k)
+		await frames(3)
+	check(Game.clock == "02:14" and d._silent and Game.threads.has("ต๋อง"), "director: every psychological event runs (clock 02:14, silence, a text from himself)")
+	await get_tree().create_timer(6.5).timeout
+	check(Game.clock != "02:14" and not d._silent and not AudioServer.is_bus_mute(AudioServer.get_bus_index("Amb")) and lvl.lights.slice(1).all(func(l): return l.visible == not lvl.dark),   # (lights[0] is the stage's own dying tube)
+		"director: and they all wear off (clock, sound, lights back)")
+	await done(lvl)
+
+# The objective note folds to a tab; it opens for a moment when the objective changes; O pins it.
+func t_objective_fold() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	Game.new_game()
+	Game.stage = 0
+	Game.objective_pin = false
+	main.start_stage()
+	await get_tree().create_timer(1.0).timeout
+	check(main.objective.visible, "objective note: open for a moment at the start")
+	main._obj_peek = 0.0
+	await pframes(3)   # process frames: the HUD updates there (a slow renderer runs several physics frames per one)
+	check(not main.objective.visible and main.objective_head.text.contains("O"), "objective note: then it folds to a tab")
+	var ev := InputEventAction.new()
+	ev.action = "objective"
+	ev.pressed = true
+	main._unhandled_input(ev)
+	await pframes(3)
+	check(main.objective.visible and Game.objective_pin, "objective note: O pins it open")
+	main._unhandled_input(ev)
+	check(not Game.objective_pin, "objective note: O again lets it fold")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
 
 # Character lineup screenshot (for review / report), not an assertion-heavy test.
 func t_lineup() -> void:

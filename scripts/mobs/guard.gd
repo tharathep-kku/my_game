@@ -19,6 +19,7 @@ func _init() -> void:
 	death_text = "พี่สมชายยืนจ้องหน้าเงียบ ๆ อยู่ตรงนั้นจนถ่านหมด"
 	scare_color = Color(0.02, 0.02, 0.02)
 	scare_sfx = "whisper"
+	can_stalk = false   # he only moves when nobody is looking: his own kind of stalking
 
 # Jumpscare: he only stares. The lights die; when they come back he's against your face,
 # head tilted. Nobody saw him move.

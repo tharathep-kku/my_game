@@ -62,7 +62,8 @@ var vhs := 1.0                 # settings: strength of the VHS / fear picture ef
 var sub_size := 22             # settings: subtitle text size
 var invert_y := false          # settings: mouse look up/down inverted
 var fullscreen := false        # settings (desktop only)
-const SETTINGS := ["sensitivity", "volume", "music", "skip_cutscenes", "difficulty", "brightness", "fov", "vhs", "sub_size", "invert_y", "fullscreen"]
+var objective_pin := false     # settings: the objective note stays open (else it folds to a tab)
+const SETTINGS := ["sensitivity", "volume", "music", "skip_cutscenes", "difficulty", "brightness", "fov", "vhs", "sub_size", "invert_y", "fullscreen", "objective_pin"]
 # Profile: what this player has done across every run (main menu: chapters, archive, endings).
 var profile_path := "user://profile.cfg"
 var reached := -1              # furthest chapter started (-1 = only the tutorial so far)
@@ -113,6 +114,7 @@ func _ready() -> void:
 	_bind("flashlight", [KEY_F])
 	_bind("fps", [KEY_F3])
 	_bind("mouse", [KEY_M])   # let go of / grab the mouse without pausing
+	_bind("objective", [KEY_O])   # pin the objective note open / let it fold away
 	_bind("pause", [KEY_ESCAPE, KEY_P])
 
 # Cutscenes skip only on a deliberate hold of Space, never on a stray key press.

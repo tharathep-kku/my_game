@@ -3,7 +3,8 @@
 class_name Manager
 extends Npc
 
-var peek_t := 5.0
+var peek_t := 9.0
+var _said_t := 1   # peeks until he says something again
 var peeking := 0.0
 var squeak_d := 0.0
 
@@ -90,9 +91,12 @@ func _think(dt: float) -> void:
 		Game.sfx("squeak", self, -4.0)
 	if state == "patrol":
 		peek_t -= dt
-		if peek_t <= 0.0:
-			peek_t = randf_range(7.0, 11.0)
+		if peek_t <= 0.0:   # every so often he stops and stretches his neck over the partitions
+			peek_t = randf_range(14.0, 24.0)
 			peeking = 2.8
-			Game.sfx("mutter", self)
-			if global_position.distance_to(Game.player.global_position) < 12.0:
-				Game.say("หัวหน้าธนา: งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ~?", 2.5)
+			Game.sfx("mutter", self, -6.0)
+			_said_t -= 1
+			if _said_t <= 0 and global_position.distance_to(Game.player.global_position) < 12.0:
+				_said_t = randi_range(3, 5)   # the line now and then, not every time (it got old fast)
+				Game.say(["หัวหน้าธนา: งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ~?", "หัวหน้าธนา: (กระซิบ) ต๋อง... ผมเห็นนะจ๊ะ",
+					"หัวหน้าธนา: ไม่มีใครกลับบ้านก่อนงานเสร็จหรอกจ้า", "(เสียงคอกระดูกลั่นกร๊อบ... ดังมาจากเหนือฉากกั้น)"].pick_random(), 2.5)
