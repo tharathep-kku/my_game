@@ -20,6 +20,8 @@ signal scare_face(preset: String, sfx: String)   # non-lethal face slam (cutscen
 signal fade(alpha: float, secs: float)   # cutscene "fade" step: black over the picture
 signal overlay(kind: String)             # "peephole" / "" (main.gd)
 signal quests_changed                    # a job was offered / moved on / finished (HUD, phone)
+signal hallucinate(kind: String)         # director.gd, low Social Battery: "phone" (main.gd garbles a text)
+var phone_open := false                  # main.gd: the phone is up
 
 const MAX_BATTERY := 100.0
 const HINT_TOTAL := 4           # one guard phone call per stage

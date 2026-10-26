@@ -87,6 +87,8 @@ func _ready() -> void:
 	await t_ghost_cues()
 	await t_occlusion()
 	await t_music_states()
+	await t_anomalies()
+	await t_hallucinations()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -751,6 +753,67 @@ func t_music_states() -> void:
 	main.queue_free()
 	await frames(2)
 	Game.new_game()
+
+# The office changes when he isn't looking: never in view, and nothing ends up in his way.
+func t_anomalies() -> void:
+	Game.new_game()
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(10)
+	var d: Director = lvl.find_children("*", "Director", false, false).front()
+	var pl = lvl.player
+	var chairs: Array = d._props_of("chairDesk", 4.0, 14.0)
+	check(not chairs.is_empty() and chairs.all(func(c): return d._unseen(c.global_position + Vector3.UP * 0.6)), "chairs to move: only ones out of his sight (%d)" % chairs.size())
+	var before := {}
+	for c in lvl.find_children("*", "Node3D", true, false).filter(func(n): return n.scene_file_path.ends_with("/chairDesk.glb")):
+		before[c.get_parent()] = c.get_parent().global_position
+	check(d._anomaly("chair"), "a chair rolls out")
+	await get_tree().create_timer(1.5).timeout
+	var moved: Array = before.keys().filter(func(h): return h.global_position.distance_to(before[h]) > 0.5)
+	check(moved.size() == 1 and not moved[0] is CollisionObject3D and moved[0].find_children("*", "CollisionShape3D", true, false).is_empty(), "one chair moved, and it can't block the way")
+	var s_ok: bool = d._anomaly("screen")
+	check(s_ok, "a screen turns to face him")
+	var fwd: Vector3 = -pl.global_basis.z
+	var behind: Array = lvl.lights.filter(func(l):
+		var to: Vector3 = l.global_position - pl.global_position
+		return Vector2(to.x, to.z).length() > 3.0 and Vector2(to.x, to.z).length() < 16.0 and Vector2(to.x, to.z).dot(Vector2(fwd.x, fwd.z)) < 0.0)
+	if not behind.is_empty():
+		d._anomaly("lights_behind")
+		await get_tree().create_timer(0.4 * behind.size() + 0.3).timeout
+		check(behind.all(func(l): return not l.visible), "the lights he walked under go out behind him (%d)" % behind.size())
+	check(d._anomaly("papers"), "papers on the floor round the corner")
+	check(d._anomaly("phone"), "a phone rings out of sight")
+	await done(lvl)
+
+# Low Social Battery: its steps come up behind him and there's nobody; a text garbles on the open
+# phone. Never more than one every 40 s, and nothing at a healthy battery.
+func t_hallucinations() -> void:
+	Game.new_game()
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(10)
+	var d: Director = lvl.find_children("*", "Director", false, false).front()
+	Game.battery = 90.0
+	d.hallu_t = 0.0
+	d._hallucinate(0.1)
+	check(d.hallu_t >= 20.0, "healthy: nothing that isn't there")
+	Game.battery = 30.0
+	d.hallu_t = 0.0
+	var heard := []
+	var count := func(nd): if nd is AudioStreamPlayer3D and nd.stream and nd.stream.resource_path.contains(lvl.npcs[0].cue): heard.append(nd.global_position)
+	get_tree().node_added.connect(count)
+	d._hallucinate(0.1)
+	check(d.hallu_t >= 40.0, "frayed: one now, the next not for 40 s or more (%.0f)" % d.hallu_t)
+	await get_tree().create_timer(3.5).timeout
+	get_tree().node_added.disconnect(count)
+	var pl = lvl.player
+	check(heard.size() >= 3 and heard.back().distance_to(pl.global_position) < heard.front().distance_to(pl.global_position), "its steps come up behind him (%d), getting closer" % heard.size())
+	check(lvl.npcs[0].global_position.distance_to(pl.global_position) > 4.0, "...and nobody is there")
+	await done(lvl)
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.
 func t_sound_bed() -> void:

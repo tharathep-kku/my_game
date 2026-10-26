@@ -33,6 +33,8 @@ const EVENTS := [
 	[0, "steps"], [0, "whisper"], [0, "lights"], [0, "hum"], [0, "printer"],
 	[1, "peripheral"], [1, "monitor"], [2, "silence"], [2, "clock"],
 	[3, "self_text"], [4, "mum_call"],
+	# the office changes when he isn't looking
+	[0, "papers"], [1, "chair"], [1, "screen"], [2, "lights_behind"], [3, "phone"],
 ]
 
 var lvl: Node3D
@@ -53,6 +55,7 @@ var _run := 0.0
 var _crouch := 0.0
 var _yaw := 0.0
 var _silent := false
+var hallu_t := 40.0        # low Social Battery: until the next thing that isn't there
 var _clock_was := ""
 
 func _ready() -> void:
@@ -91,6 +94,7 @@ func _process(dt: float) -> void:
 	if lvl.gloom < 0.5:   # nothing creepy by daylight
 		return
 	if not chasing:
+		_hallucinate(dt)
 		event_t -= dt * lerpf(1.0, 1.7, fray())
 		if event_t <= 0.0:
 			event_t = randf_range(event_every.x, event_every.y)
@@ -278,6 +282,8 @@ func fire(kind: String) -> void:
 				var l: String = lines.pick_random()
 				_used[l] = true
 				Game.text("ต๋อง", l)
+		"papers", "chair", "screen", "lights_behind", "phone":
+			_anomaly(kind)
 		"mum_call":   # Mum calls: only breathing, then the line goes dead
 			Game.sfx("vibrate", null, -2.0)
 			Game.say("(สายเรียกเข้า: แม่ ...ไม่มีเสียงพูด มีแต่เสียงหายใจช้าๆ แล้วสายก็ตัดไป)", 4.0)
@@ -375,10 +381,166 @@ func _sound(sfx_name: String, at: Vector3, db: float) -> AudioStreamPlayer3D:
 	var a := AudioStreamPlayer3D.new()
 	a.stream = Game.stream(sfx_name)
 	a.bus = "SFX"
-	a.volume_db = db
+	a.volume_db = db + Game.mix_db(sfx_name)
+	a.add_to_group("occlude")
 	a.unit_size = 4.0
 	a.finished.connect(a.queue_free)
 	lvl.add_child(a)
 	a.global_position = at
 	a.play()
 	return a
+
+# ---------- the office changes when he isn't looking ----------
+# Only ever somewhere he can't see at that moment; chairs and screens are not solid, so nothing
+# ends up in his way. Each prop moves once a night.
+func _unseen(at: Vector3) -> bool:
+	var p: Node3D = Game.player
+	if not p.cam.is_position_in_frustum(at):
+		return true
+	return not lvl.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(p.eye(), at, 1)).is_empty()
+
+# Kenney furniture of one kind (the holders the stage placed), near enough and out of sight.
+func _props_of(model: String, dmin: float, dmax: float, movable := true) -> Array:
+	var p: Node3D = Game.player
+	var out := []
+	for n in lvl.find_children("*", "Node3D", true, false):
+		if not n.scene_file_path.ends_with("/%s.glb" % model):
+			continue
+		var h: Node3D = n.get_parent()
+		if (movable and h is CollisionObject3D) or h.has_meta("moved"):
+			continue
+		var d := h.global_position.distance_to(p.global_position)
+		if d >= dmin and d <= dmax and _unseen(h.global_position + Vector3.UP * 0.6):
+			out.append(h)
+	return out
+
+func _anomaly(kind: String) -> bool:
+	var p: Node3D = Game.player
+	match kind:
+		"chair":   # an office chair rolls out into the aisle, turned to face him
+			var cs := _props_of("chairDesk", 4.0, 14.0)
+			if cs.is_empty():
+				return false
+			var c: Node3D = cs.pick_random()
+			c.set_meta("moved", true)
+			var to: Vector3 = p.global_position - c.global_position
+			to.y = 0.0
+			var t := create_tween().set_trans(Tween.TRANS_SINE)
+			t.tween_property(c, "global_position", c.global_position + to.normalized() * 0.9, 1.3)
+			t.parallel().tween_property(c, "rotation:y", c.rotation.y + wrapf(atan2(to.x, to.z) - c.rotation.y, -PI, PI), 1.3)   # (a chair faces +z)
+			_sound("chair_creak", c.global_position + Vector3.UP * 0.5, -2.0)
+			return true
+		"screen":   # a screen that was turned away has turned round to face him
+			var ss := _props_of("computerScreen", 3.0, 12.0)
+			if ss.is_empty():
+				return false
+			var s: Node3D = ss.pick_random()
+			s.set_meta("moved", true)
+			var to: Vector3 = p.global_position - s.global_position
+			create_tween().tween_property(s, "rotation:y", s.rotation.y + wrapf(atan2(to.x, to.z) - s.rotation.y, -PI, PI), 2.5).set_trans(Tween.TRANS_SINE)
+			return true
+		"lights_behind":   # the lights he just walked under go out, one by one, and stay out a while
+			var fwd: Vector3 = -p.global_basis.z
+			var ls: Array = lvl.lights.filter(func(l):
+				var to: Vector3 = l.global_position - p.global_position
+				var dd := Vector2(to.x, to.z).length()
+				return l.visible and dd > 3.0 and dd < 16.0 and Vector2(to.x, to.z).dot(Vector2(fwd.x, fwd.z)) < 0.0)
+			if ls.is_empty():
+				return false
+			ls.sort_custom(func(a, b): return a.global_position.distance_to(p.global_position) < b.global_position.distance_to(p.global_position))
+			for i in ls.size():
+				get_tree().create_timer(0.35 * i, false).timeout.connect(func(): if is_instance_valid(ls[i]): ls[i].visible = false)
+			get_tree().create_timer(20.0, false).timeout.connect(_lights_back)
+			return true
+		"papers":   # someone's papers all over the floor, just round the corner
+			var at := Vector3.INF
+			for i in 30:
+				var q := _floor_point(4.0, 10.0)
+				if q != Vector3.INF and _unseen(q + Vector3.UP * 0.1):
+					at = q
+					break
+			if at == Vector3.INF:
+				return false
+			var m := StandardMaterial3D.new()
+			m.albedo_color = Color(0.88, 0.87, 0.82)
+			m.roughness = 0.9
+			for i in 7:
+				var sheet := MeshInstance3D.new()
+				var bm := BoxMesh.new()
+				bm.size = Vector3(0.21, 0.002, 0.297)
+				sheet.mesh = bm
+				sheet.material_override = m
+				sheet.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				lvl.add_child(sheet)
+				sheet.global_position = at + Vector3(randf_range(-0.7, 0.7), 0.004 + i * 0.001, randf_range(-0.7, 0.7))
+				sheet.rotation.y = randf() * TAU
+			_sound("bookFlip1", at + Vector3.UP * 0.3, 0.0)
+			return true
+		"phone":   # a desk phone rings out of sight; it stops when he gets near it
+			var at := Vector3.INF
+			for it in lvl.get_node("Items").get_children():
+				if it.get("kind") == "phone" and _unseen(it.global_position):
+					at = it.global_position
+			if at == Vector3.INF:
+				var ds := _props_of("desk", 5.0, 16.0, false)
+				if ds.is_empty():
+					return false
+				at = (ds.pick_random() as Node3D).global_position + Vector3.UP * 0.8
+			var ring := _sound("phone_ring", at, -2.0)
+			ring.finished.disconnect(ring.queue_free)
+			ring.stream = Game.looped("phone_ring")
+			ring.play()
+			var stop := func():
+				if is_instance_valid(ring):
+					ring.queue_free()
+			get_tree().create_timer(9.0, false).timeout.connect(stop)
+			_watch_ring(ring)
+			return true
+	return false
+
+func _watch_ring(ring: AudioStreamPlayer3D) -> void:
+	while is_instance_valid(ring) and is_instance_valid(Game.player):
+		if ring.global_position.distance_to(Game.player.global_position) < 3.0:
+			ring.queue_free()   # he got to it: dead line
+			return
+		await get_tree().create_timer(0.2, false).timeout
+
+# ---------- low Social Battery: things that aren't there (at most one every 40 s) ----------
+func _hallucinate(dt: float) -> void:
+	if Game.battery >= 40.0:
+		hallu_t = maxf(hallu_t, 20.0)
+		return
+	hallu_t -= dt
+	if hallu_t > 0.0:
+		return
+	hallu_t = randf_range(40.0, 65.0)
+	if Game.phone_open:
+		Game.hallucinate.emit("phone")
+	else:
+		approach()
+
+# Its sound (pen, heels, keys, mop...) coming up behind him, step by step, getting close... and
+# when he turns round, or it arrives, nothing. There was nobody there.
+func approach() -> bool:
+	var p: Node3D = Game.player
+	var who: Node = null
+	for n in lvl.npcs:
+		if n.cue != "":
+			who = n
+	if who == null:
+		return false
+	var cue: String = who.cue
+	var vars: int = who.cue_vars
+	var back: Vector3 = p.global_basis.z
+	back.y = 0.0
+	back = back.normalized()
+	var from: Vector3 = p.global_position + back * 12.0 + Vector3.UP * 1.0
+	var to: Vector3 = p.global_position + back * 2.0 + Vector3.UP * 1.0
+	var yaw0: float = p.rotation.y
+	var steps := 8
+	for i in steps:
+		if not is_instance_valid(p) or absf(wrapf(p.rotation.y - yaw0, -PI, PI)) > 2.0 or Game.busy:
+			return true   # he turned round: silence
+		_sound(("%s_%d" % [cue, randi() % vars]) if vars > 0 else cue, from.lerp(to, float(i) / (steps - 1)), -3.0 + i * 0.8)
+		await get_tree().create_timer(0.75 - i * 0.04, false).timeout
+	return true

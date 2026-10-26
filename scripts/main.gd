@@ -247,6 +247,7 @@ func _ready() -> void:
 	Game.note_opened.connect(_on_note)
 	Game.code_requested.connect(_on_code_requested)
 	Game.scare_face.connect(_face_slam)
+	Game.hallucinate.connect(_hallucinate)
 	Game.quests_changed.connect(_on_quests)
 	Game.fade.connect(func(a, secs): _fade_to(a, secs))
 	Game.overlay.connect(func(kind): peephole.visible = kind == "peephole")
@@ -765,6 +766,7 @@ func clock_text() -> String:
 # ---------- phone ----------
 func open_phone() -> void:
 	phone.show()
+	Game.phone_open = true
 	Game.event.emit("phone")
 	unread = 0
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -793,6 +795,7 @@ func _show_app(app: String) -> void:
 		_show_jobs()
 
 func close_phone() -> void:
+	Game.phone_open = false
 	if phone and phone.visible:
 		phone.hide()
 		Game.phone_lock = false   # he's read it
@@ -1105,6 +1108,24 @@ func _ghost_on_screen() -> bool:
 			if space.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, head, 1)).is_empty():
 				return true
 	return false
+
+# Low Social Battery: a text on the open phone says something else for a moment.
+const GARBLED := ["อยู่ข้างหลัง", "ตื่นได้แล้ว", "ต๋อง ต๋อง ต๋อง ต๋อง", "แม่ไม่ได้ส่งข้อความนี้", "หันมาสิ", "คุณไม่ได้ออกจากออฟฟิศ"]
+
+func _hallucinate(kind: String) -> void:
+	if kind != "phone" or not phone.visible:
+		return
+	var labels: Array = phone_list.find_children("*", "Label", true, false).filter(func(l): return l.text.length() > 6)
+	if labels.is_empty():
+		return
+	var l: Label = labels.pick_random()
+	var was := l.text
+	l.text = GARBLED.pick_random()
+	l.set_meta("garbled", true)
+	get_tree().create_timer(0.7, false).timeout.connect(func():
+		if is_instance_valid(l):
+			l.text = was
+			l.remove_meta("garbled"))
 
 # 0..1: how badly Tong is losing it. Low Social Battery, plus a spike while hunted.
 func fear() -> float:
