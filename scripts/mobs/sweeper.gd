@@ -48,6 +48,7 @@ func _style() -> void:
 	hum.unit_size = 4.0
 	hum.bus = "SFX"
 	hum.autoplay = true
+	hum.add_to_group("occlude")
 	add_child(hum)
 
 # She never notices by sight, only when you step on her floor.

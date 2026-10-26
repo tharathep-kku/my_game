@@ -241,6 +241,7 @@ func _light_hums() -> void:
 		p.unit_size = 1.2
 		p.max_distance = 8.0
 		p.pitch_scale = randf_range(0.985, 1.015)   # neighbouring tubes beat against each other
+		p.add_to_group("occlude")
 		l.add_child(p)
 		p.play(randf() * 3.9)
 		l.visibility_changed.connect(_on_light_toggled.bind(l, p))

@@ -122,6 +122,10 @@ func _ready() -> void:
 
 # Cutscenes skip only on a deliberate hold of Space, never on a stray key press.
 func _process(dt: float) -> void:
+	_occlude_t -= dt
+	if _occlude_t <= 0.0:
+		_occlude_t = 0.15
+		_occlude()
 	var held := Input.is_action_pressed("breath")
 	if not held:
 		_skip_release = false
@@ -716,6 +720,28 @@ static func mix_db(sfx_name: String) -> float:
 	var fam := sfx_name.rstrip("0123456789").trim_suffix("_")
 	return MIX.get(fam, 0.0)
 
+# Sounds behind a wall come through it muffled and quieter: every 0.15 s a ray from Tong's ears to
+# each 3D sound in the "occlude" group (Game.sfx at a place, the light hums, Pa Porn's humming).
+const OCCLUDED_HZ := 1200.0
+const OCCLUDED_DB := -7.0
+var _occlude_t := 0.0
+
+func _occlude() -> void:
+	if not is_instance_valid(player) or not player.is_inside_tree():
+		return
+	var ear: Vector3 = player.cam.global_position
+	var space := player.get_world_3d().direct_space_state
+	for p: AudioStreamPlayer3D in get_tree().get_nodes_in_group("occlude"):
+		if not p.playing or p.stream_paused or not p.is_inside_tree():
+			continue
+		if not p.has_meta("base_db"):
+			p.set_meta("base_db", p.volume_db)
+		var q := PhysicsRayQueryParameters3D.create(ear, p.global_position, 1)
+		var hit := space.intersect_ray(q)
+		var blocked: bool = not hit.is_empty() and (hit.position as Vector3).distance_to(p.global_position) > 0.3
+		p.attenuation_filter_cutoff_hz = OCCLUDED_HZ if blocked else 5000.0
+		p.volume_db = p.get_meta("base_db") + (OCCLUDED_DB if blocked else 0.0)
+
 func sfx(sfx_name: String, at: Node3D = null, db := 0.0, pitch := 1.0) -> Node:
 	var p = AudioStreamPlayer3D.new() if at else AudioStreamPlayer.new()
 	p.stream = stream(sfx_name)
@@ -725,6 +751,7 @@ func sfx(sfx_name: String, at: Node3D = null, db := 0.0, pitch := 1.0) -> Node:
 	p.finished.connect(p.queue_free)
 	if at:
 		p.unit_size = 3.0   # falls off fast: footsteps/squeaks are a proximity cue
+		p.add_to_group("occlude")
 		at.add_child(p)
 	else:
 		add_child(p)

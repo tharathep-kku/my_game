@@ -85,6 +85,7 @@ func _ready() -> void:
 	await t_sound_bed()
 	await t_creep_gaits()
 	await t_ghost_cues()
+	await t_occlusion()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -685,6 +686,22 @@ func t_ghost_cues() -> void:
 	await get_tree().create_timer(1.0).timeout
 	var still := n.get_children().filter(func(c): return c is AudioStreamPlayer3D and c.playing and c.stream and c.stream.resource_path.contains(n.cue))
 	check(still.is_empty(), "standing still, he makes no sound")
+	await done(lvl)
+
+# A sound behind a wall comes through muffled and quieter; in the open it is clear.
+func t_occlusion() -> void:
+	var lvl := await make(["#########", "#P..#...#", "#...#...#", "#...#...#", "#########"])
+	var behind := Node3D.new()
+	lvl.add_child(behind)
+	behind.global_position = lvl.cell_pos(Vector2i(6, 2)) + Vector3.UP * 1.2
+	var open := Node3D.new()
+	lvl.add_child(open)
+	open.global_position = lvl.cell_pos(Vector2i(2, 3)) + Vector3.UP * 1.2
+	var a: AudioStreamPlayer3D = Game.sfx("printer", behind)
+	var b: AudioStreamPlayer3D = Game.sfx("printer", open)
+	await get_tree().create_timer(0.4).timeout
+	check(a.attenuation_filter_cutoff_hz <= 1500.0 and a.volume_db < b.volume_db, "behind the wall: muffled (%d Hz) and quieter" % a.attenuation_filter_cutoff_hz)
+	check(b.attenuation_filter_cutoff_hz >= 5000.0, "in the open: clear (%d Hz)" % b.attenuation_filter_cutoff_hz)
 	await done(lvl)
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.
