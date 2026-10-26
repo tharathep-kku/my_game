@@ -694,6 +694,7 @@ func looped(sfx_name: String) -> AudioStream:
 const MIX := {
 	# beds and music (main.gd)
 	"ambience": -8.0, "drone": -12.0, "menu_theme": -3.0, "chase_theme": -2.0, "heartbeat": 0.0, "breathing": 0.0,
+	"unease": -6.0, "sighting": 0.0,
 	"light_hum": 0.0, "mirror_theme": 0.0,
 	# Tong
 	"footstep": 0.0, "step_carpet": 0.0, "step_tile": 0.0, "step_concrete": 0.0, "gasp": 0.0, "pickup": 0.0,

@@ -12,6 +12,7 @@
 #   step_<carpet|tile|concrete>_<0-3>.ogg   footsteps for each floor (made from footstep00-03)
 #   pickup.ogg, ui_click.ogg   picking something up (cloth and paper), a menu click (soft mechanical tick)
 #   pen_click / heel_click / keys_jingle / mop_drag / knuckle_tap _0-2.ogg   each ghost's own sound (npc.gd cue)
+#   unease.ogg (something near, unseen: 32 s loop), sighting.ogg (first sight of it in a chapter)
 # Loops are built in the frequency domain (circular), so they loop without a seam.
 import os
 import numpy as np
@@ -407,9 +408,46 @@ def ghost_cues():
         save("knuckle_tap_%d" % k, lreverb(x, 0.5, 0.15), peak=0.7)
 
 
+# ---------------------------------------------------------------- music states (main.gd)
+def unease():
+    """Something is near and you can't see it: a high, scraping string cluster that won't settle,
+    and now and then a deep thud you feel more than hear. 32 s loop, quieter than the chase."""
+    T = 32.0
+    n = int(T * SR)
+    t = t_(T)
+    x = np.zeros((2, n))
+    for f, pan, cyc in ((1244.5, 0.3, 3), (1318.5, 0.7, 5), (1864.7, 0.45, 4), (987.8, 0.6, 7)):
+        ff = fq(f, T)
+        v = saw(ff, t, 6000) + saw(fq(f * 1.004, T), t, 6000, 0.9)
+        v = cfilter(v, band(800, 4500))
+        trem = 0.55 + 0.45 * np.sin(2 * np.pi * fq(6.3 + pan * 3, T) * t + cyc)   # bowing that can't hold still
+        v *= trem * (0.25 + 0.75 * swell(T, cyc, pan * 5, 2.0)) * 0.05
+        x[0] += v * (1 - pan)
+        x[1] += v * pan
+    for at in (3.1, 11.7, 17.2, 26.4):   # deep thuds, irregular
+        i = int(at * SR)
+        tt = t_(1.2)
+        k = np.sin(2 * np.pi * (34 * tt + 20 * (1 - np.exp(-tt * 8)) / 8)) * np.exp(-tt * 4) * 0.6
+        x[:, i:i + len(k)] += k[: n - i]
+    x += 0.02 * np.array([shaped(n, band(3000, 9000)), shaped(n, band(3000, 9000))]) * swell(T, 2, 1.0, 3.0)   # breathy hiss
+    x = creverb(x, 3.0, 0.45, 2500)
+    save("unease", x, rms=0.06, loop=True)
+
+
+def sighting():
+    """The first time you see it in a chapter: a low cluster slams in under a string screech."""
+    t = t_(2.6)
+    env = np.minimum(t / 0.03, 1) * np.exp(-t * 1.6)
+    low = sum(saw(f, t, 1500) for f in (73.42, 77.78, 110.0)) * env * 0.35
+    screech = cfilter(sum(saw(f, t + 0.01 * t * t, 8000) for f in (1661.2, 1760.0, 2349.3)), band(1200, 6000)) * np.exp(-t * 2.5) * np.minimum(t / 0.01, 1) * 0.12
+    hit = bp(rng.standard_normal(len(t)), 80, 2000) * np.exp(-t * 18) * 0.8
+    x = lreverb(low + screech + hit, 2.5, 0.35, 2500)
+    save("sighting", x, peak=0.85)
+
+
 if __name__ == "__main__":
     import sys
     only = sys.argv[1:]
-    for f in (ambience, drone, chase_theme, menu_theme, light_hum, lights_off, lights_on, footsteps, pickup, ui_click, ghost_cues):
+    for f in (ambience, drone, chase_theme, menu_theme, light_hum, lights_off, lights_on, footsteps, pickup, ui_click, ghost_cues, unease, sighting):
         if not only or f.__name__ in only:
             f()

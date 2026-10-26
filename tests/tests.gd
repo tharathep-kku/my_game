@@ -86,6 +86,7 @@ func _ready() -> void:
 	await t_creep_gaits()
 	await t_ghost_cues()
 	await t_occlusion()
+	await t_music_states()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -703,6 +704,53 @@ func t_occlusion() -> void:
 	check(a.attenuation_filter_cutoff_hz <= 1500.0 and a.volume_db < b.volume_db, "behind the wall: muffled (%d Hz) and quieter" % a.attenuation_filter_cutoff_hz)
 	check(b.attenuation_filter_cutoff_hz >= 5000.0, "in the open: clear (%d Hz)" % b.attenuation_filter_cutoff_hz)
 	await done(lvl)
+
+# The music follows what is happening: calm, unease when it is near but unseen, the chase, the
+# breather after; a sting the first time you see it in a chapter, once.
+func t_music_states() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)
+	await get_tree().create_timer(0.6).timeout
+	get_tree().paused = false
+	main.show_screen("")
+	Game.skip_cutscene.emit()
+	await get_tree().create_timer(0.6).timeout
+	var lvl: Node3D = main.level
+	var n: Npc = lvl.npcs[0]
+	var pl = lvl.player
+	n.set_physics_process(false)
+	n.global_position = pl.global_position + Vector3(40, 0, 40)
+	await get_tree().create_timer(0.5).timeout
+	check(main.music_state == "calm", "far away: calm (%s)" % main.music_state)
+	n.global_position = pl.global_position + pl.global_basis.z * 5.0   # right behind him, out of view
+	await get_tree().create_timer(0.6).timeout
+	check(main.music_state == "unease" and not main._sighted, "near but unseen: unease (%s)" % main.music_state)
+	var stings := []
+	var count := func(nd): if nd is AudioStreamPlayer and nd.stream and nd.stream.resource_path.contains("sighting"): stings.append(nd)
+	get_tree().node_added.connect(count)
+	n.global_position = pl.global_position - pl.global_basis.z * 6.0   # in front of him, in plain view
+	await get_tree().create_timer(0.6).timeout
+	check(main._sighted and stings.size() == 1, "first sight of it: one sting (%d)" % stings.size())
+	n.spot()
+	n.set_physics_process(true)
+	await pframes(3)
+	await get_tree().create_timer(0.3).timeout
+	check(main.music_state == "chase", "hunted: the chase (%s)" % main.music_state)
+	n.set_physics_process(false)
+	n.state = "patrol"
+	n.global_position = pl.global_position + Vector3(40, 0, 40)
+	await get_tree().create_timer(0.5).timeout
+	check(main.music_state == "after", "let go: the breather after (%s)" % main.music_state)
+	n.global_position = pl.global_position - pl.global_basis.z * 6.0
+	await get_tree().create_timer(0.6).timeout
+	check(stings.size() == 1, "seen again: no second sting")
+	get_tree().node_added.disconnect(count)
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.
 func t_sound_bed() -> void:

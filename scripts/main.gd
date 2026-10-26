@@ -113,6 +113,15 @@ var fps_label: Label
 var flash_rect: ColorRect
 var chase_loop: AudioStreamPlayer
 var chase_music: AudioStreamPlayer   # pounding loop while someone is after you
+# Music states (_music): calm -> unease (something near you can't see) -> chase -> after (it has
+# let you go: the dread dips, the unease stays away a while). And a sting the first time you see
+# it in a chapter.
+var unease: AudioStreamPlayer
+var music_state := "calm"
+var _after_t := 0.0
+var _sighted := false
+var _seen_t := 0.0
+var _ghost_seen := false
 var saved_label: Label
 var over_tip: Label
 # HR's advice at the bottom of the warning letter (one at random each time)
@@ -214,6 +223,11 @@ func _ready() -> void:
 	chase_music.bus = "Tension"
 	chase_music.volume_db = -60
 	add_child(chase_music)
+	unease = AudioStreamPlayer.new()
+	unease.stream = Game.looped("unease")
+	unease.bus = "Tension"
+	unease.volume_db = -60
+	add_child(unease)
 	menu_music = AudioStreamPlayer.new()
 	menu_music.stream = Game.looped("menu_theme")
 	menu_music.bus = "Music"
@@ -315,6 +329,10 @@ func start_stage() -> void:
 	heartbeat.play()
 	chase_loop.play()
 	chase_music.play()
+	unease.play()
+	music_state = "calm"
+	_after_t = 0.0
+	_sighted = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_fade_to(0.0, 0.8)
 	if not Game.tutorial:   # checkpoint: say so
@@ -367,6 +385,7 @@ func stop_play() -> void:
 	heartbeat.stop()
 	chase_loop.stop()
 	chase_music.stop()
+	unease.stop()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_load_id += 1   # cancel a start_stage() still waiting on its clock card (or a jumpscare)
 	_clear_scare()
@@ -1053,6 +1072,40 @@ func _close_keypad() -> void:
 	if playing and not get_tree().paused:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
+func _music(dt: float, t: Vector2) -> void:
+	_seen_t -= dt
+	if _seen_t <= 0.0:
+		_seen_t = 0.25
+		_ghost_seen = _ghost_on_screen()
+	if t.y > 0.0:
+		music_state = "chase"
+		_after_t = 7.0
+	elif _after_t > 0.0:
+		_after_t -= dt
+		music_state = "after"
+	elif t.x > 0.0 and not _ghost_seen and is_instance_valid(level) and level.gloom > 0.5:
+		music_state = "unease"
+	else:
+		music_state = "calm"
+	var on := music_state == "unease"
+	unease.volume_db = lerpf(unease.volume_db, Game.mix_db("unease") if on else -60.0, dt * (0.5 if on else 1.2))
+	if _ghost_seen and not _sighted and not Game.in_cutscene and level.gloom > 0.5:
+		_sighted = true
+		Game.sfx("sighting", null, -2.0)
+
+# A ghost on screen: in view, not behind anything, near enough to make out.
+func _ghost_on_screen() -> bool:
+	if not is_instance_valid(level) or not is_instance_valid(Game.player):
+		return false
+	var cam: Camera3D = Game.player.cam
+	var space: PhysicsDirectSpaceState3D = Game.player.get_world_3d().direct_space_state
+	for n in level.npcs:
+		var head: Vector3 = n.global_position + Vector3.UP * 1.4
+		if head.distance_to(cam.global_position) < 18.0 and cam.is_position_in_frustum(head):
+			if space.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, head, 1)).is_empty():
+				return true
+	return false
+
 # 0..1: how badly Tong is losing it. Low Social Battery, plus a spike while hunted.
 func fear() -> float:
 	return clampf((60.0 - Game.battery) / 60.0, 0.0, 1.0) * 0.85 + tension().y * 0.15
@@ -1089,7 +1142,8 @@ func _process(dt: float) -> void:
 			heartbeat.pitch_scale = 1.0 + 0.4 * t.y
 		chase_loop.volume_db = lerpf(chase_loop.volume_db, -4.0 + Game.mix_db("breathing") if t.y > 0.0 else -60.0, dt * 2.0)
 		chase_music.volume_db = lerpf(chase_music.volume_db, Game.mix_db("chase_theme") if t.y > 0.0 else -60.0, dt * (3.0 if t.y > 0.0 else 0.8))
-		drone.volume_db = lerpf(-60.0, Game.mix_db("drone"), level.gloom if is_instance_valid(level) else 1.0)   # no dread by daylight (tutorial)
+		drone.volume_db = lerpf(-60.0, Game.mix_db("drone") - (6.0 if music_state == "after" else 0.0), level.gloom if is_instance_valid(level) else 1.0)   # no dread by daylight (tutorial)
+		_music(dt, t)
 		var f: float = screen_fx.get_shader_parameter("fear")
 		screen_fx.set_shader_parameter("fear", lerpf(f, fear(), dt * 2.0))
 		beacons.queue_redraw()
