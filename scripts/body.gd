@@ -138,8 +138,14 @@ static func real_mat(src: Material) -> Material:
 	var m := StandardMaterial3D.new()
 	m.vertex_color_use_as_albedo = true
 	m.vertex_color_is_srgb = true
-	m.roughness = {"skin": 0.5, "eye": 0.12, "eye_glow": 0.2, "teeth": 0.35, "hair": 0.55, "shoes": 0.3}.get(src.resource_name, 0.85)
+	m.roughness = {"skin": 0.5, "skin_night": 0.78, "eye": 0.12, "eye_glow": 0.2, "teeth": 0.35, "hair": 0.55, "shoes": 0.3}.get(src.resource_name, 0.85)
 	match src.resource_name:
+		"skin_night":   # dead skin: dull, no healthy glow at the edges
+			m.normal_enabled = true
+			m.normal_texture = HD.texture("concrete_n")
+			m.normal_scale = 0.35
+			m.uv1_triplanar = true
+			m.uv1_scale = Vector3.ONE * 5.0
 		"skin":
 			m.normal_enabled = true
 			m.normal_texture = HD.texture("plastic_n")
@@ -324,6 +330,8 @@ func _pose_real(t: float, mode: String) -> void:
 		_:   # standing: the living breathe, the dead don't
 			if not String(built_spec.get("model", "")).ends_with("_night"):
 				j.Chest = 0.015 * sin(t * 1.7)
+	if String(built_spec.get("model", "")).ends_with("_night") and mode != "crawl":
+		j.Chest -= 0.14   # the night ones stoop, shoulders rounded
 	for k in j:
 		parts[k].rotation.x = j[k]
 	parts.Chest.rotation.y = twist

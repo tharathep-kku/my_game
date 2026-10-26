@@ -114,6 +114,61 @@ def bone_of(b):
     return b
 
 
+JAW_BONES = ("jaw", "special04", "oris01", "oris02", "oris06", "oris07", "tongue")
+
+
+def distort(h, V, d):
+    """Night faces (MakeHuman space, decimetres): the jaw hangs open, the mouth is pulled wide
+    into the cheeks with its corners lifted (a grin that keeps going), the eyes sink back.
+    d = {"wide": how many times its width, "jaw": radians open, "rise": corner lift, "eyes": sink}"""
+    P = h.P
+    head = h.W[:, BONES.index("Head")]
+    cl, cr = h.J("oris03.L", "tail"), h.J("oris03.R", "tail")
+    ym = (cl[1] + cr[1]) / 2            # the mouth line
+    xc = (abs(cl[0]) + abs(cr[0])) / 2  # half its width
+    zfront = h.J("oris06")[2]
+    # the face's front surface along the mouth line: z at each x (to slide the lips round it)
+    band = np.where((head > 0.5) & (np.abs(P[:, 1] - ym) < 0.12) & (P[:, 2] > 0.6))[0]
+    bins = np.linspace(-1.2, 1.2, 49)
+    prof = np.full(len(bins), -9.0)
+    for i in band:
+        b = int(np.clip(np.searchsorted(bins, P[i, 0]), 0, len(bins) - 1))
+        prof[b] = max(prof[b], P[i, 2])
+    ok = prof > -9.0
+    zf = lambda x: np.interp(x, bins[ok], prof[ok])
+    wide = d.get("wide", 1.0)
+    xw = xc * wide                   # new half width
+    xe = xw + 0.18                   # beyond this the face is untouched
+    def remap(x):
+        ax = np.abs(x)
+        out = np.where(ax <= xc, ax * wide, xw + (ax - xc) * (xe - xw) / max(xe - xc, 1e-6))
+        out = np.where(ax >= xe, ax, out)
+        return np.sign(x) * out
+    fall_y = np.exp(-((P[:, 1] - ym) / 0.26) ** 2)
+    front = np.clip((P[:, 2] - (zfront - 1.1)) / 0.5, 0.0, 1.0)
+    k = head * fall_y * front
+    x2 = remap(P[:, 0])
+    off = P[:, 2] - zf(P[:, 0])      # depth relative to the face surface
+    V[:, 0] = P[:, 0] + (x2 - P[:, 0]) * k
+    V[:, 2] = P[:, 2] + ((zf(V[:, 0]) + off) - P[:, 2]) * k
+    lift = d.get("rise", 0.0) * np.clip(np.abs(V[:, 0]) / max(xw, 1e-6), 0, 1.4) ** 2
+    V[:, 1] += lift * k * (P[:, 1] > ym - 0.25)
+    # the jaw drops open (rotates down about its hinge)
+    piv = h.J("jaw")
+    a = h.jaw * head * d.get("jaw", 0.0)
+    y, z = V[:, 1] - piv[1], V[:, 2] - piv[2]
+    V[:, 1] = piv[1] + y * np.cos(a) - z * np.sin(a)
+    V[:, 2] = piv[2] + y * np.sin(a) + z * np.cos(a)
+    # the eyes sink back into the head, one a little lower than the other
+    sink = d.get("eyes", 0.0)
+    for grp_name, side, drop in (("helper-l-eye", "L", 0.0), ("helper-r-eye", "R", 0.035)):
+        e = h.J("eye." + side)
+        idx = sorted({i for g, f in h.faces if g == grp_name for i in f})
+        for i in idx:
+            V[i] = e + (V[i] - e) * (1.0 - 0.15 * sink) + np.array([0.0, -drop * sink, -0.07 * sink])
+    return V
+
+
 # ---------------------------------------------------------------- the build
 class Human:
     def __init__(self, name, spec):
@@ -126,7 +181,11 @@ class Human:
         # weights: MakeHuman's 163 bones folded into ours
         W = np.zeros((len(V), len(BONES)))
         Wf = {"L": np.zeros(len(V)), "R": np.zeros(len(V)), "TL": np.zeros(len(V)), "TR": np.zeros(len(V))}   # fingers, thumbs
+        jaw = np.zeros(len(V))   # how much each vertex rides the lower jaw (for distort())
         for bone, pairs in json.load(open(os.path.join(MH, "default_weights.mhw")))["weights"].items():
+            if bone.split(".")[0].startswith(JAW_BONES):
+                for vi, wt in pairs:
+                    jaw[vi] += wt
             c = BONES.index(coarse(bone))
             for vi, wt in pairs:
                 W[vi, c] += wt
@@ -144,7 +203,9 @@ class Human:
                 kd.insert(V[i], i)
             kd.balance()
             for i in unweighted:
-                W[i] = W[kd.find(V[i])[1]]
+                near = kd.find(V[i])[1]
+                W[i] = W[near]
+                jaw[i] = jaw[near]
         W /= np.maximum(W.sum(1, keepdims=True), 1e-6)
         # arms down from MakeHuman's A-pose, to hang by the sides (6 degrees out)
         for side, sign in (("L", 1.0), ("R", -1.0)):
@@ -170,9 +231,12 @@ class Human:
                 for i in sel:
                     V[i] = piv + rotate(V[i] - piv, axis, ang * k[i] * (1 if side == "L" else -1) * CURL_SIGN)
         self.ymin = V[bodyset, 1].min()
-        self.V, self.W = V, W
+        self.W = W
+        self.jaw = np.clip(jaw, 0.0, 1.0)
         J2 = {k: V[v].mean(0) for k, v in skel["joints"].items()}   # joints after the arm swing
         self.J = lambda b, end="head": J2[skel["bones"][b][end]]
+        self.P = V.copy()   # undistorted: what the painting and the clothes go by
+        self.V = distort(self, V.copy(), spec["distort"]) if spec.get("distort") else V
         self.normals = self._normals()
 
     # MakeHuman (decimetres, +Z forward) -> Godot (metres, feet on 0, facing -Z)
@@ -194,7 +258,7 @@ class Human:
 def build(name):
     spec = CHARS[name]
     h = Human(name, spec)
-    V, W, J = h.V, h.W, h.J
+    V, W, J = h.P, h.W, h.J   # (V: undistorted, for painting and the clothes; h.V is what is output)
     pal = {k: rgb(v) for k, v in PAL.items()}
     pal.update({k: rgb(v) for k, v in spec.get("colors", {}).items()})
     rng = np.random.default_rng(abs(hash(name)) % 2 ** 32)
@@ -225,7 +289,7 @@ def build(name):
         idx = []
         for i in f:
             if i not in cache:
-                p = (pos[i] if pos is not None else V[i]) + h.normals[i] * offset
+                p = (pos[i] if pos is not None else h.V[i]) + h.normals[i] * offset
                 cache[i] = len(out_v)
                 out_v.append(h.g(p))
                 out_w.append(W[i])
@@ -256,17 +320,30 @@ def build(name):
         return "torso_low" if c[1] < waist_y else "torso"
 
     skin = pal[spec.get("skin", "skin")]
+    dist = spec.get("distort")
+    m_cl, m_cr = J("oris03.L", "tail"), J("oris03.R", "tail")
+    m_y, m_xc, m_z = (m_cl[1] + m_cr[1]) / 2, (abs(m_cl[0]) + abs(m_cr[0])) / 2, J("oris06")[2]
     def skin_color(i):
         p = V[i]
+        if dist:   # night: the inside of the torn-open mouth is dark and wet, the corners are cut
+            dx = abs(p[0])
+            if abs(p[1] - m_y) < 0.4 and dx < m_xc * 1.2 and m_z - 1.3 < p[2] < m_z - 0.1:
+                return np.clip(pal["socket"] * 0.6 + pal["blood"] * 0.4, 0, 1)
+            if m_xc * 0.85 < dx < m_xc + 0.12 and abs(p[1] - m_y) < 0.03 and p[2] > m_z - 0.6:
+                return pal["blood"] * 0.8
         col = skin * (1.0 + rng.normal() * 0.025)
+        if dist:   # dead skin: blotchy, bruised in patches
+            col = col * (0.84 + 0.1 * math.sin(p[0] * 7.1 + p[1] * 3.3) * math.sin(p[1] * 5.7 - p[2] * 4.1))
         # lips, brows, eye shadow, stubble: painted by distance to the landmarks
         dm = np.array([(p[0]) / 0.27, (p[1] - mouth[1]) / 0.07, 0])
         if p[2] > mouth[2] - 0.25 and np.linalg.norm(dm) < 1.0:
             col = col * 0.75 + pal["lips"] * 0.25 if not spec.get("lipstick") else pal["lipstick"]
+            if dist:   # stretched thin: dark, dried, no colour left in them
+                col = pal["socket"] * 0.45 + pal["blood"] * 0.55
         for e in (eye_l, eye_r):
             d = p - e
             if p[2] > e[2] - 0.1 and abs(d[0]) < 0.2 and 0.1 < d[1] < 0.2:
-                col = pal[spec.get("brow", "hair")] * 0.9   # eyebrows
+                col = col * 0.8 if dist else pal[spec.get("brow", "hair")] * 0.9   # eyebrows (night: gone)
             elif p[2] > e[2] - 0.15 and abs(d[0]) < 0.24 and -0.18 < d[1] < 0.02:
                 col = col * (1.0 - spec.get("sunken", 0.12))   # under the eyes
         if spec.get("stubble") and p[1] < mouth[1] + 0.05 and p[1] > J("neck03")[1] and p[2] > 0.4:
@@ -322,7 +399,7 @@ def build(name):
         if w in ("shirt", "pants"):   # a backing in the garment's colour on the skin: no see-through seams
             add_poly(f, w, cloth(shirt if w == "shirt" else pants), 0.0)
         if w == "skin":
-            add_poly(f, "skin", skin_color)
+            add_poly(f, "skin_night" if (dist or name.endswith("_night")) else "skin", skin_color)
         elif w == "shoes":
             add_poly(f, "shoes", flat(shoes, 0.02), LOOSE["shoes"], shells["shoes"])
         elif w == "shirt":
@@ -351,7 +428,7 @@ def build(name):
                     m = "glow_" + PAL[spec.get("pupil", "glow")].lower()
             add_poly(f, m, eye_color)
         elif grp in ("helper-upper-teeth", "helper-lower-teeth"):
-            add_poly(f, "teeth", flat(pal["teeth"], 0.02))
+            add_poly(f, "teeth", flat(pal["teeth_night" if dist else "teeth"], 0.05))
         elif grp == "helper-hair":
             pass   # (the hair is built from the scalp below: the helper is too coarse)
         elif grp == "helper-skirt" and spec.get("skirt"):
@@ -420,7 +497,7 @@ def build(name):
         bsdf = m.node_tree.nodes.get("Principled BSDF")
         attr = m.node_tree.nodes.new("ShaderNodeVertexColor")
         m.node_tree.links.new(attr.outputs["Color"], bsdf.inputs["Base Color"])
-        bsdf.inputs["Roughness"].default_value = {"skin": 0.55, "eye": 0.15, "eye_glow": 0.2, "teeth": 0.3, "hair": 0.6, "shoes": 0.35}.get(mname, 0.85)
+        bsdf.inputs["Roughness"].default_value = {"skin": 0.55, "skin_night": 0.75, "eye": 0.15, "eye_glow": 0.2, "teeth": 0.3, "hair": 0.6, "shoes": 0.35}.get(mname, 0.85)
         me.materials.append(m)
     for poly, mi in zip(me.polygons, mats):
         poly.material_index = mi
@@ -578,7 +655,7 @@ PAL = {
     "mop": "6e4a26", "mask": "9cc2c0", "silver": "b8bcc0", "board": "8a5a2e", "paper": "efede4",
     # night
     "dead": "8a9484", "corpse": "7e909a", "ghost": "c9cdc4", "guard_dark": "6e5038",
-    "blood": "5e0709", "socket": "060507", "glow": "fff2c8", "glow_red": "ff2a18", "glow_cyan": "3ae6ff",
+    "blood": "5e0709", "socket": "060507", "teeth_night": "c9bd98", "grey_dead": "8f968e", "tie_night": "34090d", "glow": "fff2c8", "glow_red": "ff2a18", "glow_cyan": "3ae6ff",
     "milk": "d0e6de", "staff_shirt": "bfc3cb", "staff_pants": "30333a", "rot": "4a3f2c",
 }
 TIE = {"bone": "Chest", "anchor": "sternum", "at": [0, -0.03, -0.024], "size": [0.065, 0.36, 0.012], "color": "tie"}
@@ -591,27 +668,29 @@ CHARS = {
     "manager": {"gender": "male", "old": 0.45, "weight": 0.55, "height": -0.3, "shirt": "suit", "pants": "mgr_pants",
                 "skin": "skin_tan", "hair": "bald", "props": [dict(TIE, color="lipstick")]},
     "manager_night": {"gender": "male", "old": 0.45, "weight": 0.55, "height": -0.3, "shirt": "suit", "pants": "mgr_pants",
-                      "skin": "dead", "hair": "bald", "sunken": 0.45, "grin": [{"w": 0.62, "h": 0.07, "rise": 0.25}],
-                      "props": [dict(TIE, color="lipstick")], "blood": 3, "glow_eyes": True, "pupil": "glow", "iris": "socket", "sclera": "socket"},
+                      "skin": "dead", "hair": "bald", "sunken": 0.45, "distort": {"wide": 2.4, "jaw": 0.32, "rise": 0.35, "eyes": 1.0},
+                      "props": [dict(TIE, color="tie_night", size=[0.05, 0.34, 0.008])], "blood": 3, "glow_eyes": True, "pupil": "glow", "iris": "socket", "sclera": "socket"},
     "sweeper": {"gender": "female", "old": 0.8, "weight": 0.35, "height": -0.4, "shirt": "porn_shirt", "pants": "porn_pants",
                 "skin": "skin_brown", "hair": "bob", "hair_color": "grey_hair"},
     "sweeper_night": {"gender": "female", "old": 0.8, "weight": 0.35, "height": -0.4, "shirt": "porn_shirt", "pants": "porn_pants",
                       "skin": "corpse", "hair": "curtain", "hair_color": "hair", "hair_lift": 0.09, "sunken": 0.5, "blood": 2,
+                      "distort": {"wide": 1.4, "jaw": 0.45, "eyes": 0.6},
                       "glow_eyes": True, "pupil": "milk", "iris": "milk", "sclera": "milk"},
     "goblin": {"gender": "male", "weight": -0.6, "muscle": -0.5, "height": -0.2, "shirt": "hoodie", "pants": "tae_pants",
                "skin": "skin_pale", "hair": "short"},
     "goblin_night": {"gender": "male", "weight": -0.8, "muscle": -0.6, "height": -0.2, "shirt": "hoodie", "pants": "tae_pants",
-                     "skin": "ghost", "hair": "long", "hair_color": "hoodie", "hair_lift": 0.12, "sunken": 0.4,
+                     "skin": "grey_dead", "hair": "long", "hair_color": "hoodie", "hair_lift": 0.12, "sunken": 0.4,
+                     "distort": {"wide": 1.6, "jaw": 0.55, "rise": -0.05, "eyes": 1.2},
                      "glow_eyes": True, "pupil": "glow_cyan", "iris": "glow_cyan", "sclera": "socket"},
     "guard": {"gender": "male", "muscle": 0.4, "weight": 0.2, "height": 0.25, "shirt": "navy", "pants": "navy", "stubble": True,
               "skin": "skin_tan", "hair": "cap", "hair_color": "navy", "hair_lift": 0.14, "props": [VISOR, dict(BADGE, color="gold")]},
     "guard_night": {"gender": "male", "muscle": 0.4, "weight": 0.2, "height": 0.25, "shirt": "navy", "pants": "navy", "stubble": True,
                     "skin": "guard_dark", "hair": "cap", "hair_color": "navy", "hair_lift": 0.14, "props": [VISOR, dict(BADGE, color="gold")], "blood": 4, "sunken": 0.5,
-                    "grin": [{"w": 0.3, "h": 0.05, "rise": 0.1}], "glow_eyes": True, "pupil": "glow_red", "iris": "socket", "sclera": "socket"},
+                    "distort": {"wide": 1.8, "jaw": 0.4, "rise": 0.1, "eyes": 1.0}, "glow_eyes": True, "pupil": "glow_red", "iris": "socket", "sclera": "socket"},
     "hr": {"gender": "female", "old": 0.25, "weight": 0.1, "shirt": "maroon", "pants": "skirt", "skirt": -1.6, "bare_legs": True,
            "skin": "skin_pale", "hair": "bob", "lipstick": True},
     "hr_night": {"gender": "female", "old": 0.25, "weight": 0.1, "shirt": "maroon", "pants": "skirt", "skirt": -1.6, "bare_legs": True,
-                 "skin": "ghost", "hair": "bob", "lipstick": True, "sunken": 0.4, "grin": [{"w": 0.55, "h": 0.045, "rise": 0.3}],
+                 "skin": "grey_dead", "hair": "bob", "lipstick": True, "sunken": 0.4, "distort": {"wide": 2.6, "jaw": 0.18, "rise": 0.5, "eyes": 0.8},
                  "glow_eyes": True, "pupil": "glow", "iris": "socket", "sclera": "socket"},
     "doctor": {"gender": "male", "old": 0.3, "shirt": "coat", "pants": "scrubs", "skin": "skin_tan", "hair": "short",
                "skirt": -2.6, "skirt_color": "coat"},
