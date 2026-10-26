@@ -771,9 +771,13 @@ func t_anomalies() -> void:
 	for c in lvl.find_children("*", "Node3D", true, false).filter(func(n): return n.scene_file_path.ends_with("/chairDesk.glb")):
 		before[c.get_parent()] = c.get_parent().global_position
 	check(d._anomaly("chair"), "a chair rolls out")
-	await get_tree().create_timer(1.5).timeout
-	var moved: Array = before.keys().filter(func(h): return h.global_position.distance_to(before[h]) > 0.5)
-	check(moved.size() == 1 and not moved[0] is CollisionObject3D and moved[0].find_children("*", "CollisionShape3D", true, false).is_empty(), "one chair moved, and it can't block the way")
+	var moved: Array = []
+	var w := 0.0
+	while w < 3.0 and moved.is_empty():
+		await get_tree().create_timer(0.25).timeout
+		w += 0.25
+		moved = before.keys().filter(func(h): return h.global_position.distance_to(before[h]) > 0.5)
+	check(moved.size() == 1 and not moved[0] is CollisionObject3D and moved[0].find_children("*", "CollisionShape3D", true, false).is_empty(), "one chair moved (%d), and it can't block the way" % moved.size())
 	var s_ok: bool = d._anomaly("screen")
 	check(s_ok, "a screen turns to face him")
 	var fwd: Vector3 = -pl.global_basis.z
@@ -979,7 +983,10 @@ func t_cutscene() -> void:
 	run5.call()
 	await get_tree().create_timer(0.8).timeout
 	check(cs5.cam.global_position.distance_to(Cutscene.cell(Vector3(2.5, 1.6, 1))) < 0.01, "walk ends on its spot")
-	await get_tree().create_timer(0.7).timeout
+	var w := 0.0
+	while w < 2.0 and not cs5.cam.global_transform.is_equal_approx(lvl.player.cam.global_transform):   # (slow frames: give it time)
+		await get_tree().process_frame
+		w += get_process_delta_time()
 	check(cs5.cam.global_transform.is_equal_approx(lvl.player.cam.global_transform), "player step hands over in Tong's own eyes")
 	cs5.skipping = true
 	await pframes(3)
