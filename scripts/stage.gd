@@ -237,7 +237,7 @@ func _light_hums() -> void:
 		p.name = "Hum"
 		p.stream = s
 		p.bus = "Amb"
-		p.volume_db = -20.0
+		p.volume_db = -20.0 + Game.mix_db("light_hum")
 		p.unit_size = 1.2
 		p.max_distance = 8.0
 		p.pitch_scale = randf_range(0.985, 1.015)   # neighbouring tubes beat against each other

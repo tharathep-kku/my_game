@@ -684,10 +684,40 @@ func looped(sfx_name: String) -> AudioStream:
 		s.loop = true
 	return s
 
+# The mix: one place to turn any sound up or down (dB, added to whatever the caller asks for).
+# Families: "step_carpet" covers step_carpet_0..3, "creak" covers creak1..3, and so on.
+# The looping beds (main.gd) take their level from here too.
+const MIX := {
+	# beds and music (main.gd)
+	"ambience": -8.0, "drone": -12.0, "menu_theme": -3.0, "chase_theme": -2.0, "heartbeat": 0.0, "breathing": 0.0,
+	"light_hum": 0.0, "mirror_theme": 0.0,
+	# Tong
+	"footstep": 0.0, "step_carpet": 0.0, "step_tile": 0.0, "step_concrete": 0.0, "gasp": 0.0, "pickup": 0.0,
+	# the building
+	"lights_off": 0.0, "lights_on": 0.0, "metalClick": 0.0, "metalLatch": 0.0, "metalPot": 0.0, "door_slam": 0.0,
+	"doorOpen": 0.0, "creak": 0.0, "chair_creak": 0.0, "printer": 0.0, "elevator_ding": 0.0, "pa_chime": 0.0,
+	"siren": 0.0, "static": 0.0, "knock": 0.0, "footsteps_far": 0.0, "splash": 0.0, "pour": 0.0, "beep": 0.0,
+	"flatline": 0.0, "bookFlip": 0.0,
+	# the coworkers
+	"hum": 0.0, "mutter": 0.0, "techspeak": 0.0, "guard_talk": 0.0, "whisper": 0.0, "squeak": 0.0, "stab": 0.0,
+	"sting": 0.0,
+	# jumpscares
+	"scare_grab": 0.0, "scare_riser": 0.0, "scare_slam": 0.0, "scare_ring": 0.0,
+	# the phone and the UI
+	"vibrate": 0.0, "phone_ring": 0.0, "ui_click": 0.0, "ui_hover": 0.0, "type": 0.0, "stamp": 0.0, "pen": 0.0,
+}
+
+# MIX trim for a sound (its own entry, else its family's: trailing digits / _N dropped).
+static func mix_db(sfx_name: String) -> float:
+	if MIX.has(sfx_name):
+		return MIX[sfx_name]
+	var fam := sfx_name.rstrip("0123456789").trim_suffix("_")
+	return MIX.get(fam, 0.0)
+
 func sfx(sfx_name: String, at: Node3D = null, db := 0.0, pitch := 1.0) -> Node:
 	var p = AudioStreamPlayer3D.new() if at else AudioStreamPlayer.new()
 	p.stream = stream(sfx_name)
-	p.volume_db = db
+	p.volume_db = db + mix_db(p.stream.resource_path.get_file().get_basename() if p.stream else sfx_name)
 	p.pitch_scale = pitch
 	p.bus = "SFX"
 	p.finished.connect(p.queue_free)

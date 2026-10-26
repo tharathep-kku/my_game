@@ -689,6 +689,16 @@ func t_sound_bed() -> void:
 	await done(lvl)
 	for n in ["ambience", "drone", "chase_theme", "menu_theme", "light_hum", "lights_off", "lights_on", "pickup", "ui_click"]:
 		check(Game.stream(n) is AudioStreamOggVorbis, "%s is the new synthesized sound" % n)
+	# one volume table: every sound file has its line in Game.MIX (its own or its family's)
+	var missing := []
+	for f in DirAccess.get_files_at("res://assets/sfx"):
+		if f.get_extension() in ["ogg", "wav"]:
+			var n := f.get_basename()
+			if not Game.MIX.has(n) and not Game.MIX.has(n.rstrip("0123456789").trim_suffix("_")):
+				missing.append(n)
+	check(missing.is_empty(), "every sound can be turned up or down in Game.MIX %s" % [str(missing)])
+	var p := Game.sfx("pickup", null, -6.0)
+	check(is_equal_approx(p.volume_db, -6.0 + Game.mix_db("pickup")), "Game.sfx applies the MIX trim")
 
 # Character lineup screenshot (for review / report), not an assertion-heavy test.
 func t_lineup() -> void:

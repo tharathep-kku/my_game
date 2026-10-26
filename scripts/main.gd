@@ -191,13 +191,13 @@ func _ready() -> void:
 	_build_screens()
 	ambience = AudioStreamPlayer.new()
 	ambience.stream = Game.looped("ambience")
-	ambience.volume_db = -8
+	ambience.volume_db = Game.mix_db("ambience")
 	ambience.bus = "Amb"
 	add_child(ambience)
 	drone = AudioStreamPlayer.new()   # dark bed under the fluorescent buzz
 	drone.stream = Game.looped("drone")
 	drone.bus = "Amb"
-	drone.volume_db = -12
+	drone.volume_db = Game.mix_db("drone")
 	add_child(drone)
 	heartbeat = AudioStreamPlayer.new()
 	heartbeat.stream = Game.looped("heartbeat")
@@ -217,7 +217,7 @@ func _ready() -> void:
 	menu_music = AudioStreamPlayer.new()
 	menu_music.stream = Game.looped("menu_theme")
 	menu_music.bus = "Music"
-	menu_music.volume_db = -3
+	menu_music.volume_db = Game.mix_db("menu_theme")
 	add_child(menu_music)
 	Game.battery_changed.connect(_on_battery)
 	Game.message.connect(_on_message)
@@ -1082,14 +1082,14 @@ func _process(dt: float) -> void:
 			var bpm := 60 + int(Game.heart)
 			heart_label.text = "♥ %d BPM%s" % [bpm, "  เขาได้ยิน!" if Game.heart > 65.0 else ""]
 			heart_label.add_theme_color_override("font_color", Color(1, 0.25, 0.25) if Game.heart > 65.0 else Color(1, 0.7, 0.7))
-			heartbeat.volume_db = lerpf(heartbeat.volume_db, lerpf(-24.0, 2.0, Game.heart / 100.0), dt * 3.0)
+			heartbeat.volume_db = lerpf(heartbeat.volume_db, lerpf(-24.0, 2.0, Game.heart / 100.0) + Game.mix_db("heartbeat"), dt * 3.0)
 			heartbeat.pitch_scale = 0.8 + Game.heart / 100.0 * 0.9
 		else:
-			heartbeat.volume_db = lerpf(heartbeat.volume_db, lerpf(-40.0, 0.0, t.x) if t.x > 0.0 else -60.0, dt * 3.0)
+			heartbeat.volume_db = lerpf(heartbeat.volume_db, lerpf(-40.0, 0.0, t.x) + Game.mix_db("heartbeat") if t.x > 0.0 else -60.0, dt * 3.0)
 			heartbeat.pitch_scale = 1.0 + 0.4 * t.y
-		chase_loop.volume_db = lerpf(chase_loop.volume_db, -4.0 if t.y > 0.0 else -60.0, dt * 2.0)
-		chase_music.volume_db = lerpf(chase_music.volume_db, -2.0 if t.y > 0.0 else -60.0, dt * (3.0 if t.y > 0.0 else 0.8))
-		drone.volume_db = lerpf(-60.0, -12.0, level.gloom if is_instance_valid(level) else 1.0)   # no dread by daylight (tutorial)
+		chase_loop.volume_db = lerpf(chase_loop.volume_db, -4.0 + Game.mix_db("breathing") if t.y > 0.0 else -60.0, dt * 2.0)
+		chase_music.volume_db = lerpf(chase_music.volume_db, Game.mix_db("chase_theme") if t.y > 0.0 else -60.0, dt * (3.0 if t.y > 0.0 else 0.8))
+		drone.volume_db = lerpf(-60.0, Game.mix_db("drone"), level.gloom if is_instance_valid(level) else 1.0)   # no dread by daylight (tutorial)
 		var f: float = screen_fx.get_shader_parameter("fear")
 		screen_fx.set_shader_parameter("fear", lerpf(f, fear(), dt * 2.0))
 		beacons.queue_redraw()
