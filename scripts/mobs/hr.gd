@@ -21,6 +21,7 @@ func _init() -> void:
 	death_text = "โดนพี่แหม่มปั๊มตรา \"อนุมัติ\" กลางหน้าผาก แล้วนั่งกรอกแบบฟอร์มลาออก 400 หน้าจนถ่านหมด"
 	scare_color = Color(0.4, 0.02, 0.08)
 	scare_sfx = "pa_chime"
+	anim_mode = "heels"
 
 func reset() -> void:
 	super()

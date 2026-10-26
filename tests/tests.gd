@@ -83,6 +83,7 @@ func _ready() -> void:
 	await t_objective_fold()
 	await t_hd_look()
 	await t_sound_bed()
+	await t_creep_gaits()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -613,6 +614,50 @@ func t_hd_look() -> void:
 	main.apply_settings()
 	main.queue_free()
 	await frames(2)
+
+# The realistic ghosts move wrong: each has its own gait with bending knees and elbows, the
+# manager's head follows you, and a ghost watched from behind stops dead and turns its head round.
+func t_creep_gaits() -> void:
+	Game.retro = false
+	var modes := {}
+	for scene in ["manager", "sweeper", "goblin", "hr", "doctor"]:
+		var n: Npc = load("res://scenes/mobs/%s.tscn" % scene).instantiate()
+		modes[n.anim_mode] = true
+		n.free()
+	check(modes.size() == 5, "every ghost has its own gait %s" % [str(modes.keys())])
+	var g: Npc = load("res://scenes/mobs/guard.tscn").instantiate()
+	check(not g.smooth and not g.can_freeze, "the guard stays stop-motion (he only moves unwatched anyway)")
+	g.free()
+	var b := Body.new()
+	add_child(b)
+	b.build(Story.BODIES.tong)
+	var knee := Vector2(INF, -INF)
+	var straight := 0
+	for k in 24:
+		b.pose(k * TAU / 9.0 / 24.0, "walk")
+		knee.x = minf(knee.x, b.parts.ShinL.rotation.x)
+		knee.y = maxf(knee.y, b.parts.ShinL.rotation.x)
+		if absf(b.parts.LegL.rotation.x) < 0.01 and absf(b.parts.ShinL.rotation.x) < 0.01 and absf(b.parts.ForearmL.rotation.x) < 0.01:
+			straight += 1
+	check(knee.y - knee.x > 0.5 and knee.y <= 0.0 and straight == 0, "walking, the knee folds and straightens (%.2f..%.2f rad), never a stiff stick" % [knee.x, knee.y])
+	b.queue_free()
+	# watched from behind: it stops, its head comes round, then it walks on
+	var lvl := await make(["#############", "#...........#", "#.M.......P.#", "#...........#", "#############"])
+	var n: Npc = lvl.npcs[0]
+	var pl = lvl.player
+	n._freeze_cd = 0.0
+	n.global_position = lvl.cell_pos(Vector2i(6, 2))
+	n.rotation.y = PI / 2   # facing -x: its back to the player at x = 10
+	pl.rotation.y = PI / 2  # the player looks -x, at its back
+	n.state = "patrol"
+	await frames(3)
+	var p0 := n.global_position
+	await get_tree().create_timer(1.6).timeout
+	check(n._freeze_t > 0.0 and n.global_position.distance_to(p0) < 0.05, "watched from behind: it stops dead")
+	check(absf(n.body.parts.Head.rotation.y) > 1.2, "...and its head turns round to you (%.0f degrees)" % rad_to_deg(n.body.parts.Head.rotation.y))
+	await get_tree().create_timer(2.0).timeout
+	check(n._freeze_t <= 0.0 and n._freeze_cd > 5.0, "then it goes on (and won't do it again straight away)")
+	await done(lvl)
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.
 func t_sound_bed() -> void:

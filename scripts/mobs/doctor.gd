@@ -20,6 +20,7 @@ func _init() -> void:
 	death_text = "หมอฉีดยานอนหลับให้ ต๋องหลับลึก... ลึกจนไม่ได้ตื่นขึ้นมาอีก"
 	scare_color = Color(0.05, 0.3, 0.3)
 	scare_sfx = "flatline"
+	anim_mode = "lurch"
 
 func hear_radius() -> float:
 	return lerpf(hear_range.x, hear_range.y, Game.heart / 100.0)

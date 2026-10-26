@@ -93,15 +93,21 @@ func _physics_process(dt: float) -> void:
 	else:
 		rotation.y = lerp_angle(rotation.y, _yaw, dt * 4.0)
 	_acc += dt
-	if _acc >= 1.0 / 12.0:   # same stepped animation as the mobs
+	if _acc >= 1.0 / 12.0 or body.real:   # same stepped animation as the mobs (smooth on the realistic body)
 		_acc = 0.0
 		if moving:
-			body.pose(_t, "slide" if work == "mop" else "walk")
+			body.pose(_t, ("mop" if body.real else "slide") if work == "mop" else "walk")
 		else:
 			body.pose(_t, "idle")
 			if work == "type" and _chat <= 0.0:
-				body.parts.ArmL.rotation.x = -1.25 + sin(_t * 13.0) * 0.12
-				body.parts.ArmR.rotation.x = -1.25 + cos(_t * 11.0) * 0.12
+				if body.real:   # forearms on the desk, fingers going
+					body.parts.ArmL.rotation.x = 0.35 + sin(_t * 13.0) * 0.03
+					body.parts.ArmR.rotation.x = 0.35 + cos(_t * 11.0) * 0.03
+					body.parts.ForearmL.rotation.x = 1.15
+					body.parts.ForearmR.rotation.x = 1.15
+				else:
+					body.parts.ArmL.rotation.x = -1.25 + sin(_t * 13.0) * 0.12
+					body.parts.ArmR.rotation.x = -1.25 + cos(_t * 11.0) * 0.12
 
 func _walk(dt: float) -> bool:
 	if _rest > 0.0:

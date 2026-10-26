@@ -223,8 +223,12 @@ func set_fade(a: float) -> void:
 	for f in _fade_mats:
 		f.set_shader_parameter("fade", a)
 
-# Stepped (12 fps) poses: t is already quantised by the caller.
+# Stepped (12 fps) poses: t is already quantised by the caller. The realistic body has its own
+# (_pose_real: knees, elbows, a back, called every frame).
 func pose(t: float, mode: String) -> void:
+	if real and parts.has("ShinL"):
+		_pose_real(t, mode)
+		return
 	var swing := sin(t * 9.0) * 0.6
 	match mode:
 		"walk":
@@ -244,3 +248,92 @@ func pose(t: float, mode: String) -> void:
 		_:
 			for p in ["LegL", "LegR", "ArmL", "ArmR"]:
 				parts[p].rotation.x = 0.0
+
+# Gaits of the realistic body. Signs: Leg/Arm +x = swing forward, Shin -x = bend the knee,
+# Forearm +x = bend the elbow, Chest -x = hunch forward. t runs continuously (gait phase t * 9).
+func _pose_real(t: float, mode: String) -> void:
+	var ph := t * 9.0
+	var j := {"LegL": 0.0, "LegR": 0.0, "ShinL": 0.0, "ShinR": 0.0, "ArmL": 0.0, "ArmR": 0.0,
+		"ForearmL": 0.12, "ForearmR": 0.12, "Chest": 0.0}
+	var twist := 0.0   # chest turn (y)
+	var roll := 0.0    # whole-body lean side to side (z)
+	var bob := 0.0     # hips up/down
+	match mode:
+		"walk":   # an ordinary walk
+			_gait(j, ph, 0.42, 0.75)
+			j.ArmL = -0.28 * sin(ph)
+			j.ArmR = 0.28 * sin(ph)
+			j.ForearmL = 0.1 + 0.3 * maxf(0.0, j.ArmL)
+			j.ForearmR = 0.1 + 0.3 * maxf(0.0, j.ArmR)
+			twist = 0.06 * sin(ph)
+			bob = 0.012 * cos(2.0 * ph)
+		"shuffle":   # หัวหน้าธนา: upright and stiff, short steps, arms dead at his sides
+			ph *= 0.8
+			_gait(j, ph, 0.24, 0.3)
+			j.ArmL = 0.03 * sin(ph)
+			j.ArmR = -0.03 * sin(ph)
+			j.ForearmL = 0.04
+			j.ForearmR = 0.04
+			j.Chest = -0.1
+			bob = 0.005 * cos(2.0 * ph)
+		"slide":   # ป้าพร at night: one leg drags behind, she lurches on it, the mop out in front
+			_gait(j, ph, 0.36, 0.6)
+			j.LegR = -0.12 + 0.06 * sin(ph)
+			j.ShinR = -0.45
+			j.ArmR = 0.55 + 0.08 * sin(ph)
+			j.ForearmR = 0.7
+			j.ArmL = 0.1
+			j.ForearmL = 0.15
+			j.Chest = -0.3
+			roll = 0.1 * sin(ph)
+			bob = 0.02 * absf(sin(ph))
+		"mop":   # ป้าพร by day: mopping side to side as she goes
+			_gait(j, ph * 0.6, 0.18, 0.3)
+			j.ArmR = 0.65 + 0.15 * sin(ph * 0.7)
+			j.ArmL = 0.45 + 0.15 * sin(ph * 0.7)
+			j.ForearmR = 0.6
+			j.ForearmL = 0.95
+			j.Chest = -0.2
+			twist = 0.25 * sin(ph * 0.7)
+		"heels":   # พี่แหม่ม HR: short quick steps, arms pinned, chest out
+			ph *= 1.35
+			_gait(j, ph, 0.26, 0.4)
+			j.ForearmL = 0.06
+			j.ForearmR = 0.06
+			j.Chest = 0.06
+			roll = 0.05 * sin(ph)
+		"lurch":   # the doctor: slow and heavy, bent forward, arms hanging
+			ph *= 0.7
+			_gait(j, ph, 0.36, 0.55)
+			j.ArmL = 0.18 + 0.05 * sin(ph)
+			j.ArmR = 0.18 - 0.05 * sin(ph)
+			j.ForearmL = 0.3
+			j.ForearmR = 0.3
+			j.Chest = -0.3
+			roll = 0.06 * sin(ph)
+		"crawl":   # เต้ on all fours (goblin.gd pitches the whole body forward)
+			var sw := sin(ph) * 0.3
+			j.LegL = 1.2 + sw
+			j.LegR = 1.2 - sw
+			j.ShinL = -1.55 - maxf(0.0, -sw)
+			j.ShinR = -1.55 - maxf(0.0, sw)
+			j.ArmL = 1.2 - sw
+			j.ArmR = 1.2 + sw
+			j.ForearmL = 0.2 + maxf(0.0, sw)
+			j.ForearmR = 0.2 + maxf(0.0, -sw)
+		_:   # standing: the living breathe, the dead don't
+			if not String(built_spec.get("model", "")).ends_with("_night"):
+				j.Chest = 0.015 * sin(t * 1.7)
+	for k in j:
+		parts[k].rotation.x = j[k]
+	parts.Chest.rotation.y = twist
+	parts.Torso.rotation.z = roll
+	parts.Torso.position = _rest.Torso + Vector3(0, bob, 0)
+
+# A leg's walk cycle: the thigh swings by `hip`, the knee folds by up to `knee` while the leg
+# swings through, and is straight again for the heel strike.
+static func _gait(j: Dictionary, ph: float, hip: float, knee: float) -> void:
+	j.LegL = hip * sin(ph)
+	j.LegR = -hip * sin(ph)
+	j.ShinL = -(0.06 + knee * maxf(0.0, cos(ph - 0.4)))
+	j.ShinR = -(0.06 + knee * maxf(0.0, cos(ph + PI - 0.4)))

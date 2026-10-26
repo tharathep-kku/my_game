@@ -20,6 +20,8 @@ func _init() -> void:
 	scare_color = Color(0.02, 0.02, 0.02)
 	scare_sfx = "whisper"
 	can_stalk = false   # he only moves when nobody is looking: his own kind of stalking
+	can_freeze = false   # (that is already all he does)
+	smooth = false       # stop-motion, even as a realistic body
 
 # Jumpscare: he only stares. The lights die; when they come back he's against your face,
 # head tilted. Nobody saw him move.

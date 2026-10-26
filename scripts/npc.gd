@@ -17,6 +17,11 @@ extends CharacterBody3D
 @export var home_radius := 0.0    ## 0 = unbounded; >0 pins every destination (patrol/chase/search/...) within this many metres of home, so it never wanders out of its spawn room
 var anim_mode := "walk"
 var anim_fps := 12.0
+var smooth := true        # realistic body: animate every frame (false = stop-motion even then)
+var stares := false       # realistic body: the head keeps turning to follow you while it patrols
+var can_freeze := true    # realistic body: watched from behind, it stops dead and turns its head round
+var _freeze_t := 0.0
+var _freeze_cd := 6.0
 var scare_color := Color(0.5, 0.04, 0.04)   # backdrop tint of the death face-slam
 var scare_sfx := ""                          # voice played with the face-slam
 const SCARE_DB := -4.0   # trim on every jumpscare sound: -2 dB ≈ 80% volume
@@ -84,6 +89,8 @@ func reset() -> void:
 	body.scale = Vector3.ONE   # undo whatever the jumpscare bent
 	body.parts.Neck.rotation = Vector3.ZERO
 	body.parts.Head.rotation = Vector3.ZERO
+	_freeze_t = 0.0
+	_freeze_cd = 6.0
 
 # ---------- death jumpscare ----------
 # main.gd plays this while Game.busy freezes everyone: animate with tweens and return how long
@@ -118,14 +125,26 @@ func _physics_process(dt: float) -> void:
 	cooldown -= dt
 	if raging and not state in ["chase", "search"] and not Game.player.hidden:
 		spot()   # enraged: lost you in a hide spot, back on you the moment you come out
-	_think(dt)
+	if not _frozen(dt):
+		_think(dt)
 	mark.position.y = body.head_top() + 0.4
 	mark.text = "" if Game.difficulty > 0 else ("!" if state in ["chase", "search", "ambush"] else ("?" if alert > 0.05 or state == "investigate" else ""))   # Easy only: no UI over their heads
-	_anim_acc += dt
-	if _anim_acc >= 1.0 / anim_fps:   # jerky stepped animation
-		_anim_t += _anim_acc
-		_anim_acc = 0.0
+	if _freeze_t > 0.0:
+		pass   # held mid-step
+	elif body.real and smooth:   # the realistic body moves smoothly; its pace follows its speed
+		_anim_t += dt * clampf(velocity.length() / 2.0, 0.7, 1.8)
 		body.pose(_anim_t, anim_mode if velocity.length() > 0.1 else "idle")
+	else:
+		_anim_acc += dt
+		if _anim_acc >= 1.0 / anim_fps:   # jerky stepped animation
+			_anim_t += _anim_acc
+			_anim_acc = 0.0
+			body.pose(_anim_t, anim_mode if velocity.length() > 0.1 else "idle")
+	if body.real and _freeze_t <= 0.0:
+		var look := 0.0
+		if stares and state in ["patrol", "investigate"] and global_position.distance_to(Game.player.global_position) < 12.0:
+			look = _yaw_to_player(1.5)
+		body.parts.Head.rotation.y = lerp_angle(body.parts.Head.rotation.y, look, dt * 3.0)
 	if cooldown <= 0.0 and not Game.player.hidden and near_player(1.1):
 		Game.catch(self)
 
@@ -274,6 +293,45 @@ func enrage() -> void:
 	raging = true
 	if state != "chase":
 		spot()
+
+# ---------- watched from behind (realistic body) ----------
+# Patrolling with its back to you while you look at it: it stops dead mid-step, and its head turns
+# round to you - further than a neck goes - then it walks on as if nothing happened.
+func _frozen(dt: float) -> bool:
+	_freeze_cd -= dt
+	if _freeze_t > 0.0:
+		_freeze_t -= dt
+		velocity = Vector3.ZERO
+		var head: Node3D = body.parts.Head
+		head.rotation.y = lerp_angle(head.rotation.y, _yaw_to_player(2.6) if _freeze_t > 0.5 else 0.0, dt * (1.4 if _freeze_t > 0.5 else 6.0))
+		if _freeze_t <= 0.0:
+			_freeze_cd = 12.0
+			alert = maxf(alert, 0.3)   # it knows you are there
+		return true
+	if can_freeze and body.real and state == "patrol" and _freeze_cd <= 0.0 and _watched_from_behind():
+		_freeze_t = 2.8
+		return true
+	return false
+
+func _watched_from_behind() -> bool:
+	var p := Game.player
+	if p.hidden or sees_player():
+		return false
+	var head := global_position + Vector3.UP * (body.head_top() - 0.15)
+	var d := head.distance_to(p.cam.global_position)
+	if d < 3.0 or d > 14.0 or not p.cam.is_position_in_frustum(head):
+		return false
+	var fwd := -global_basis.z
+	var to := p.global_position - global_position
+	if Vector2(fwd.x, fwd.z).angle_to(Vector2(to.x, to.z)) < deg_to_rad(110.0) and Vector2(fwd.x, fwd.z).angle_to(Vector2(to.x, to.z)) > -deg_to_rad(110.0):
+		return false   # not its back
+	var q := PhysicsRayQueryParameters3D.create(p.cam.global_position, head, 1)
+	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+
+# Head yaw (relative to the body) that faces the player, clamped to `limit` radians.
+func _yaw_to_player(limit: float) -> float:
+	var d := global_basis.inverse() * (Game.player.global_position - global_position)
+	return clampf(atan2(-d.x, -d.z), -limit, limit)
 
 func near_player(r: float) -> bool:
 	var d := Game.player.global_position - global_position

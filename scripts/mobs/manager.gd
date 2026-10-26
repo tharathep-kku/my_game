@@ -14,6 +14,7 @@ func _init() -> void:
 	chase_speed = 3.4
 	drain = 35.0
 	anim_mode = "shuffle"
+	stares = true   # (realistic body) his head follows you round the floor
 	catch_line = "หัวหน้าธนา: งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ~? มานั่งคุยกันหน่อย... แค่ 3 ชั่วโมงเอง"
 	death_text = "โดนหัวหน้าธนาลากไปฟังเลกเชอร์ชีวิต 3 ชั่วโมงจนถ่านหมด"
 	scare_color = Color(0.45, 0.36, 0.04)
