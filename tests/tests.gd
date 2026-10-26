@@ -1185,6 +1185,15 @@ func t_jumpscare() -> void:
 		await shot("scare_%d_lunge.png" % (i + 1))
 		await get_tree().create_timer(0.15).timeout
 		check(main.scare_face.visible and main._scaring and AudioServer.is_bus_mute(AudioServer.get_bus_index("Amb")), "stage %d %s: face slam shows (ambience cut to silence)" % [i + 1, n.display_name])
+		if not Game.retro:   # HD: the face is torn, strobing, sunk in dark - never a bright portrait
+			var lum := 0.0
+			var img: Image = main.scare_face.texture.get_image()
+			for y in range(0, img.get_height(), 8):
+				for x in range(0, img.get_width(), 8):
+					var c := img.get_pixel(x, y)
+					lum += c.get_luminance() * c.a
+			lum /= float((img.get_height() / 8) * (img.get_width() / 8))
+			check(main.scare_face.material != null and main.scare_face.material.get_shader_parameter("amount") > 0.2 and lum < 0.3, "stage %d: the HD slam is dark and torn (mean light %.2f)" % [i + 1, lum])
 		await shot("scare_%d_slam.png" % (i + 1))
 		await get_tree().create_timer(2.4).timeout
 		check(not Game.busy and not pl.frozen and not main.scare_face.visible and not AudioServer.is_bus_mute(AudioServer.get_bus_index("Amb")), "stage %d: jumpscare ends -> respawn, play + ambience resume" % (i + 1))

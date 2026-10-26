@@ -17,6 +17,8 @@ var _vp: SubViewport
 var _cam: Camera3D
 var _head_y := 1.7
 var _t := randf() * 10.0
+## > 0: the key light stutters on and off (jumpscare, HD): the face is only there in flashes.
+var strobe := 0.0
 # The Compatibility renderer (web) lights in sRGB: same numbers come out far brighter. Tone it down.
 var _k := 0.45 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 1.0
 var _key: DirectionalLight3D
@@ -85,6 +87,10 @@ func _process(dt: float) -> void:
 	if not is_instance_valid(body) or not is_visible_in_tree():
 		return
 	_t += dt
+	if strobe > 0.0:
+		_key.visible = fmod(_t * 17.0, 1.0) < 0.55 or randf() > strobe
+	elif not _key.visible:
+		_key.visible = true
 	body.rotation.y = sin(_t * 0.6) * turn
 	var j := Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.012 * shake
 	body.parts.Head.rotation.z = randf_range(-1, 1) * 0.06 * shake

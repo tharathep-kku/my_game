@@ -436,6 +436,7 @@ func _jumpscare(npc: Npc) -> void:
 	scare_face.shake = 1.0
 	scare_face.show()
 	flash_rect.color = npc.scare_color
+	_slam_fx(npc.scare_color, 0.45)
 	_scare_sound("scare_slam", 2.0)   # sub-bass impact + monster scream doubled down low
 	_scare_sound("gasp", -4.0)
 	if npc.scare_sfx != "":   # their own voice, dragged down into something that isn't human
@@ -445,7 +446,7 @@ func _jumpscare(npc: Npc) -> void:
 	z.tween_property(scare_face, "scale", Vector2.ONE * 1.4, 0.05).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 	z.tween_property(scare_face, "scale", Vector2.ONE * 1.55, 0.35)
 	z.parallel().tween_property(scare_face, "zoom", 3.2, 0.4).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
-	z.parallel().tween_property(flash_rect, "color", npc.scare_color.darkened(0.7), 0.35)
+	z.parallel().tween_property(flash_rect, "color", npc.scare_color.darkened(0.7 if Game.retro else 0.9), 0.35)
 	t = 0.0
 	while t < 0.4:   # shake only; no strobing
 		scare_face.position = SCARE_POS + Vector2(randf_range(-22, 22), randf_range(-22, 22))
@@ -467,6 +468,7 @@ func _face_slam(preset: String, sfx_name := "") -> void:
 	scare_face.position = SCARE_POS
 	scare_face.show()
 	flash_rect.color = Color(0.35, 0.02, 0.02, 0.85)
+	_slam_fx(Color(0.35, 0.02, 0.02), 0.5)
 	_scare_sound("scare_slam", 0.0)
 	_scare_sound("gasp", -6.0)
 	if sfx_name != "":
@@ -485,6 +487,22 @@ func _face_slam(preset: String, sfx_name := "") -> void:
 		await get_tree().process_frame
 		t += get_process_delta_time()
 	scare_face.position = SCARE_POS
+
+# HD look: the slam opens on a white flash that drops to near-black, the face lit from below in
+# stutters, torn and grainy, settling as it goes. (Retro: the original red slam.)
+func _slam_fx(tint: Color, secs: float) -> void:
+	if Game.retro or scare_face.material == null:
+		return
+	flash_rect.color = Color(1, 1, 1, 0.9)
+	var t := create_tween()
+	t.tween_property(flash_rect, "color", Color(tint.darkened(0.88), 0.97), 0.07)
+	scare_face.strobe = 1.0
+	scare_face.material.set_shader_parameter("amount", 1.0)
+	var k := create_tween()
+	k.tween_method(func(v: float):
+		scare_face.material.set_shader_parameter("amount", v)
+		scare_face.strobe = v, 1.0, 0.25, secs)
+	k.tween_callback(func(): scare_face.strobe = 0.0)
 
 # Jumpscare audio goes straight to Master: dry (no office reverb), never muffled by a hide spot.
 func _scare_sound(sfx_name: String, db: float, pitch := 1.0) -> void:
@@ -1591,6 +1609,9 @@ func _build_hud() -> void:
 	scare_face.pivot_offset = Vector2(360, 360)
 	scare_face.turn = 0.0
 	scare_face.set_horror(true)
+	if not Game.retro:   # HD: the face tears, splits and strobes (shaders/scare.gdshader, _slam_fx)
+		scare_face.material = ShaderMaterial.new()
+		scare_face.material.shader = preload("res://shaders/scare.gdshader")
 	scare_face.hide()
 	add_child(scare_face)
 	fade = ColorRect.new()
