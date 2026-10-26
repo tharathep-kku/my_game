@@ -89,6 +89,7 @@ func _ready() -> void:
 	await t_music_states()
 	await t_anomalies()
 	await t_hallucinations()
+	await t_render_budget()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -814,6 +815,31 @@ func t_hallucinations() -> void:
 	check(heard.size() >= 3 and heard.back().distance_to(pl.global_position) < heard.front().distance_to(pl.global_position), "its steps come up behind him (%d), getting closer" % heard.size())
 	check(lvl.npcs[0].global_position.distance_to(pl.global_position) > 4.0, "...and nobody is there")
 	await done(lvl)
+
+# PC budget (HD): chapter 1 in play stays well under what a mid-range PC draws without effort, and
+# hidden screens' portraits cost nothing.
+func t_render_budget() -> void:
+	Game.retro = false
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)
+	await get_tree().create_timer(0.6).timeout
+	get_tree().paused = false
+	main.show_screen("")
+	Game.skip_cutscene.emit()
+	await get_tree().create_timer(1.5).timeout
+	var worst := Vector2.ZERO
+	for k in 4:
+		main.level.player.rotation.y = k * PI / 2.0
+		await get_tree().create_timer(0.5).timeout
+		worst.x = maxf(worst.x, Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
+		worst.y = maxf(worst.y, Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+	check(worst.x < 150000.0 and worst.y < 800.0, "chapter 1 in play: at most %d triangles, %d draw calls a frame" % [worst.x, worst.y])
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.
 func t_sound_bed() -> void:
