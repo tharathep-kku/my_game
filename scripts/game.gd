@@ -701,6 +701,8 @@ const MIX := {
 	# the coworkers
 	"hum": 0.0, "mutter": 0.0, "techspeak": 0.0, "guard_talk": 0.0, "whisper": 0.0, "squeak": 0.0, "stab": 0.0,
 	"sting": 0.0,
+	# each ghost's own sound (npc.gd cue)
+	"pen_click": 0.0, "heel_click": 0.0, "keys_jingle": 0.0, "mop_drag": 0.0, "knuckle_tap": 0.0,
 	# jumpscares
 	"scare_grab": 0.0, "scare_riser": 0.0, "scare_slam": 0.0, "scare_ring": 0.0,
 	# the phone and the UI

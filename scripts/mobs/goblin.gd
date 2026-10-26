@@ -24,6 +24,8 @@ func _init() -> void:
 	fov = 100.0
 	drain = 30.0
 	anim_mode = "crawl"
+	cue = "knuckle_tap"
+	cue_every = 0.5
 	leashed = false   # goes desk to desk, not after you
 	catch_line = "เต้: จับขาได้แล้ว~! รู้จัก Kubernetes ป่ะ? DNS มัน resolve ไม่ได้เพราะว่า... (อีก 45 นาที)"
 	death_text = "โดนเต้ลากขาเข้าใต้โต๊ะ แล้วชวนคุยเรื่องการ์ตูนกับ DNS จนถ่านหมด"

@@ -22,6 +22,8 @@ func _init() -> void:
 	scare_color = Color(0.4, 0.02, 0.08)
 	scare_sfx = "pa_chime"
 	anim_mode = "heels"
+	cue = "heel_click"
+	cue_every = 0.42
 
 func reset() -> void:
 	super()

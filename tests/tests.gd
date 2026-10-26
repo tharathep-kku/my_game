@@ -84,6 +84,7 @@ func _ready() -> void:
 	await t_hd_look()
 	await t_sound_bed()
 	await t_creep_gaits()
+	await t_ghost_cues()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -657,6 +658,33 @@ func t_creep_gaits() -> void:
 	check(absf(n.body.parts.Head.rotation.y) > 1.2, "...and its head turns round to you (%.0f degrees)" % rad_to_deg(n.body.parts.Head.rotation.y))
 	await get_tree().create_timer(2.0).timeout
 	check(n._freeze_t <= 0.0 and n._freeze_cd > 5.0, "then it goes on (and won't do it again straight away)")
+	await done(lvl)
+
+# Heard before seen: every ghost has its own sound, one per step while it moves, none while it stands.
+func t_ghost_cues() -> void:
+	for scene in ["manager", "sweeper", "goblin", "guard", "hr", "doctor"]:
+		var n: Npc = load("res://scenes/mobs/%s.tscn" % scene).instantiate()
+		var f: String = ("%s_0" % n.cue) if n.cue_vars > 0 else n.cue
+		check(n.cue != "" and Game.stream(f) != null, "%s has its own sound (%s)" % [scene, n.cue])
+		n.free()
+	var lvl := await make(["#############", "#.M.........#", "#...........#", "#...........#", "#...........#", "#..........P#", "#############"])
+	var n: Npc = lvl.npcs[0]
+	n.can_freeze = false
+	n.spot()   # coming for him across the room
+	var heard := {}
+	var t := 0.0
+	while t < 4.0:
+		for c in n.get_children():
+			if c is AudioStreamPlayer3D and c.stream and c.stream.resource_path.contains(n.cue):
+				heard[c.get_instance_id()] = c.unit_size
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+	check(heard.size() >= 2 and heard.values().all(func(u): return u >= 6.0), "a walking manager clicks his pen as he goes (%d clicks), heard a room away" % heard.size())
+	n.set_physics_process(false)
+	n.velocity = Vector3.ZERO
+	await get_tree().create_timer(1.0).timeout
+	var still := n.get_children().filter(func(c): return c is AudioStreamPlayer3D and c.playing and c.stream and c.stream.resource_path.contains(n.cue))
+	check(still.is_empty(), "standing still, he makes no sound")
 	await done(lvl)
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.

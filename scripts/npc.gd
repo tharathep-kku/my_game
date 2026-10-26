@@ -22,6 +22,13 @@ var stares := false       # realistic body: the head keeps turning to follow you
 var can_freeze := true    # realistic body: watched from behind, it stops dead and turns its head round
 var _freeze_t := 0.0
 var _freeze_cd := 6.0
+# Its own sound, heard before it is seen (tools/synth_horror.py ghost_cues): one every `cue_every`
+# seconds at walking pace while it moves; nothing while it stands still (or stands frozen).
+var cue := ""
+var cue_every := 0.7
+var cue_db := -4.0
+var cue_vars := 3        # files <cue>_0 .. _2 (0: just <cue>)
+var _cue_t := 0.0
 var scare_color := Color(0.5, 0.04, 0.04)   # backdrop tint of the death face-slam
 var scare_sfx := ""                          # voice played with the face-slam
 const SCARE_DB := -4.0   # trim on every jumpscare sound: -2 dB ≈ 80% volume
@@ -140,6 +147,13 @@ func _physics_process(dt: float) -> void:
 			_anim_t += _anim_acc
 			_anim_acc = 0.0
 			body.pose(_anim_t, anim_mode if velocity.length() > 0.1 else "idle")
+	if cue != "" and _freeze_t <= 0.0 and velocity.length() > 0.2:
+		_cue_t -= dt * clampf(velocity.length() / maxf(speed, 0.1), 0.5, 2.0)
+		if _cue_t <= 0.0:
+			_cue_t = cue_every * randf_range(0.85, 1.2)
+			var c: AudioStreamPlayer3D = Game.sfx(("%s_%d" % [cue, randi() % cue_vars]) if cue_vars > 0 else cue, self, cue_db, randf_range(0.94, 1.06))
+			c.unit_size = 6.0   # carries: you hear it a room away
+			c.max_distance = 28.0
 	if body.real and _freeze_t <= 0.0:
 		var look := 0.0
 		if stares and state in ["patrol", "investigate"] and global_position.distance_to(Game.player.global_position) < 12.0:

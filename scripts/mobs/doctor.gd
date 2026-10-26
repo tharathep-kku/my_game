@@ -21,6 +21,10 @@ func _init() -> void:
 	scare_color = Color(0.05, 0.3, 0.3)
 	scare_sfx = "flatline"
 	anim_mode = "lurch"
+	cue = "beep"   # a heart monitor that walks
+	cue_vars = 0
+	cue_every = 1.1
+	cue_db = -6.0
 
 func hear_radius() -> float:
 	return lerpf(hear_range.x, hear_range.y, Game.heart / 100.0)

@@ -14,6 +14,9 @@ func _init() -> void:
 	chase_speed = 4.1
 	drain = 30.0
 	anim_mode = "slide"
+	cue = "mop_drag"
+	cue_every = 0.9
+	cue_db = -3.0
 	leashed = false   # mops her own route; never drifts toward you
 	can_stalk = false
 	catch_line = "ป้าพร: เหยียบพื้นเปียกป้าทำไม! เดี๋ยวพรมน้ำมนต์ให้... สาธุ! สาธุ!"

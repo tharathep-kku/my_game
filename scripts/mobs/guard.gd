@@ -22,6 +22,8 @@ func _init() -> void:
 	can_stalk = false   # he only moves when nobody is looking: his own kind of stalking
 	can_freeze = false   # (that is already all he does)
 	smooth = false       # stop-motion, even as a realistic body
+	cue = "keys_jingle"  # the keys only jingle while you're not looking
+	cue_every = 0.8
 
 # Jumpscare: he only stares. The lights die; when they come back he's against your face,
 # head tilted. Nobody saw him move.

@@ -11,6 +11,7 @@
 #   lights_off.ogg / lights_on.ogg   the power dying (relay clunk, hum winding down) / tubes striking
 #   step_<carpet|tile|concrete>_<0-3>.ogg   footsteps for each floor (made from footstep00-03)
 #   pickup.ogg, ui_click.ogg   picking something up (cloth and paper), a menu click (soft mechanical tick)
+#   pen_click / heel_click / keys_jingle / mop_drag / knuckle_tap _0-2.ogg   each ghost's own sound (npc.gd cue)
 # Loops are built in the frequency domain (circular), so they loop without a seam.
 import os
 import numpy as np
@@ -349,9 +350,66 @@ def ui_click():
     save("ui_click", body + tick, peak=0.6)
 
 
+# ---------------------------------------------------------------- the ghosts' own sounds
+# Each ghost is heard before it is seen (npc.gd `cue`): a few variants of each, 3D, one per step.
+def bp(x, lo, hi):
+    return signal.lfilter(*signal.butter(2, [lo / (SR / 2), hi / (SR / 2)], "band"), x)
+
+
+def click(t, at, freq, amp=1.0, ring=0.02):
+    """A small hard click at `at` s: a broadband snap plus a short ring at `freq`."""
+    tt = np.clip(t - at, 0, None) * (t >= at)
+    snap = bp(rng.standard_normal(len(t)), 2000, 9000) * np.exp(-tt * 900) * (t >= at)
+    rin = np.sin(2 * np.pi * freq * tt) * np.exp(-tt / ring) * (t >= at)
+    return (snap + 0.6 * rin) * amp
+
+
+def ghost_cues():
+    for k in range(3):   # หัวหน้าธนา: a ballpoint pen, clicked in and out
+        t = t_(0.3)
+        x = click(t, 0.0, 3100 + rng.uniform(-200, 200)) + click(t, rng.uniform(0.07, 0.11), 3600 + rng.uniform(-200, 200), 0.7)
+        save("pen_click_%d" % k, lreverb(x, 0.6, 0.12), peak=0.7)
+    for k in range(3):   # พี่แหม่ม: heels on a hard floor
+        t = t_(0.25)
+        x = click(t, 0.0, 1150 * rng.uniform(0.9, 1.1), 1.0, 0.03) + click(t, 0.0, 2450 * rng.uniform(0.9, 1.1), 0.5, 0.015)
+        x += np.sin(2 * np.pi * 140 * t) * np.exp(-t * 60) * 0.4   # the weight landing
+        save("heel_click_%d" % k, lreverb(x, 0.9, 0.2), peak=0.75)
+    for k in range(3):   # พี่สมชาย: the keyring on his belt, swinging
+        t = t_(0.45)
+        x = np.zeros(len(t))
+        for _ in range(rng.integers(5, 9)):
+            at = rng.uniform(0.0, 0.18)
+            tt = np.clip(t - at, 0, None)
+            on = (t >= at)
+            for f in rng.uniform(2800, 6800, 3):
+                x += np.sin(2 * np.pi * f * tt) * np.exp(-tt * rng.uniform(18, 40)) * on * rng.uniform(0.1, 0.3)
+            x += bp(rng.standard_normal(len(t)), 3000, 9000) * np.exp(-tt * 700) * on * 0.3
+        save("keys_jingle_%d" % k, x, peak=0.6)
+    for k in range(3):   # ป้าพร: the wet mop dragged a step, and her bad foot scraping after it
+        t = t_(0.9)
+        swish = bp(rng.standard_normal(len(t)), 250, 1600) * np.sin(np.pi * np.clip(t / 0.6, 0, 1)) ** 2
+        slosh = np.zeros(len(t))
+        for _ in range(6):   # little wet pops
+            at = rng.uniform(0.05, 0.55)
+            tt = np.clip(t - at, 0, None)
+            slosh += np.sin(2 * np.pi * rng.uniform(300, 700) * tt) * np.exp(-tt * 60) * (t >= at) * 0.4
+        scrape = bp(rng.standard_normal(len(t)), 1800, 4500) * np.exp(-((t - 0.7) / 0.08) ** 2) * 0.5
+        save("mop_drag_%d" % k, swish * 0.8 + slosh + scrape, peak=0.6)
+    for k in range(3):   # เต้ on all fours: fingertips and knuckles drumming the floor
+        t = t_(0.45)
+        x = np.zeros(len(t))
+        at = 0.0
+        for _ in range(rng.integers(4, 8)):
+            tt = np.clip(t - at, 0, None)
+            on = (t >= at)
+            x += (np.sin(2 * np.pi * rng.uniform(180, 320) * tt) * np.exp(-tt * 90) * 0.8 + bp(rng.standard_normal(len(t)), 1500, 5000) * np.exp(-tt * 500) * 0.4) * on
+            at += rng.uniform(0.03, 0.08)
+        save("knuckle_tap_%d" % k, lreverb(x, 0.5, 0.15), peak=0.7)
+
+
 if __name__ == "__main__":
     import sys
     only = sys.argv[1:]
-    for f in (ambience, drone, chase_theme, menu_theme, light_hum, lights_off, lights_on, footsteps, pickup, ui_click):
+    for f in (ambience, drone, chase_theme, menu_theme, light_hum, lights_off, lights_on, footsteps, pickup, ui_click, ghost_cues):
         if not only or f.__name__ in only:
             f()
