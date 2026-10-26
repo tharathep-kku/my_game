@@ -804,7 +804,7 @@ func t_hallucinations() -> void:
 	Game.battery = 30.0
 	d.hallu_t = 0.0
 	var heard := []
-	var count := func(nd): if nd is AudioStreamPlayer3D and nd.stream and nd.stream.resource_path.contains(lvl.npcs[0].cue): heard.append(nd.global_position)
+	var count := func(nd): if nd is AudioStreamPlayer3D and nd.stream and nd.stream.resource_path.contains(lvl.npcs[0].cue): (func(): if is_instance_valid(nd): heard.append(nd.global_position)).call_deferred()   # (placed just after it is added)
 	get_tree().node_added.connect(count)
 	d._hallucinate(0.1)
 	check(d.hallu_t >= 40.0, "frayed: one now, the next not for 40 s or more (%.0f)" % d.hallu_t)
