@@ -1972,20 +1972,6 @@ func _build_menu() -> void:
 			code.draw_rect(Rect2(x, 0, w, 26), Kit.INK)
 			x += w + rng.randi_range(1, 3))
 	bv.add_child(code)
-	# the night shift: who's waiting
-	var crew := Kit.label("เพื่อนร่วมงานกะดึก", 14, Kit.DIM, Kit.UI, m)
-	crew.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_at(crew, Vector2(500, 486), Vector2(440, 22))
-	var faces := HBoxContainer.new()
-	faces.add_theme_constant_override("separation", 6)
-	faces.alignment = BoxContainer.ALIGNMENT_CENTER
-	_at(faces, Vector2(500, 510), Vector2(440, 92))
-	m.add_child(faces)
-	for f in ["manager", "sweeper", "hr", "goblin", "guard"]:
-		var fv := FaceView.new(f, 80)
-		fv.custom_minimum_size = Vector2(82, 88)
-		fv.set_horror(true)
-		faces.add_child(fv)
 
 func _refresh_badge() -> void:
 	var docs := Game.all_docs()
