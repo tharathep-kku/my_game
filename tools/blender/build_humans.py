@@ -2,8 +2,9 @@
 # tools/makehuman/LICENSE.ASSETS.md). Body shape from the MakeHuman macro targets (Asian, gender,
 # age, muscle, weight, height), clothes as shells of the body's own surface, hair from the hair
 # helper, eyes and teeth from the eye/teeth helpers, skin detail in vertex colours. One skinned mesh
-# on a 7-bone rig that body.gd drives exactly like the old rigid parts:
-#   Torso > LegL, LegR, ArmL, ArmR, Neck > Head   (every bone points up: identity rest rotations)
+# on a 12-bone rig that body.gd drives like the old rigid parts, plus knees, elbows and a chest:
+#   Torso > LegL > ShinL, LegR > ShinR, Chest > ArmL > ForearmL, ArmR > ForearmR, Neck > Head
+#   (every bone points up: identity rest rotations)
 # Output: assets/characters/real/<name>.glb (+ .blend). Faces -Z (Godot forward).
 #   python tools/blender/build_humans.py -- tong manager_night     (bpy pip module, or blender -b -P)
 import bpy
@@ -18,8 +19,13 @@ from mathutils import Vector
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MH = os.path.join(ROOT, "tools", "makehuman")
 OUT = os.path.join(ROOT, "assets", "characters", "real")
-BONES = ["Torso", "LegL", "LegR", "ArmL", "ArmR", "Neck", "Head"]
-PARENT = {"LegL": "Torso", "LegR": "Torso", "ArmL": "Torso", "ArmR": "Torso", "Neck": "Torso", "Head": "Neck"}
+BONES = ["Torso", "Chest", "LegL", "LegR", "ShinL", "ShinR", "ArmL", "ArmR", "ForearmL", "ForearmR", "Neck", "Head"]
+PARENT = {"Chest": "Torso", "LegL": "Torso", "LegR": "Torso", "ShinL": "LegL", "ShinR": "LegR", "ArmL": "Chest", "ArmR": "Chest",
+          "ForearmL": "ArmL", "ForearmR": "ArmR", "Neck": "Chest", "Head": "Neck"}
+# where each bone starts: a MakeHuman joint (bone head)
+JOINT = {"Torso": "spine05", "Chest": "spine03", "LegL": "upperleg01.L", "LegR": "upperleg01.R", "ShinL": "lowerleg01.L",
+         "ShinR": "lowerleg01.R", "ArmL": "upperarm01.L", "ArmR": "upperarm01.R", "ForearmL": "lowerarm01.L",
+         "ForearmR": "lowerarm01.R", "Neck": "neck01", "Head": "head"}
 
 
 def rgb(h):
@@ -80,17 +86,32 @@ def rotate(v, axis, a):   # Rodrigues
 
 
 def coarse(bone):
+    """MakeHuman bone -> ours."""
     side = bone[-1] if bone[-2:] in (".L", ".R") else ""
     base = bone.split(".")[0]
-    if base.startswith(("upperleg", "lowerleg", "foot", "toe")):
+    if base.startswith("upperleg"):
         return "Leg" + side
-    if base.startswith(("shoulder", "upperarm", "lowerarm", "wrist", "finger", "metacarpal")):
+    if base.startswith(("lowerleg", "foot", "toe")):
+        return "Shin" + side
+    if base.startswith(("shoulder", "upperarm")):
         return "Arm" + side
+    if base.startswith(("lowerarm", "wrist", "finger", "metacarpal")):
+        return "Forearm" + side
     if base.startswith("neck"):
         return "Neck"
-    if base in ("root", "pelvis", "clavicle", "breast") or base.startswith("spine"):
+    if base in ("spine03", "spine02", "spine01", "clavicle", "breast"):
+        return "Chest"
+    if base in ("root", "pelvis") or base.startswith("spine"):
         return "Torso"
     return "Head"
+
+
+def bone_of(b):
+    """Which body part a bone belongs to: Arm (upper arm + forearm), Leg, Torso (+ chest), Neck, Head."""
+    for part, names in (("Arm", ("Arm", "Forearm")), ("Leg", ("Leg", "Shin")), ("Torso", ("Torso", "Chest"))):
+        if b.startswith(names):
+            return part
+    return b
 
 
 # ---------------------------------------------------------------- the build
@@ -102,7 +123,7 @@ class Human:
         skel = json.load(open(os.path.join(MH, "default.mhskel")))
         J = {k: V[v].mean(0) for k, v in skel["joints"].items()}
         self.J = lambda b, end="head": J[skel["bones"][b][end]]
-        # weights: MakeHuman's 163 bones folded into our 7
+        # weights: MakeHuman's 163 bones folded into ours
         W = np.zeros((len(V), len(BONES)))
         Wf = {"L": np.zeros(len(V)), "R": np.zeros(len(V)), "TL": np.zeros(len(V)), "TR": np.zeros(len(V))}   # fingers, thumbs
         for bone, pairs in json.load(open(os.path.join(MH, "default_weights.mhw")))["weights"].items():
@@ -131,7 +152,7 @@ class Human:
             wr = self.J("wrist." + side)
             d = wr - sh
             ang = math.atan2(abs(d[0]), -d[1]) - math.radians(6)
-            k = W[:, BONES.index("Arm" + side)]
+            k = W[:, BONES.index("Arm" + side)] + W[:, BONES.index("Forearm" + side)]
             a = -sign * ang * k
             x, y = V[:, 0] - sh[0], V[:, 1] - sh[1]
             V[:, 0] = np.where(k > 0, sh[0] + x * np.cos(a) - y * np.sin(a), V[:, 0])
@@ -220,16 +241,17 @@ def build(name):
     def region(f):
         """What a body face is: head/neck/hand/foot/torso/arm/leg (+ clothing cut lines)."""
         c = V[f].mean(0)
-        b = BONES[np.bincount(dom[f], minlength=7).argmax()]
+        bb = BONES[np.bincount(dom[f], minlength=len(BONES)).argmax()]
+        b = bone_of(bb)
         if b in ("Head", "Neck") or (b == "Torso" and c[1] > collar(c)):
             return "neck" if c[1] < J("head")[1] - 0.05 else "head"
-        if b.startswith("Arm"):
-            s = b[-1]
+        if b == "Arm":
+            s = bb[-1]
             reach = np.linalg.norm(c - shoulder[s]) / np.linalg.norm(wrist[s] - shoulder[s])
             if reach > 0.97:
                 return "hand"
             return "arm_upper" if reach < spec.get("sleeve", 1.0) * 0.55 else ("arm" if reach < spec.get("sleeve", 1.0) * 0.97 else "forearm_bare")
-        if b.startswith("Leg"):
+        if b == "Leg":
             return "foot" if c[1] < ankle_y else "leg"
         return "torso_low" if c[1] < waist_y else "torso"
 
@@ -376,10 +398,7 @@ def build(name):
     coll.objects.link(rig)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode="EDIT")
-    heads = {
-        "Torso": J("spine05"), "LegL": J("upperleg01.L"), "LegR": J("upperleg01.R"),
-        "ArmL": J("upperarm01.L"), "ArmR": J("upperarm01.R"), "Neck": J("neck01"), "Head": J("head"),
-    }
+    heads = {b: J(j) for b, j in JOINT.items()}
     eb = {}
     for b in BONES:
         e = arm_data.edit_bones.new(b)
@@ -510,7 +529,8 @@ def anchor(h, name):
         return h.g(V[i])
     if name == "sternum":   # the front of the chest, a hand below the collar
         y0 = h.J("neck01")[1]
-        sel = np.where((np.abs(V[:, 0]) < 0.15) & (V[:, 1] < y0 - 0.5) & (V[:, 1] > y0 - 1.3) & (W[:, 0] > 0.5))[0]
+        trunk = W[:, BONES.index("Torso")] + W[:, BONES.index("Chest")]
+        sel = np.where((np.abs(V[:, 0]) < 0.15) & (V[:, 1] < y0 - 0.5) & (V[:, 1] > y0 - 1.3) & (trunk > 0.5))[0]
         return h.g(V[sel[np.argmax(V[sel, 2])]])
     if name == "face":   # the front of the face at the mouth
         sel = np.where(hd & (np.abs(V[:, 0]) < 0.1) & (np.abs(V[:, 1] - 6.7) < 0.2))[0]
@@ -561,8 +581,8 @@ PAL = {
     "blood": "5e0709", "socket": "060507", "glow": "fff2c8", "glow_red": "ff2a18", "glow_cyan": "3ae6ff",
     "milk": "d0e6de", "staff_shirt": "bfc3cb", "staff_pants": "30333a", "rot": "4a3f2c",
 }
-TIE = {"bone": "Torso", "anchor": "sternum", "at": [0, -0.03, -0.024], "size": [0.065, 0.36, 0.012], "color": "tie"}
-BADGE = {"bone": "Torso", "anchor": "sternum", "at": [-0.09, -0.12, -0.024], "size": [0.055, 0.08, 0.006], "color": "badge"}
+TIE = {"bone": "Chest", "anchor": "sternum", "at": [0, -0.03, -0.024], "size": [0.065, 0.36, 0.012], "color": "tie"}
+BADGE = {"bone": "Chest", "anchor": "sternum", "at": [-0.09, -0.12, -0.024], "size": [0.055, 0.08, 0.006], "color": "badge"}
 VISOR = {"bone": "Head", "anchor": "head_top", "at": [0, -0.075, -0.125], "size": [0.18, 0.012, 0.08], "color": "navy", "rot": -0.25}
 
 CHARS = {

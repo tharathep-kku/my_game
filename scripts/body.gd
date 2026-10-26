@@ -28,7 +28,11 @@ var real := false
 var _skel: Skeleton3D
 var _bones := {}      # part -> bone index
 var _rest := {}       # part -> its stand-in's first position
-const REAL_PARTS := ["Torso", "LegL", "LegR", "ArmL", "ArmR", "Neck", "Head"]
+const REAL_PARTS := ["Torso", "Chest", "LegL", "LegR", "ShinL", "ShinR", "ArmL", "ArmR", "ForearmL", "ForearmR", "Neck", "Head"]
+# The joints the rigid models never had (knees, elbows, upper back): their stand-ins sit inside
+# the old parts, so code that swings a whole leg or arm still works, and new poses can bend them.
+const REAL_SUB := {"Chest": "Torso", "ShinL": "LegL", "ShinR": "LegR", "ForearmL": "ArmL", "ForearmR": "ArmR"}
+var _driven: Array[String] = []   # stand-ins whose bone follows them (_process)
 const REAL_SCALE := 1.08   # the MakeHuman people are life-size; a touch taller looms over Tong
 
 static func mat(color: Color, tex: Texture2D = null, emit := Color.BLACK) -> ShaderMaterial:
@@ -105,7 +109,17 @@ func _build_real(spec: Dictionary, path: String) -> Body:
 	parts.Neck.add_child(head)
 	parts.Head = head
 	_rest.Neck_head = at.call("Head") - at.call("Neck")
-	for p in ["Torso", "LegL", "LegR", "ArmL", "ArmR", "Neck"]:
+	_driven.assign(["Torso", "LegL", "LegR", "ArmL", "ArmR", "Neck"])
+	for p in REAL_SUB:
+		if _bones[p] < 0:   # (a model built before the rig had them)
+			continue
+		var n := Node3D.new()
+		n.name = p
+		n.position = at.call(p) - at.call(REAL_SUB[p])
+		parts[REAL_SUB[p]].add_child(n)
+		parts[p] = n
+		_driven.append(p)
+	for p in _driven:
 		_rest[p] = parts[p].position
 	head_size = 0.24 * REAL_SCALE
 	for m: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
@@ -158,7 +172,7 @@ static func real_mat(src: Material) -> Material:
 func _process(_dt: float) -> void:
 	if not real or not is_instance_valid(_skel):
 		return
-	for p in ["Torso", "LegL", "LegR", "ArmL", "ArmR", "Neck"]:
+	for p in _driven:
 		var i: int = _bones[p]
 		_skel.set_bone_pose_rotation(i, parts[p].quaternion)
 		_skel.set_bone_pose_position(i, _skel.get_bone_rest(i).origin + (parts[p].position - _rest[p]) / REAL_SCALE)

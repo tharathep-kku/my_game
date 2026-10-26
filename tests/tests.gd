@@ -1252,7 +1252,27 @@ func t_models() -> void:
 		b.build(Story.BODIES[p])
 		var ok := ["LegL", "LegR", "ArmL", "ArmR", "Torso", "Neck", "NeckMesh", "Head"].all(func(k): return b.parts.has(k) and b.parts[k] is Node3D)
 		check(ok and b.head_top() > (1.45 if b.real else 1.7) and b.head_top() < 3.2, "model %s builds with all parts (head top %.2f m)" % [p, b.head_top()])
+		if b.real:
+			check(["Chest", "ShinL", "ShinR", "ForearmL", "ForearmR"].all(func(k): return b.parts.has(k)), "model %s has knees, elbows and a chest" % p)
 		b.queue_free()
+	await frames(1)
+	# the realistic body bends at the knee and the elbow: the bones follow the stand-ins
+	Game.retro = false
+	var r := Body.new()
+	add_child(r)
+	r.build(Story.BODIES.tong)
+	r.parts.ShinL.rotation.x = -1.0
+	r.parts.ForearmR.rotation.x = 1.4
+	r.parts.LegL.rotation.x = 0.5
+	await pframes(2)
+	var sk: Skeleton3D = r._skel
+	var knee := sk.get_bone_pose_rotation(sk.find_bone("ShinL"))
+	var elbow := sk.get_bone_pose_rotation(sk.find_bone("ForearmR"))
+	check(knee.is_equal_approx(r.parts.ShinL.quaternion) and elbow.is_equal_approx(r.parts.ForearmR.quaternion), "realistic body: the knee and elbow bones follow their stand-ins")
+	var shin_dir := sk.get_bone_global_pose(sk.find_bone("ShinL")).basis.y
+	var thigh_dir := sk.get_bone_global_pose(sk.find_bone("LegL")).basis.y
+	check(rad_to_deg(shin_dir.angle_to(thigh_dir)) > 50.0, "realistic body: the knee really bends (%.0f degrees)" % rad_to_deg(shin_dir.angle_to(thigh_dir)))
+	r.queue_free()
 	await frames(1)
 
 # Notes: reader gets the text + a tip, the reveal marks goals, evidence counts once.
