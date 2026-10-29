@@ -15,8 +15,8 @@ func _init() -> void:
 	speed = 2.7
 	drain = 40.0
 	anim_fps = 8.0
-	catch_line = "พี่สมชาย: ไปไหนครับ... ไม่ต้องรีบ เดี๋ยวผมไปส่งถึงบ้านนะ"
-	death_text = "พี่สมชายยืนจ้องหน้าเงียบ ๆ อยู่ตรงนั้นจนถ่านหมด"
+	catch_line = "พี่สมชาย: กลับบ้านไม่ได้หรอกครับคุณต๋อง ประตูล็อกตั้งแต่ตีสอง... ผมเห็นคุณในกล้องทุกตัวเลย"
+	death_text = "พี่สมชายยืนจ้องอยู่ตรงนั้น ทุกครั้งที่ต๋องกะพริบตา เขาก็ใกล้เข้ามาอีกนิด"
 	scare_color = Color(0.02, 0.02, 0.02)
 	scare_sfx = "whisper"
 	can_stalk = false   # he only moves when nobody is looking: his own kind of stalking

@@ -27,8 +27,8 @@ func _init() -> void:
 	cue = "knuckle_tap"
 	cue_every = 0.5
 	leashed = false   # goes desk to desk, not after you
-	catch_line = "เต้: จับขาได้แล้ว~! รู้จัก Kubernetes ป่ะ? DNS มัน resolve ไม่ได้เพราะว่า... (อีก 45 นาที)"
-	death_text = "โดนเต้ลากขาเข้าใต้โต๊ะ แล้วชวนคุยเรื่องการ์ตูนกับ DNS จนถ่านหมด"
+	catch_line = "เต้: เจอแล้ว... พี่ต๋องเอาสายผมไปเสียบอะไรครับ ข้างล่างนี่มืดมากเลย อยู่เป็นเพื่อนผมหน่อยนะ"
+	death_text = "เต้ลากขาต๋องลงไปใต้โต๊ะ ที่ที่มืดจนมองไม่เห็นมือตัวเอง"
 	scare_color = Color(0.04, 0.3, 0.1)
 	scare_sfx = "techspeak"
 

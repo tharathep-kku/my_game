@@ -19,8 +19,8 @@ func _init() -> void:
 	cue_db = -3.0
 	leashed = false   # mops her own route; never drifts toward you
 	can_stalk = false
-	catch_line = "ป้าพร: เหยียบพื้นเปียกป้าทำไม! เดี๋ยวพรมน้ำมนต์ให้... สาธุ! สาธุ!"
-	death_text = "โดนป้าพรบ่นใส่หูพร้อมพรมน้ำมนต์จนถ่านหมด"
+	catch_line = "ป้าพร: ...ป้าล้มตรงนี้ นอนรออยู่ตั้งนาน ไม่มีใครมาช่วยป้าเลยนะลูก"
+	death_text = "พื้นใต้เท้าเปียกขึ้นเรื่อยๆ จนต๋องไม่แน่ใจว่าที่เปียกนั่นคือน้ำ... หรืออะไร"
 	scare_color = Color(0.08, 0.22, 0.45)
 	scare_sfx = "splash"
 

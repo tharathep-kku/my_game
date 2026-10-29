@@ -90,6 +90,7 @@ func _ready() -> void:
 	await t_anomalies()
 	await t_hallucinations()
 	await t_render_budget()
+	await t_catch_costs()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -840,6 +841,43 @@ func t_render_budget() -> void:
 		worst.x = maxf(worst.x, Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
 		worst.y = maxf(worst.y, Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
 	check(worst.x < 150000.0 and worst.y < 800.0, "chapter 1 in play: at most %d triangles, %d draw calls a frame" % [worst.x, worst.y])
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
+
+# The full jumpscare once a chapter; after that a quick dark one, and each catch costs something
+# for the rest of the chapter (not on Easy).
+func t_catch_costs() -> void:
+	Game.difficulty = 1
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)
+	await get_tree().create_timer(0.6).timeout
+	get_tree().paused = false
+	main.show_screen("")
+	Game.skip_cutscene.emit()
+	await get_tree().create_timer(0.6).timeout
+	var n: Npc = main.level.npcs[0]
+	var slams := [0]
+	var watch := func(): if main.scare_face.visible: slams[0] += 1
+	get_tree().process_frame.connect(watch)
+	Game.catch(n)
+	await get_tree().create_timer(3.5).timeout
+	check(slams[0] > 0, "first catch of the chapter: the full jumpscare")
+	slams[0] = 0
+	var torch: float = Game.phone_battery
+	Game.catch(n)
+	await get_tree().create_timer(2.5).timeout
+	check(slams[0] == 0 and not Game.busy, "second catch: a quick dark one, no face")
+	check(Game.phone_battery <= torch - 29.0, "...and the torch took a knock (%.0f -> %.0f)" % [torch, Game.phone_battery])
+	var sp: float = n.speed
+	Game.battery = 100.0   # (not the catch that ends it)
+	Game.catch(n)
+	await get_tree().create_timer(2.5).timeout
+	check(n.speed > sp * 1.05 and n.speed <= n.get_meta("base_speed").x * 1.2 + 0.001, "third: it is faster now (%.2f -> %.2f)" % [sp, n.speed])
+	get_tree().process_frame.disconnect(watch)
 	main.stop_play()
 	main.queue_free()
 	await frames(2)

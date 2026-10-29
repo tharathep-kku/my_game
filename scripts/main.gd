@@ -405,10 +405,18 @@ func _on_caught(npc: Node) -> void:
 	level.player.frozen = true
 	close_phone()
 	_scaring = true
-	await _jumpscare(npc as Npc)   # ends on a black screen
+	var spot: Node = level.player.spot if level.player.hidden else null
+	# the full jumpscare once a chapter (and for the catch that ends it); after that it is quick and
+	# dark - the face would stop working if it came every time
+	var lethal: bool = Game.battery - npc.drain * Game.drain_mult() <= 0.0
+	if Game.stage_caught <= 1 or lethal:
+		await _jumpscare(npc as Npc)   # ends on a black screen
+	else:
+		await _jumpscare_short(npc as Npc)
 	_scaring = false
 	if my_load != _load_id or Game.battery <= 0.0:   # retried/quit, or game over takes it from here
 		return
+	_cost_of_catch(npc as Npc, spot)
 	await get_tree().create_timer(0.8).timeout   # black, ears ringing (scare_ring)
 	if my_load != _load_id:
 		return
@@ -418,6 +426,55 @@ func _on_caught(npc: Node) -> void:
 	Game.busy = false
 	_fade_to(0.0, 0.6)
 	_tip("caught", "โดนจับ = Social Battery ลด แล้วกลับไปจุดเช็คพอยต์ · หมดเมื่อไหร่ = Game Over · กาแฟช่วยเติมพลัง")
+
+# Every catch after the first in a chapter: the lights die, its voice right against your ear, a whip
+# round to nothing, black.
+func _jumpscare_short(npc: Npc) -> void:
+	var p = level.player
+	p.unhide()
+	npc.mark.text = ""
+	status.hide()
+	_scare_quiet(true)
+	for l in level.lights:
+		l.visible = false
+	_scare_sound("scare_grab", -2.0)
+	if npc.scare_sfx != "":
+		_scare_sound(npc.scare_sfx, 0.0, 0.62)
+	var cam: Camera3D = p.cam
+	var t := 0.0
+	while t < 0.45:
+		if not is_instance_valid(npc) or not is_instance_valid(p):
+			return
+		var d: Vector3 = npc.scare_target() - cam.global_position
+		p.rotation.y = lerp_angle(p.rotation.y, atan2(-d.x, -d.z), minf(get_process_delta_time() * 30.0, 1.0))
+		cam.h_offset = randf_range(-0.03, 0.03)
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	cam.h_offset = 0.0
+	fade.color.a = 1.0
+	for l in level.lights:
+		l.visible = not level.dark
+	_scare_sound("scare_ring", -10.0)
+	_clear_scare(true)
+
+# What a catch costs for the rest of the chapter (not on Easy, not the first one): the hide spot it
+# found you in is wrecked, or the torch was smashed down, or it is faster now.
+func _cost_of_catch(npc: Npc, spot: Node) -> void:
+	if Game.difficulty == 0 or Game.stage_caught < 2 or not is_instance_valid(npc):
+		return
+	if is_instance_valid(spot) and spot.get("kind") == "hide":
+		spot.used = true
+		Game.say("(ประตูที่ซ่อนพังคามือ... ซ่อนตรงนี้ไม่ได้อีกแล้ว)", 4.0)
+	elif Game.stage_caught % 2 == 0:
+		Game.phone_battery = maxf(Game.phone_battery - 30.0, 5.0)
+		Game.say("(มือถือกระแทกพื้นตอนโดนจับ... แบตไฟฉายลดฮวบ)", 4.0)
+	else:   # at most +20% over the whole chapter
+		if not npc.has_meta("base_speed"):
+			npc.set_meta("base_speed", Vector2(npc.speed, npc.chase_speed))
+		var base: Vector2 = npc.get_meta("base_speed")
+		npc.speed = minf(npc.speed * 1.1, base.x * 1.2)
+		npc.chase_speed = minf(npc.chase_speed * 1.1, base.y * 1.2)
+		Game.say("(%s... เดินเร็วขึ้นกว่าเดิม)" % npc.display_name, 4.0)
 
 # Death jumpscare: the camera whips onto the coworker, they do their own lunge (Npc.jumpscare),
 # then their face slams full screen and it hard-cuts to black.
