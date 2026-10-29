@@ -93,6 +93,7 @@ func _ready() -> void:
 	await t_catch_costs()
 	await t_veil()
 	await t_midpoint()
+	await t_hide_learned()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -934,6 +935,23 @@ func t_midpoint() -> void:
 	Game.goal_count = 3
 	await pframes(3)
 	check(not lvl.dark, "...once only")
+	await done(lvl)
+
+# Hiding in the same spot again and again: from the third time, it comes to check it.
+func t_hide_learned() -> void:
+	var lvl := await hide_map()
+	var pl = lvl.player
+	var spot = kinds(lvl, "hide")[0]
+	var n: Npc = lvl.npcs[0]
+	for k in 2:
+		spot.interact()
+		await frames(2)
+		pl.unhide()
+		await frames(2)
+	n.state = "patrol"
+	spot.interact()
+	await get_tree().create_timer(7.5).timeout
+	check(pl.hidden and n.state == "search" and n.search_spot == spot, "third time in the same spot: it comes to check (%s)" % n.state)
 	await done(lvl)
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.

@@ -142,6 +142,22 @@ func hide_in(s: Area3D) -> void:
 	Game.event.emit("hide")
 	for n in witnesses:
 		n.search(s)
+	# the same spot again and again: they learn it. From the third time it comes to check, seen or not
+	var uses: int = s.get_meta("uses", 0) + 1
+	s.set_meta("uses", uses)
+	if uses >= 3 and witnesses.is_empty():
+		get_tree().create_timer(randf_range(4.0, 7.0), false).timeout.connect(_checked.bind(s))
+
+func _checked(s: Area3D) -> void:
+	if not hidden or spot != s or not is_instance_valid(Game.level):
+		return
+	var best: Node = null
+	for n in Game.level.npcs:
+		var d: float = n.global_position.distance_to(global_position)
+		if not n.raging and n.state in ["patrol", "investigate", "away"] and d < 22.0 and (best == null or d < best.global_position.distance_to(global_position)):
+			best = n
+	if best:
+		best.search(s)   # standing at the spot: hold your breath (_hidden_tick) or it hears you
 
 func unhide() -> void:
 	if not hidden:
