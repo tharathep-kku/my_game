@@ -153,6 +153,17 @@ func t_rules() -> void:
 	check(Game.resolve_ending(Game.CLUE_TOTAL - 1, Game.EVIDENCE_NEEDED, true) == "A", "phone + evidence without every clue -> A")
 	check(Game.resolve_ending(Game.CLUE_TOTAL, Game.EVIDENCE_NEEDED - 1, true) == "C", "every clue but took the phone without enough evidence -> C")
 	check(Game.resolve_ending(0, Game.EVIDENCE_NEEDED - 1, true) == "C", "phone but not enough evidence -> C")
+	# The case file says what the true ending still needs, and where a dream clue was missed.
+	Game.new_game()
+	Game.stage = 2
+	Game.clues = {1: true}
+	var need := Game.true_end_missing()
+	check(need.size() == 3 and need[0].contains("ตกหล่นในบทที่ 1, 3"), "case file: clues, evidence, phone missing; clue missed in ch 1 and 3 (%s)" % [need])
+	for i in Game.STAGES.size():
+		Game.clues[i] = true
+	Game.hints = Game.EVIDENCE_NEEDED
+	Game.phone_taken = true
+	check(Game.true_end_missing().is_empty(), "case file: nothing missing once D is set")
 	Game.new_game()
 	Game.heal(50)
 	check(Game.battery == 100.0, "battery clamps at max")
@@ -403,6 +414,7 @@ func t_flow() -> void:
 	Game.damage(500, "test cause")
 	await get_tree().create_timer(2.0).timeout
 	check(main.screens.over.visible and main.over_cause.text == "test cause", "battery 0 shows game over")
+	check(main.over_tip.text.begins_with("ลายมือ") and not main.over_tip.text.contains("HR"), "game over is Tong's time card, not an HR joke")
 	await shot("gameover.png")
 	main.queue_free()
 	await frames(2)

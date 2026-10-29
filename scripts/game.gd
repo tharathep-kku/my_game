@@ -679,6 +679,24 @@ static func resolve_ending(clue_count: int, hint_count: int, took_phone: bool) -
 func ending() -> String:
 	return resolve_ending(clues.size(), hints, phone_taken)
 
+# What the true ending (D) still needs, one line each, for the phone's case file. Empty = all set.
+func true_end_missing() -> Array[String]:
+	var out: Array[String] = []
+	if clues.size() < CLUE_TOTAL:
+		var missed := []
+		for i in mini(stage, STAGES.size() - 1) + 1:
+			if STAGES[i].has("clue_line") and not clues.has(i):
+				missed.append(str(i + 1))
+		var where := ""
+		if not missed.is_empty():
+			where = " · ตกหล่นในบทที่ %s" % ", ".join(missed)
+		out.append("ของแปลกที่ไม่ควรอยู่ในออฟฟิศ %d / %d%s" % [clues.size(), CLUE_TOTAL, where])
+	if hints < EVIDENCE_NEEDED:
+		out.append("หลักฐานเรื่องพี่สมชาย %d / %d (รับสายแปลก อ่านโน้ตที่พูดถึงเขา)" % [hints, EVIDENCE_NEEDED])
+	if not phone_taken:
+		out.append("มือถือพี่สมชาย: ยังไม่ได้ เขาพกติดตัวไว้... จนถึงคืนสุดท้าย")
+	return out
+
 # --- audio helpers ---
 func stream(sfx_name: String) -> AudioStream:
 	if sfx_name.begins_with("footstep0"):   # footsteps sound like the floor (tools/synth_horror.py)

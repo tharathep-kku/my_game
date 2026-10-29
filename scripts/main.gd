@@ -32,13 +32,13 @@ const ENDING_HINTS := {
 	"C": "แค่หนีออกมาให้ได้... ก็พอ",
 	"D": "ทำทั้ง A และ B ในการเล่นรอบเดียว",
 }
-# Your boss's verdict on the performance review, by grade.
+# Your boss's verdict on the performance review, by grade. He smiles; it isn't praise.
 const BOSS_SAYS := {
-	"S": "งานคืบหน้า 100% แล้วจ๊ะ! ...งั้นพรุ่งนี้มาเช้ากว่าเดิมนะ",
-	"A": "ดีมากจ๊ะ ต๋อง ผมไว้ใจต๋องที่สุดเลย ^_^",
-	"B": "ก็พอไหวนะจ๊ะ แต่เดี๋ยวเรามาคุยกันหน่อย... แค่ 3 ชั่วโมงเอง",
-	"C": "งานคืบหน้ากี่เปอร์เซ็นต์แล้วจ๊ะ? ...ไม่ต้องตอบ ผมรู้แล้ว",
-	"D": "ต๋องจ๊ะ... เราต้องคุยกันยาวๆ แล้วล่ะ",
+	"S": "ไม่มีที่ติเลยจ๊ะ... ผมจะเก็บงานชิ้นนี้ไว้คู่กับงานของฝน",
+	"A": "เก่งมากจ๊ะต๋อง เก่งจนผมไม่อยากให้กลับบ้านเลย",
+	"B": "ผมเห็นนะ ว่าต๋องหันกลับไปมองข้างหลังบ่อยแค่ไหน... ไม่ต้องหันหรอกจ๊ะ ผมอยู่ข้างหน้านี่",
+	"C": "ไม่เป็นไรจ๊ะ คืนนี้ยังอีกยาว... ยาวมาก",
+	"D": "โต๊ะข้างผมยังว่างอยู่นะต๋อง ว่างไว้ให้ต๋องคนเดียว",
 }
 const MENU_SCREENS := ["menu", "chapters", "archive", "gallery", "credits", "settings", "debug"]
 
@@ -611,8 +611,8 @@ func _on_game_over(cause: String) -> void:
 		return
 	stop_play()
 	over_cause.text = cause
-	over_tip.text = "คำแนะนำจาก HR: " + TIPS.pick_random()
-	over_count.text = "%s\nโดนจับรวม %d ครั้ง · เวลาในบทนี้ %s" % [Game.stage_data().title, Game.times_caught, _mmss(stage_time)]
+	over_tip.text = "ลายมือใครบางคนเขียนไว้หลังบัตร: " + TIPS.pick_random()
+	over_count.text = "%s\nถูกจับได้รวม %d ครั้ง · อยู่ในบทนี้มา %s" % [Game.stage_data().title, Game.times_caught, _mmss(stage_time)]
 	show_screen("over")
 	fade.color.a = 0.0
 	_stamp(screens.over.get_meta("stamp"))
@@ -944,6 +944,13 @@ func _show_docs() -> void:
 func _show_jobs() -> void:
 	for c in phone_jobs.get_children():
 		c.queue_free()
+	var missing := Game.true_end_missing()
+	var b0 := Kit.panel(Kit.box(Color(0.1, 0.02, 0.03, 0.9), Color(0.8, 0.1, 0.14, 0.7), 1, 10, 9), phone_jobs)
+	var v0 := VBoxContainer.new()
+	b0.add_child(v0)
+	Kit.label("ทางกลับบ้านจริงๆ: ยังขาด" if not missing.is_empty() else "ทางกลับบ้านจริงๆ: ครบแล้ว... ไปให้ถึงทางออก", 14, Color(1, 0.6, 0.6), Kit.TITLE, v0)
+	for line in missing:
+		Kit.label("• " + line, 13, Color(0.92, 0.86, 0.86), Kit.BODY, v0)
 	if Game.quests.is_empty():
 		Kit.label("ยังไม่มีใครส่งงานมา\n(งานจะมาทางแชท ระหว่างเล่น)", 14, Kit.DIM, Kit.UI, phone_jobs)
 		return
@@ -1880,7 +1887,7 @@ func _build_phone() -> void:
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	phone_home.add_child(grid)
 	for app in [["chat", "1 · แชท", Color("#2fae5f")], ["gps", "2 · GPS", Color("#2f6fd6")], ["docs", "3 · เอกสาร", Color("#d6902f")],
-			["map", "4 · แผนที่", Color("#8a3fd1")], ["jobs", "5 · งาน", Color("#c23b4e")]]:
+			["map", "4 · แผนที่", Color("#8a3fd1")], ["jobs", "5 · แฟ้มคดี", Color("#c23b4e")]]:
 		var b := Button.new()
 		b.flat = true
 		b.custom_minimum_size = Vector2(100, 84)
@@ -2483,39 +2490,40 @@ func _refresh_pause() -> void:
 		d.title, clock_text(), ["ง่าย", "ปกติ", "ยาก"][Game.difficulty], Game.objective_text(), ("\n\n[b]งาน[/b]" + jobs) if jobs != "" else "",
 		Game.clues.size(), Game.CLUE_TOTAL, Game.hints, Game.EVIDENCE_NEEDED, "อยู่ในมือ" if Game.phone_taken else "ยังไม่ได้", Game.times_caught]
 
-# Game over = a warning letter from HR.
+# Game over = Tong's time card: a week of late nights, and Friday has no clock-out.
 func _build_over() -> void:
-	var o := _screen("over", Color(0.07, 0.0, 0.01))
-	var paper := Kit.panel(Kit.paper_box(), o)
-	_at(paper, Vector2(200, 40), Vector2(560, 560))
+	var o := _screen("over", Color(0.05, 0.0, 0.01))
+	var paper := Kit.panel(Kit.paper_box(Color("#d8d1bd")), o)
+	_at(paper, Vector2(200, 30), Vector2(560, 580))
 	paper.rotation = -0.012
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
+	v.add_theme_constant_override("separation", 6)
 	paper.add_child(v)
-	Kit.label("บริษัท ไนท์ชิฟต์ จำกัด · ฝ่ายบุคคล", 14, Color(0.4, 0.36, 0.33), Kit.UI, v)
-	Kit.label("หนังสือเตือน", 40, Color(0.55, 0.05, 0.08), Kit.TITLE, v)
-	Kit.label("ถึง: คุณต๋อง ฝ่ายบัญชี\nเรื่อง: Social Battery หมด ล้มนอนตาลอยกลางออฟฟิศ", 17, Kit.INK, Kit.BODY, v)
+	Kit.label("บริษัท ไนท์ชิฟต์ จำกัด · บัตรลงเวลา", 14, Color(0.4, 0.36, 0.33), Kit.UI, v)
+	Kit.label("ต๋อง · ฝ่ายบัญชี (กะดึก)", 30, Kit.INK, Kit.TITLE, v)
+	var rows := Kit.label("วัน\tเข้า\tออก\nจันทร์\t08:57\t19:40\nอังคาร\t08:59\t21:15\nพุธ\t08:55\t23:02\nพฤหัส\t08:58\t01:30\nศุกร์\t21:47\t— — —", 17, Kit.INK, Kit.BODY, v)
+	rows.tab_stops = PackedFloat32Array([110.0, 110.0])
+	Kit.label("ช่องลงเวลาออกวันศุกร์มีรอยนิ้วลากเป็นทางยาว  02:14", 15, Color(0.55, 0.05, 0.08), Kit.HAND, v)
 	var hr := ColorRect.new()
 	hr.color = Color(0.4, 0.36, 0.33, 0.5)
 	hr.custom_minimum_size.y = 2
 	v.add_child(hr)
 	over_cause = Kit.label("", 19, Kit.INK, Kit.HAND, v)
 	over_count = Kit.label("", 15, Color(0.35, 0.32, 0.3), Kit.BODY, v)
-	Kit.label("\nจึงเรียนมาเพื่อทราบ และกลับไปทำงานต่อโดยด่วน\n— พี่แหม่ม HR", 16, Kit.INK, Kit.BODY, v)
-	over_tip = Kit.label("", 15, Color(0.15, 0.3, 0.5), Kit.HAND, v)
-	var stamp := _stamp_label("พักงาน", o, Vector2(540, 450))
+	over_tip = Kit.label("", 15, Color(0.15, 0.25, 0.4), Kit.HAND, v)
+	var stamp := _stamp_label("ไม่ได้กลับบ้าน", o, Vector2(500, 160), 30)
 	o.set_meta("stamp", stamp)
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 16)
 	_at(h, Vector2(200, 628), Vector2(560, 56))
 	o.add_child(h)
-	var retry := Kit.button("ลองใหม่ (บทนี้)", func(): Game.restart_stage(); start_stage(), h, 20, 272, true)
+	var retry := Kit.button("กลับเข้าไปอีกครั้ง", func(): Game.restart_stage(); start_stage(), h, 20, 272, true)
 	o.set_meta("first", retry)
 	Kit.button("เมนูหลัก", func(): show_screen("menu"), h, 20, 272, true)
 
-func _stamp_label(text: String, parent: Control, pos: Vector2) -> Control:
+func _stamp_label(text: String, parent: Control, pos: Vector2, size := 42) -> Control:
 	var s := Kit.panel(Kit.box(Color(0, 0, 0, 0), Color(0.8, 0.08, 0.12, 0.85), 5, 6, 10), parent)
-	var l := Kit.label(text, 42, Color(0.8, 0.08, 0.12, 0.85), Kit.TITLE, s, 0, false)
+	var l := Kit.label(text, size, Color(0.8, 0.08, 0.12, 0.85), Kit.TITLE, s, 0, false)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_at(s, pos, Vector2(220, 80))
 	s.pivot_offset = Vector2(110, 40)
@@ -2533,7 +2541,7 @@ func _build_review() -> void:
 	v.add_theme_constant_override("separation", 8)
 	paper.add_child(v)
 	Kit.label("บริษัท ไนท์ชิฟต์ จำกัด · แบบฟอร์ม HR-07", 14, Color(0.4, 0.36, 0.33), Kit.UI, v)
-	Kit.label("ใบประเมินผลการปฏิบัติงาน", 34, Kit.INK, Kit.TITLE, v)
+	Kit.label("ใบประเมินผลการปฏิบัติงาน (กะดึก)", 34, Kit.INK, Kit.TITLE, v)
 	review_labels.chapter = Kit.label("", 20, Color(0.55, 0.05, 0.08), Kit.UI, v)
 	var hr := ColorRect.new()
 	hr.color = Color(0.4, 0.36, 0.33, 0.5)
@@ -2544,8 +2552,9 @@ func _build_review() -> void:
 	review_labels.boss = Kit.label("", 18, Color(0.25, 0.22, 0.4), Kit.HAND, v)
 	review_labels.best = Kit.label("", 14, Color(0.4, 0.36, 0.33), Kit.UI, v)
 	Kit.label("\nผู้ประเมิน: หัวหน้าธนา                    ผู้อนุมัติ: พี่แหม่ม HR", 15, Kit.INK, Kit.HAND, v)
+	Kit.label("คำขอกลับบ้าน: ไม่อนุมัติ", 15, Color(0.55, 0.05, 0.08), Kit.HAND, v)
 	var stamp := Kit.panel(Kit.box(Color(0, 0, 0, 0), Color(0.8, 0.08, 0.12, 0.85), 5, 70, 4), r)
-	_at(stamp, Vector2(600, 300), Vector2(150, 150))
+	_at(stamp, Vector2(610, 440), Vector2(150, 150))
 	stamp.pivot_offset = Vector2(75, 75)
 	stamp.rotation = -0.25
 	var sv := VBoxContainer.new()
