@@ -13,6 +13,7 @@
 #   pickup.ogg, ui_click.ogg   picking something up (cloth and paper), a menu click (soft mechanical tick)
 #   pen_click / heel_click / keys_jingle / mop_drag / knuckle_tap _0-2.ogg   each ghost's own sound (npc.gd cue)
 #   unease.ogg (something near, unseen: 32 s loop), sighting.ogg (first sight of it in a chapter)
+#   call_<ghost>.ogg   each ghost whispering his name (needs espeak-ng for the Thai speech)
 # Loops are built in the frequency domain (circular), so they loop without a seam.
 import os
 import numpy as np
@@ -445,9 +446,43 @@ def sighting():
     save("sighting", x, peak=0.85)
 
 
+# ---------------------------------------------------------------- the ghosts call his name
+# Thai speech from espeak-ng (apt install espeak-ng), whispered, slowed and dragged down, doubled
+# with a second voice a beat behind, in a big room: call_<ghost>.ogg (director.gd whispers them).
+CALLS = {
+    "manager": ("th+whisper", 25, "ต๋อง... งานเสร็จหรือยัง"),
+    "sweeper": ("th+whisperf", 45, "ต๋อง... ช่วยป้าด้วย"),
+    "goblin": ("th+whisper", 40, "พี่ต๋อง... ข้างล่างนี่"),
+    "guard": ("th+whisper", 15, "คุณต๋อง... กลับบ้านกันครับ"),
+    "hr": ("th+whisperf", 60, "คุณต๋อง... ลงเวลาออกหรือยังคะ"),
+    "doctor": ("th+whisper", 20, "ต๋อง... ได้ยินหมอไหม"),
+}
+
+
+def ghost_calls():
+    import subprocess
+    import tempfile
+    for ghost, (voice, pitch, line) in CALLS.items():
+        with tempfile.TemporaryDirectory() as d:
+            wav = os.path.join(d, "v.wav")
+            subprocess.run(["espeak-ng", "-v", voice, "-s", "105", "-p", str(pitch), "-w", wav, line], check=True)
+            x, sr = sf.read(wav)
+        if x.ndim > 1:
+            x = x.mean(axis=1)
+        x = signal.resample_poly(x, int(SR * 1.12), sr)   # 12% slower and lower
+        n = len(x)
+        envl = signal.lfilter(*signal.butter(2, 30 / (SR / 2)), np.abs(x))
+        breath = bp(rng.standard_normal(n), 900, 5000) * envl * 2.5   # air through it
+        ghost2 = np.concatenate([np.zeros(int(0.03 * SR)), signal.resample_poly(x, 100, 97)])[:n]   # a second one, a hair higher, a beat behind
+        v = x + 0.55 * ghost2 + breath
+        v = signal.lfilter(*signal.butter(2, 5500 / (SR / 2)), v)
+        v = np.concatenate([np.zeros(int(0.05 * SR)), v])
+        save("call_%s" % ghost, lreverb(v, 2.2, 0.38, 2500), peak=0.8)
+
+
 if __name__ == "__main__":
     import sys
     only = sys.argv[1:]
-    for f in (ambience, drone, chase_theme, menu_theme, light_hum, lights_off, lights_on, footsteps, pickup, ui_click, ghost_cues, unease, sighting):
+    for f in (ambience, drone, chase_theme, menu_theme, light_hum, lights_off, lights_on, footsteps, pickup, ui_click, ghost_cues, unease, sighting, ghost_calls):
         if not only or f.__name__ in only:
             f()

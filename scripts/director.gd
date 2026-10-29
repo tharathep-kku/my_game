@@ -257,8 +257,9 @@ func fire(kind: String) -> void:
 		"steps":   # someone a few steps behind, matching his pace; stops when he stops or turns
 			steps_t = 7.0
 			_steps_yaw = p.rotation.y
-		"whisper":
-			_sound("whisper", p.global_position + p.global_basis.z * 1.2 + Vector3.UP * 1.6, 0.0)
+		"whisper":   # its voice, right behind him, saying his name
+			if not _call(p.global_position + p.global_basis.z * 1.2 + Vector3.UP * 1.6):
+				_sound("whisper", p.global_position + p.global_basis.z * 1.2 + Vector3.UP * 1.6, 0.0)
 			Game.say("(เสียงกระซิบ ข้างหลัง... \"ต๋อง\")", 2.5)
 		"lights":   # the tubes die one by one, toward him, then come back
 			var ls: Array = lvl.lights.filter(func(l): return l.global_position.distance_to(p.global_position) < 22.0)
@@ -555,7 +556,19 @@ func approach() -> bool:
 			return true   # he turned round: silence
 		_sound(("%s_%d" % [cue, randi() % vars]) if vars > 0 else cue, from.lerp(to, float(i) / (steps - 1)), -3.0 + i * 0.8)
 		await get_tree().create_timer(0.75 - i * 0.04, false).timeout
+	if is_instance_valid(p) and absf(wrapf(p.rotation.y - yaw0, -PI, PI)) <= 2.0:
+		_call(p.global_position + p.global_basis.z * 0.9 + Vector3.UP * 1.6)   # ...and right at his ear, his name
 	return true
+
+# The chapter's ghost whispering his name (call_<ghost>.ogg, synth_horror.py) at a place. False if
+# this chapter's ghost has no voice.
+func _call(at: Vector3) -> bool:
+	for n in lvl.npcs:
+		var f := "call_" + String(n.get_script().get_global_name()).to_lower()
+		if ResourceLoader.exists("res://assets/sfx/%s.ogg" % f):
+			_sound(f, at, 2.0)
+			return true
+	return false
 
 # ---------- the opening: heard, not seen ----------
 # Its sound carries across the floor but it keeps away; it is first seen when the director shows it.

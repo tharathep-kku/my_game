@@ -720,6 +720,8 @@ const MIX := {
 	"sting": 0.0,
 	# each ghost's own sound (npc.gd cue)
 	"pen_click": 0.0, "heel_click": 0.0, "keys_jingle": 0.0, "mop_drag": 0.0, "knuckle_tap": 0.0,
+	# each ghost whispering his name (director.gd)
+	"call_manager": 0.0, "call_sweeper": 0.0, "call_goblin": 0.0, "call_guard": 0.0, "call_hr": 0.0, "call_doctor": 0.0,
 	# jumpscares
 	"scare_grab": 0.0, "scare_riser": 0.0, "scare_slam": 0.0, "scare_ring": 0.0,
 	# the phone and the UI

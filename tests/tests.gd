@@ -96,6 +96,7 @@ func _ready() -> void:
 	await t_hide_learned()
 	await t_drawer_code()
 	await t_quiet_tips()
+	await t_name_calls()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -823,14 +824,14 @@ func t_hallucinations() -> void:
 	Game.battery = 30.0
 	d.hallu_t = 0.0
 	var heard := []
-	var count := func(nd): if nd is AudioStreamPlayer3D and nd.stream and nd.stream.resource_path.contains(lvl.npcs[0].cue): (func(): if is_instance_valid(nd): heard.append(nd.global_position)).call_deferred()   # (placed just after it is added)
+	var count := func(nd): if nd is AudioStreamPlayer3D and nd.get_parent() == lvl and nd.stream and nd.stream.resource_path.contains(lvl.npcs[0].cue): (func(): if is_instance_valid(nd): heard.append(nd.global_position)).call_deferred()   # (the director's, placed just after it is added; not the ghost's own)
 	get_tree().node_added.connect(count)
 	d._hallucinate(0.1)
 	check(d.hallu_t >= 40.0, "frayed: one now, the next not for 40 s or more (%.0f)" % d.hallu_t)
 	await get_tree().create_timer(3.5).timeout
 	get_tree().node_added.disconnect(count)
 	var pl = lvl.player
-	check(heard.size() >= 3 and heard.back().distance_to(pl.global_position) < heard.front().distance_to(pl.global_position), "its steps come up behind him (%d), getting closer" % heard.size())
+	check(heard.size() >= 3 and heard.back().distance_to(pl.global_position) < heard.front().distance_to(pl.global_position), "its steps come up behind him (%d), getting closer (%s)" % [heard.size(), str(heard.map(func(h): return snappedf(h.distance_to(pl.global_position), 0.1)))])
 	check(lvl.npcs[0].global_position.distance_to(pl.global_position) > 4.0, "...and nobody is there")
 	await done(lvl)
 
@@ -1007,6 +1008,26 @@ func t_quiet_tips() -> void:
 	main.queue_free()
 	await frames(2)
 	Game.new_game()
+
+# Every ghost has a voice that whispers his name; the director's whisper uses it.
+func t_name_calls() -> void:
+	for g in ["manager", "sweeper", "goblin", "guard", "hr", "doctor"]:
+		check(Game.stream("call_" + g) is AudioStreamOggVorbis, "%s whispers his name" % g)
+	Game.new_game()
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(5)
+	var d: Director = lvl.find_children("*", "Director", false, false).front()
+	var heard := []
+	var count := func(nd): if nd is AudioStreamPlayer3D and nd.stream and nd.stream.resource_path.contains("call_manager"): heard.append(nd)
+	get_tree().node_added.connect(count)
+	d.fire("whisper")
+	await frames(2)
+	get_tree().node_added.disconnect(count)
+	check(heard.size() == 1, "chapter 1's whisper is the manager's voice")
+	await done(lvl)
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.
 func t_sound_bed() -> void:
