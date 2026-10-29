@@ -14,6 +14,9 @@ extends Node
 @export var event_every := Vector2(28.0, 48.0)
 ## Seconds between texts that react to what Tong is doing
 @export var react_every := Vector2(45.0, 80.0)
+## Opening seconds of a chapter when its ghost is only heard, kept out of sight (ends early with the
+## first thing collected); then it is shown to him once, on purpose (_reveal)
+@export var veil_secs := 75.0
 
 const STRANGER := "เบอร์ไม่รู้จัก"
 # What the stranger texts when Tong... (each line once per night)
@@ -56,12 +59,16 @@ var _crouch := 0.0
 var _yaw := 0.0
 var _silent := false
 var hallu_t := 40.0        # low Social Battery: until the next thing that isn't there
+var veil_t := 75.0
+var revealed := false
 var _clock_was := ""
 
 func _ready() -> void:
 	lvl = get_parent()
 	calm_t = randf_range(stalk_every.x, stalk_every.y)
 	event_t = randf_range(event_every.x, event_every.y) * 0.7
+	veil_t = veil_secs
+	revealed = lvl.npcs.is_empty() or lvl.get("raging") == true
 	Game.caught.connect(_on_caught)   # methods, not lambdas: they go away with this node
 	Game.event.connect(_on_event)
 
@@ -89,7 +96,10 @@ func _process(dt: float) -> void:
 	var chasing := false
 	for n in lvl.npcs:
 		chasing = chasing or n.state == "chase"
-	_rhythm(dt, p)
+	if not revealed:
+		_veil(dt, p)
+	else:
+		_rhythm(dt, p)
 	_footsteps(dt, p)
 	if lvl.gloom < 0.5:   # nothing creepy by daylight
 		return
@@ -544,3 +554,50 @@ func approach() -> bool:
 		_sound(("%s_%d" % [cue, randi() % vars]) if vars > 0 else cue, from.lerp(to, float(i) / (steps - 1)), -3.0 + i * 0.8)
 		await get_tree().create_timer(0.75 - i * 0.04, false).timeout
 	return true
+
+# ---------- the opening: heard, not seen ----------
+# Its sound carries across the floor but it keeps away; it is first seen when the director shows it.
+func _veil(dt: float, p: Node3D) -> void:
+	veil_t -= dt
+	if veil_t <= 0.0 or Game.goal_count >= 1:
+		_reveal()
+		return
+	for n in lvl.npcs:
+		if n.state in ["patrol", "investigate"] and not n.raging and n.global_position.distance_to(p.global_position) < 16.0:
+			n.retreat(_far_point(n), 6.0)
+
+# The first sight of it: standing at the end of his view, facing him, still... its head comes round,
+# and it walks away. (main.gd plays the sighting sting when it comes into view.)
+func _reveal() -> void:
+	revealed = true
+	calm_t = randf_range(stalk_every.x, stalk_every.y) * 0.6
+	var p: Node3D = Game.player
+	var who: Node = null
+	for n in lvl.npcs:
+		if n.can_stalk and n.state != "chase" and not n.raging:
+			who = n
+			break
+	if who == null or not _unseen(who.global_position + Vector3.UP * 1.4):
+		return
+	var cam: Camera3D = p.cam
+	var map: RID = lvl.get_world_3d().navigation_map
+	var space := lvl.get_world_3d().direct_space_state
+	var fwd: Vector3 = -cam.global_basis.z
+	for i in 40:
+		var q := NavigationServer3D.map_get_random_point(map, 1, false)
+		var d := q.distance_to(p.global_position)
+		var head := q + Vector3.UP * 1.6
+		var to := (head - cam.global_position).normalized()
+		if d < 10.0 or d > 18.0 or to.dot(fwd) < 0.85 or not cam.is_position_in_frustum(head):
+			continue
+		if space.intersect_ray(PhysicsRayQueryParameters3D.create(p.eye(), head, 1)).is_empty():
+			who.global_position = q
+			who.face(p.global_position - q)
+			who.velocity = Vector3.ZERO
+			who.state = "patrol"
+			who._freeze_t = 2.6   # stands there; its head turns to him
+			who._freeze_cd = 12.0
+			get_tree().create_timer(2.8, false).timeout.connect(func():
+				if is_instance_valid(who) and who.state != "chase":
+					who.retreat(_far_point(who), 14.0))
+			return

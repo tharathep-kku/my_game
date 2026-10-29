@@ -91,6 +91,7 @@ func _ready() -> void:
 	await t_hallucinations()
 	await t_render_budget()
 	await t_catch_costs()
+	await t_veil()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -516,6 +517,7 @@ func t_director() -> void:
 	NavigationServer3D.map_force_update(lvl.get_world_3d().navigation_map)
 	var d: Node = lvl.find_children("*", "Director", false, false).front() if not lvl.find_children("*", "Director", false, false).is_empty() else null
 	check(d != null, "director: every chapter has one")
+	d.revealed = true   # (past the opening; t_veil covers that)
 	var n: Npc = lvl.npcs[0]
 	var pl = lvl.player
 	d._relieve(n)
@@ -882,6 +884,34 @@ func t_catch_costs() -> void:
 	main.queue_free()
 	await frames(2)
 	Game.new_game()
+
+# The opening of a chapter: the ghost is heard but kept out of his way; then it is shown to him
+# once, ahead of him, still, and walks off.
+func t_veil() -> void:
+	Game.new_game()
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(10)
+	NavigationServer3D.map_force_update(lvl.get_world_3d().navigation_map)
+	var d: Director = lvl.find_children("*", "Director", false, false).front()
+	var n: Npc = lvl.npcs[0]
+	var pl = lvl.player
+	check(not d.revealed and d.veil_t > 60.0, "a chapter opens veiled")
+	n.global_position = pl.global_position + Vector3(6, 0, 0)
+	n.state = "patrol"
+	await pframes(3)
+	check(n.state == "away" and n.away_pos.distance_to(pl.global_position) > 10.0, "veiled: it keeps away from him (%s)" % n.state)
+	n.global_position = pl.global_position - pl.global_basis.z * 30.0 + Vector3(20, 0, 0)   # somewhere he can't see
+	n.state = "patrol"
+	Game.goal_count = 1   # the first thing collected ends the opening
+	await pframes(3)
+	check(d.revealed, "the first goal: it is time he saw it")
+	var head: Vector3 = n.global_position + Vector3.UP * 1.4
+	var shown: bool = n._freeze_t > 0.0 and pl.cam.is_position_in_frustum(head) and n.global_position.distance_to(pl.global_position) >= 9.5
+	check(shown, "it stands ahead of him, still, in plain view (%.0f m)" % n.global_position.distance_to(pl.global_position))
+	await done(lvl)
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.
 func t_sound_bed() -> void:
