@@ -95,6 +95,7 @@ func _ready() -> void:
 	await t_midpoint()
 	await t_hide_learned()
 	await t_drawer_code()
+	await t_quiet_tips()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -984,6 +985,28 @@ func t_drawer_code() -> void:
 	check(pass_item.used and Game.goal_count == 1, "...and the pass is his")
 	Game.code_requested.disconnect(on_ask)
 	await done(lvl)
+
+# Past chapter 1 the how-to tips stay quiet; stuck for a while, one tip points at the GPS.
+func t_quiet_tips() -> void:
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(1)   # chapter 2
+	await get_tree().create_timer(0.6).timeout
+	get_tree().paused = false
+	main.show_screen("")
+	Game.skip_cutscene.emit()
+	await get_tree().create_timer(0.6).timeout
+	main._tips.clear()
+	main._tip("dark", "x")
+	check(not main.tip_panel.visible, "chapter 2: a how-to tip keeps quiet")
+	main._since_progress = main.STUCK_SECS + 1.0
+	await pframes(2)
+	check(main.tip_panel.visible and main.tip_label.text.contains("GPS"), "stuck for a while: one tip points at the GPS")
+	main.stop_play()
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.
 func t_sound_bed() -> void:

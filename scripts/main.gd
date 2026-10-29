@@ -335,6 +335,8 @@ func start_stage() -> void:
 	music_state = "calm"
 	_after_t = 0.0
 	_sighted = false
+	_since_progress = 0.0
+	_last_goals = -1
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_fade_to(0.0, 0.8)
 	if not Game.tutorial:   # checkpoint: say so
@@ -1235,6 +1237,15 @@ func _process(dt: float) -> void:
 		_fold_objective(Game.objective_pin or _obj_peek > 0.0)
 		var low := Game.battery < 35.0   # red edges throb when Social Battery runs low
 		vignette.modulate.a = lerpf(vignette.modulate.a, (0.45 + 0.35 * sin(Time.get_ticks_msec() * 0.006)) if low else 0.0, dt * 4.0)
+		if Game.goal_count != _last_goals:
+			_last_goals = Game.goal_count
+			_since_progress = 0.0
+		elif not Game.in_cutscene:
+			_since_progress += dt
+		if _since_progress > STUCK_SECS and not Game.tutorial:
+			_tips.erase("stuck_%d" % Game.stage)
+			_tip("stuck_%d" % Game.stage, "ติดอยู่หรือเปล่า? เปิดมือถือ (Tab) → GPS ชี้ไปหาของชิ้นถัดไป · โน้ตตามโต๊ะมักบอกว่าของอยู่ไหน")
+			_since_progress = -9999.0   # once a chapter
 		if t.y > 0.0:
 			_tip("chase", "โดนไล่! วิ่ง (Shift) ให้พ้นสายตาสักพัก เขาจะเลิกตามแล้วถอยไป · หรือหาที่ซ่อน: ล็อกเกอร์ ห้องน้ำ ใต้โต๊ะ (E)")
 		if is_instance_valid(level) and level.get("dark"):
@@ -1384,8 +1395,16 @@ func _on_message(text: String, secs: float) -> void:
 	_sub_t = secs
 
 # First-time help, once per session each: a small card on the left.
+# Past chapter 1 the how-to tips keep quiet unless he seems stuck (no progress for a while); the
+# "stuck" tip itself points at the GPS and the notes, once a chapter.
+const STUCK_SECS := 150.0
+var _since_progress := 0.0
+var _last_goals := -1
+
 func _tip(id: String, text: String) -> void:
 	if _tips.has(id) or Game.in_cutscene:
+		return
+	if Game.stage >= 1 and not Game.tutorial and id != "caught" and _since_progress < STUCK_SECS * 0.6:
 		return
 	_tips[id] = true
 	tip_label.text = text
