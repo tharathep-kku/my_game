@@ -92,6 +92,7 @@ func _ready() -> void:
 	await t_render_budget()
 	await t_catch_costs()
 	await t_veil()
+	await t_midpoint()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -911,6 +912,28 @@ func t_veil() -> void:
 	var head: Vector3 = n.global_position + Vector3.UP * 1.4
 	var shown: bool = n._freeze_t > 0.0 and pl.cam.is_position_in_frustum(head) and n.global_position.distance_to(pl.global_position) >= 9.5
 	check(shown, "it stands ahead of him, still, in plain view (%.0f m)" % n.global_position.distance_to(pl.global_position))
+	await done(lvl)
+
+# Half the goals in: one floor-wide blackout with it close by; only once a chapter.
+func t_midpoint() -> void:
+	Game.new_game()
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(10)
+	var d: Director = lvl.find_children("*", "Director", false, false).front()
+	d.revealed = true
+	Game.goal_count = 1
+	await pframes(3)
+	check(not lvl.dark and not d.midpoint_done, "one of three: not yet")
+	Game.goal_count = 2
+	await pframes(3)
+	check(lvl.dark and d.midpoint_done, "half-way: the floor's power dies")
+	lvl.set_dark(false)
+	Game.goal_count = 3
+	await pframes(3)
+	check(not lvl.dark, "...once only")
 	await done(lvl)
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.

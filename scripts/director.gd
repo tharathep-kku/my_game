@@ -61,6 +61,7 @@ var _silent := false
 var hallu_t := 40.0        # low Social Battery: until the next thing that isn't there
 var veil_t := 75.0
 var revealed := false
+var midpoint_done := false   # the half-way blackout, once a chapter
 var _clock_was := ""
 
 func _ready() -> void:
@@ -100,6 +101,7 @@ func _process(dt: float) -> void:
 		_veil(dt, p)
 	else:
 		_rhythm(dt, p)
+		_midpoint()
 	_footsteps(dt, p)
 	if lvl.gloom < 0.5:   # nothing creepy by daylight
 		return
@@ -601,3 +603,16 @@ func _reveal() -> void:
 				if is_instance_valid(who) and who.state != "chase":
 					who.retreat(_far_point(who), 14.0))
 			return
+
+# ---------- half-way through the chapter ----------
+# Half the goals in: the whole floor's power dies for 18 s (emergency lights only), and it comes to
+# look for him somewhere close he can't see. Once a chapter; not where the power is part of the plot.
+func _midpoint() -> void:
+	if midpoint_done or lvl.goal < 2 or Game.goal_count < ceili(lvl.goal / 2.0):
+		return
+	midpoint_done = true
+	if lvl.dark or lvl.power_out or lvl.get("fuse_dark") or lvl.npcs.any(func(n): return n.state == "chase"):
+		return
+	lvl.blackout(18.0)
+	Game.say("(ไฟดับทั้งชั้น... ได้ยินเสียงเดินอยู่ไม่ไกล)", 3.5)
+	stalk()
