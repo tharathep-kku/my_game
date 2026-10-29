@@ -94,6 +94,7 @@ func _ready() -> void:
 	await t_veil()
 	await t_midpoint()
 	await t_hide_learned()
+	await t_drawer_code()
 	print("TESTS ", "OK" if fails == 0 else "FAILED %d" % fails)
 	get_tree().quit(1 if fails else 0)
 
@@ -959,6 +960,29 @@ func t_hide_learned() -> void:
 	spot.interact()
 	await get_tree().create_timer(7.5).timeout
 	check(pl.hidden and n.state == "search" and n.search_spot == spot, "third time in the same spot: it comes to check (%s)" % n.state)
+	await done(lvl)
+
+# Chapter 3: the lift pass is locked in HR's drawer; the code is the time he collapsed (02:14),
+# in his personnel file, on the stopped clock. A wrong code is loud.
+func t_drawer_code() -> void:
+	Game.new_game()
+	var i := idx("stage_hr")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(5)
+	var pass_item = lvl.get_node("Items").get_children().filter(func(it): return it.get("kind") == "file" and it.code != "").front()
+	check(pass_item != null and pass_item.code == "0214", "the lift pass is locked behind a code")
+	var asked := []
+	var on_ask := func(n): asked.append(n)
+	Game.code_requested.connect(on_ask)
+	pass_item.interact()
+	check(asked.size() == 1 and not pass_item.used and Game.goal_count == 0, "taking it asks for the code instead")
+	check(not Game.submit_code(pass_item, "1234") and not pass_item.used, "wrong code: it stays locked")
+	check(Game.submit_code(pass_item, "02:14"), "02:14 opens it")
+	await frames(3)
+	check(pass_item.used and Game.goal_count == 1, "...and the pass is his")
+	Game.code_requested.disconnect(on_ask)
 	await done(lvl)
 
 # Sound: footsteps follow the floor, the reverb fits it, every tube hums and goes quiet when it dies.

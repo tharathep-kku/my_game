@@ -5479,6 +5479,7 @@ collision_layer = 4
 collision_mask = 0
 script = ExtResource("12_a0wwb")
 kind = "file"
+code = "0214"
 title = "บัตรผ่านลิฟต์บริการ"
 text = "บัตรของพี่แหม่ม มีโพสต์อิทแปะไว้:
 

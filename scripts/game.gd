@@ -510,6 +510,11 @@ func use(kind: String, node: Node = null) -> bool:
 		"quest":
 			_quest_advance(node.get_meta("quest"))
 		"file":   # this stage's goal item (story.gd "items"): picking it up reads it too
+			if node.code != "" and not node.has_meta("unlocked"):   # locked away: a code to work out
+				sfx("metalClick")
+				say("ต๋อง: ลิ้นชักล็อกรหัส 4 หลัก... มีลายมือเขียนไว้ว่า \"เวลาที่เขาล้มลง\"", 4.0)
+				code_requested.emit(node)
+				return false
 			sfx("bookFlip1")
 			collect()
 			var tip := "เก็บแล้ว (%d/%d)" % [goal_count, level.goal if is_instance_valid(level) else goal_count]
@@ -634,6 +639,11 @@ func trigger(id: String, t: Dictionary) -> void:
 
 # PC keypad answer (main.gd). Wrong code = loud error beep: everyone nearby comes to look.
 func submit_code(pc: Node, typed: String) -> bool:
+	if typed.strip_edges().replace(":", "") == pc.code and pc.kind == "file":   # a locked drawer: open, take it
+		pc.set_meta("unlocked", true)
+		sfx("metalLatch", pc, 2.0)
+		pc.interact.call_deferred()
+		return true
 	if typed.strip_edges() == pc.code:
 		pc.used = true
 		sfx("metalClick"); say("เข้าระบบได้แล้ว! ดาวน์โหลดงบดุลลับเรียบร้อย", 3.0); collect()

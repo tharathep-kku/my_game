@@ -117,6 +117,7 @@ var chase_music: AudioStreamPlayer   # pounding loop while someone is after you
 # let you go: the dread dips, the unease stays away a while). And a sting the first time you see
 # it in a chapter.
 var unease: AudioStreamPlayer
+var keypad_title: Label
 var music_state := "calm"
 var _after_t := 0.0
 var _sighted := false
@@ -1110,6 +1111,8 @@ func _on_note(title: String, body: String, tip: String) -> void:
 # PC keypad: Tong types the code from the post-its. The world keeps moving while you type.
 func _on_code_requested(pc: Node) -> void:
 	_keypad_pc = pc
+	if keypad_title:
+		keypad_title.text = "ใส่รหัส 4 หลักของลิ้นชัก" if pc.get("kind") == "file" else "ใส่รหัสผ่านเพื่อเข้าสู่ระบบ"
 	keypad_edit.text = ""
 	keypad.show()
 	Game.player.frozen = true
@@ -1972,7 +1975,7 @@ func _keypad() -> PanelContainer:
 		m.add_theme_constant_override("margin_" + side, 18)
 	m.add_child(inner)
 	v.add_child(m)
-	Kit.label("ใส่รหัสผ่านเพื่อเข้าสู่ระบบ", 18, Kit.INK, Kit.UI, inner)
+	keypad_title = Kit.label("ใส่รหัสผ่านเพื่อเข้าสู่ระบบ", 18, Kit.INK, Kit.UI, inner)
 	keypad_edit = LineEdit.new()
 	keypad_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	keypad_edit.max_length = 8
