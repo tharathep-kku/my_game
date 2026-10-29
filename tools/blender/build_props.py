@@ -57,6 +57,7 @@ MATS = {
     "glow_3dff6a": ("3dff6a", 0.5, 0.0),
     "glow_fff6e8": ("fff6e8", 0.5, 0.0),
     "glow_e8fff0": ("e8fff0", 0.5, 0.0),
+    "glow_8fa6b8": ("8fa6b8", 0.5, 0.0),
 }
 
 def lin(c):   # sRGB -> linear (Blender stores linear; Godot shows exactly the hex)
@@ -488,9 +489,61 @@ def switch(m):
     m.box((0, 0, 0.004), (0.075, 0.12, 0.008), "plastic_white", 0.003)
     m.box((0, 0, 0.01), (0.03, 0.05, 0.006), "plastic_white", 0.003)
 
+# ---------------------------------------------------------------- landmarks (hd.gd: 4 per chapter)
+# Big, unmistakable things on the walls, so a floor of identical corridors has places you remember.
+# Against the wall (z = 0), centred on y = 0, facing +z, no deeper than 0.25 m.
+def portrait(m):
+    # the founder, in oils, in a heavy frame: a pale face over a dark suit, eyes that are just shadow
+    m.box((0, 0, 0.03), (0.95, 1.25, 0.06), "wood_oak", 0.012, 2)
+    m.box((0, 0, 0.055), (0.8, 1.1, 0.01), "concrete_soil", 0.0)
+    m.box((0, -0.32, 0.062), (0.62, 0.46, 0.006), "plastic_dark", 0.02)   # shoulders
+    m.box((0, -0.1, 0.064), (0.08, 0.22, 0.004), "plastic_white", 0.0)   # shirt
+    m.sphere((0, 0.14, 0.064), (0.22, 0.3, 0.02), "plastic_beige")         # face
+    for x in (-0.05, 0.05):
+        m.sphere((x, 0.17, 0.075), (0.045, 0.03, 0.006), "concrete_soil")  # eyes
+    m.box((0, 0.66, 0.05), (0.3, 0.05, 0.02), "metal_chrome", 0.004)     # brass plate on the frame
+    m.box((0, -0.67, 0.05), (0.42, 0.06, 0.02), "metal_chrome", 0.004)
+
+def poster(m):
+    # a framed motivational poster (the game writes the words on it)
+    m.box((0, 0, 0.015), (0.74, 1.02, 0.03), "metal_steel", 0.004)
+    m.box((0, 0, 0.031), (0.68, 0.96, 0.004), "plastic_paper", 0.0)
+    m.box((0, 0.2, 0.034), (0.6, 0.42, 0.002), "plastic_grey", 0.0)      # the photo: grey sky
+    m.box((0, 0.08, 0.035), (0.6, 0.16, 0.002), "plastic_dark", 0.0)     # ...and a dark mountain
+
+def hose(m):
+    # fire hose cabinet: red, a glass door, the hose coiled inside, a sign
+    m.box((0, 0, 0.11), (0.72, 0.9, 0.22), "plastic_red", 0.008, 2)
+    m.box((0, 0, 0.222), (0.64, 0.82, 0.006), "screen_glass", 0.0)
+    m.cyl((0, -0.02, 0.12), 0.27, 0.12, "plastic_red", rot=(90, 0, 0), n=24)
+    m.cyl((0, -0.02, 0.19), 0.12, 0.04, "metal_steel", rot=(90, 0, 0), n=20)
+    m.box((0.33, -0.1, 0.235), (0.02, 0.18, 0.03), "metal_chrome", 0.005)
+    m.box((0, 0.56, 0.01), (0.5, 0.14, 0.02), "plastic_red", 0.003)
+    m.box((0, 0.56, 0.021), (0.44, 0.09, 0.002), "plastic_white", 0.0)
+
+def tv(m):
+    # a wall TV left on all night, showing nothing but a cold glow
+    m.box((0, 0, 0.04), (1.24, 0.74, 0.05), "plastic_black", 0.006)
+    m.box((0, 0.01, 0.066), (1.18, 0.66, 0.003), "glow_8fa6b8", 0.0)
+    m.box((0, 0, 0.012), (0.3, 0.3, 0.024), "metal_dark", 0.004)         # the bracket
+
+def clock(m):
+    # a big office clock, stopped at 02:14
+    m.cyl((0, 0, 0.025), 0.3, 0.05, "plastic_black", rot=(90, 0, 0), n=40, bevel=0.01)
+    m.cyl((0, 0, 0.052), 0.27, 0.004, "plastic_white", rot=(90, 0, 0), n=40)
+    for i in range(12):
+        a = math.radians(i * 30)
+        m.box((math.sin(a) * 0.23, math.cos(a) * 0.23, 0.056), (0.012, 0.045 if i % 3 == 0 else 0.025, 0.003), "plastic_black", 0.0, rot=(0, 0, -i * 30))
+    hr = math.radians(-(2 + 14 / 60) * 30)
+    mn = math.radians(-14 * 6)
+    m.box((-math.sin(hr) * 0.07, math.cos(hr) * 0.07, 0.06), (0.018, 0.15, 0.003), "plastic_black", 0.0, rot=(0, 0, math.degrees(hr)))
+    m.box((-math.sin(mn) * 0.1, math.cos(mn) * 0.1, 0.063), (0.012, 0.21, 0.003), "plastic_black", 0.0, rot=(0, 0, math.degrees(mn)))
+    m.cyl((0, 0, 0.066), 0.012, 0.006, "plastic_red", rot=(90, 0, 0), n=12)
+
 MODELS = [desk, chairDesk, computerScreen, computerKeyboard, sideTableDrawers, kitchenCoffeeMachine,
           radio, kitchenBar, pottedPlant, bedSingle, cardboardBoxClosed, bookcaseClosedDoors, trashcan,
-          troffer, vent, smoke, sprinkler, outlet, extinguisher, board, exit_sign, switch]
+          troffer, vent, smoke, sprinkler, outlet, extinguisher, board, exit_sign, switch,
+          portrait, poster, hose, tv, clock]
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []

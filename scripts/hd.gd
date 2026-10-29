@@ -275,6 +275,7 @@ static func _decorate(root: Node) -> void:
 			cap.position = Vector3(ab.get_center().x, ab.end.y + 0.012, ab.get_center().z)
 			cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.add_child(cap)
+	_landmarks(root, walls, open, free_at, avoid, rng)
 	var boards := 0
 	var extinguishers := 0
 	for r in walls:
@@ -306,7 +307,7 @@ static func _decorate(root: Node) -> void:
 					elif run >= 2.0 and extinguishers < 2 and roll > 0.985:
 						put.call("extinguisher", at + Vector3(0, 0.7, 0), yaw)
 						extinguishers += 1
-					elif roll < 0.09:
+					elif roll < 0.16:
 						put.call("outlet", at + Vector3(0, 0.32, 0), yaw)
 				t += 0.5
 	var ceiling := root.find_child("CeilingMesh", true, false) as Node3D
@@ -337,6 +338,76 @@ static func _decorate(root: Node) -> void:
 		root.add_child(s)
 		s.global_position = Vector3(door.global_position.x, top, door.global_position.z)
 		s.global_rotation.y = door.global_rotation.y
+
+# Landmarks: four big things on the walls of a chapter, as far apart as they will go, so the floor
+# has places he remembers (a portrait, a poster, a fire hose, a TV left on, a clock stopped at 02:14).
+const LANDMARKS := {"portrait": 1.6, "poster": 1.5, "hose": 1.0, "tv": 1.9, "clock": 2.15}   # name: height
+const POSTERS := ["เราคือครอบครัวเดียวกัน", "ความสำเร็จ\nไม่มีวันหยุด", "อย่ากลับก่อนหัวหน้า", "ยิ้มให้งาน\nงานจะยิ้มให้คุณ"]
+
+static func _landmarks(root: Node, walls: Array, open: Callable, free_at: Callable, avoid: Array, rng: RandomNumberGenerator) -> void:
+	var spots := []   # [point on the wall, yaw] with 2 m of open wall around it
+	for r: Rect2 in walls:
+		for side in [[Vector2(0, 1), Vector2(r.position.x, r.end.y), Vector2(1, 0), r.size.x],
+				[Vector2(0, -1), Vector2(r.position.x, r.position.y), Vector2(1, 0), r.size.x],
+				[Vector2(1, 0), Vector2(r.end.x, r.position.y), Vector2(0, 1), r.size.y],
+				[Vector2(-1, 0), Vector2(r.position.x, r.position.y), Vector2(0, 1), r.size.y]]:
+			var nrm: Vector2 = side[0]
+			var t := 1.0
+			while t < side[3] - 1.0:
+				var w: Vector2 = side[1] + side[2] * t
+				var ok := true
+				for k in [-1.0, 0.0, 1.0]:
+					ok = ok and open.call(w + side[2] * k + nrm * 0.3)
+				if ok and free_at.call(Vector3(w.x, 0, w.y), 1.6):
+					spots.append([Vector3(w.x, 0, w.y), atan2(nrm.x, nrm.y)])
+				t += 1.0
+	if spots.is_empty():
+		return
+	var names := LANDMARKS.keys()
+	names.sort_custom(func(a, b): return hash(a + str(rng.seed)) < hash(b + str(rng.seed)))
+	var chosen := [spots[rng.randi() % spots.size()]]
+	while chosen.size() < 4:
+		var best = null
+		var best_d := 0.0
+		for s in spots:
+			var d := INF
+			for c in chosen:
+				d = minf(d, (s[0] as Vector3).distance_to(c[0]))
+			if d > best_d:
+				best_d = d
+				best = s
+		if best == null or best_d < 8.0:
+			break
+		chosen.append(best)
+	for i in chosen.size():
+		var nm: String = names[i % names.size()]
+		var f := fixture(nm)
+		f.set_meta("landmark", true)
+		root.add_child(f)
+		f.global_position = chosen[i][0] + Vector3.UP * LANDMARKS[nm]
+		f.rotation.y = chosen[i][1]
+		avoid.append(chosen[i][0])
+		if nm == "tv":   # left on: a dim cold glow, not a lamp
+			for mi: MeshInstance3D in f.find_children("*", "MeshInstance3D", true, false):
+				for si in mi.mesh.get_surface_count():
+					var m := mi.mesh.surface_get_material(si) as StandardMaterial3D
+					if m and m.emission_enabled:
+						var dim: StandardMaterial3D = m.duplicate()
+						dim.emission_energy_multiplier = 0.45
+						mi.set_surface_override_material(si, dim)
+		if nm == "poster":
+			var l := Label3D.new()
+			l.text = POSTERS[rng.randi() % POSTERS.size()]
+			l.font = Kit.TITLE
+			l.font_size = 64
+			l.pixel_size = 0.0022
+			l.modulate = Color(0.12, 0.12, 0.14)
+			l.outline_size = 0
+			l.position = Vector3(0, -0.28, 0.036)
+			l.width = 280.0
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			f.add_child(l)
 
 # The night: filmic tonemapping, glow on the lit panels, and on Forward+ ambient occlusion and
 # volumetric fog (the flashlight cuts a beam through it). Fog density scales with `gloom` later.

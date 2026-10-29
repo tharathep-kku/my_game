@@ -613,6 +613,13 @@ func t_hd_look() -> void:
 		if n.has_meta("fixture"):
 			decor[n.get_meta("fixture")] = true
 	check(decor.has("outlet") and decor.has("vent") and decor.has("exit_sign"), "HD: sockets, vents and an exit sign dressed on %s" % [str(decor.keys())])
+	var marks: Array = lvl.get_children().filter(func(n): return n.has_meta("landmark"))
+	var apart := true
+	for a in marks:
+		for b in marks:
+			if a != b and a.global_position.distance_to(b.global_position) < 7.9:
+				apart = false
+	check(marks.size() >= 3 and apart, "HD: %d landmarks on the walls, far apart %s" % [marks.size(), str(marks.map(func(m): return m.get_meta("fixture")))])
 	await done(lvl)
 	var main: Control = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
