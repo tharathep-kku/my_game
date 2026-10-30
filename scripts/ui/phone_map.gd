@@ -42,6 +42,9 @@ func _draw() -> void:
 			if ch in "=DBkbH":
 				col = Color(0.25, 0.55, 0.4)
 			draw_rect(Rect2(o + Vector2(x, z) * cs, Vector2(cs, cs) * 0.96), col)
+	for sl in lvl.data.get("slants", []):   # angled walls, once seen
+		if explored.has(Vector2i(((sl[0] + sl[1]) / 2.0).floor())):
+			draw_line(o + sl[0] * cs, o + sl[1] * cs, Color(0.55, 0.9, 0.7), maxf(cs * 0.35, 1.5))
 	var to_map := func(p: Vector3) -> Vector2: return o + Vector2(p.x, p.z) / StageBuilder.CELL * cs
 	for m: Node3D in get_tree().get_nodes_in_group("beacon"):   # what notes revealed
 		if m.is_inside_tree():

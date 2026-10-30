@@ -228,12 +228,22 @@ static func _decorate(root: Node) -> void:
 		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(String(root.scene_file_path) + String(root.name))
+	# every full-height wall (a baked scene's walls are mostly unnamed); slanted ones only keep
+	# things away (their box would also cover the corner they cut off)
 	var walls: Array[Rect2] = []
-	for b in root.find_children("*Wall*", "StaticBody3D", true, false):
+	var slants: Array[Rect2] = []
+	for b: StaticBody3D in root.find_children("*", "StaticBody3D", true, false):
+		if String(b.name).begins_with("Door"):
+			continue
 		for mi: MeshInstance3D in b.find_children("*", "MeshInstance3D", false, false):
 			var ab: AABB = mi.global_transform * mi.get_aabb()
-			if ab.size.y > 2.0:
-				walls.append(Rect2(ab.position.x, ab.position.z, ab.size.x, ab.size.z))
+			if ab.size.y >= 2.9:
+				(slants if absf(b.global_rotation.y) > 0.01 else walls).append(Rect2(ab.position.x, ab.position.z, ab.size.x, ab.size.z))
+	for i in walls.size():   # a seeded shuffle: the few boards and extinguishers spread over the floor
+		var j := rng.randi_range(i, walls.size() - 1)
+		var w := walls[i]
+		walls[i] = walls[j]
+		walls[j] = w
 	var floors: Array[Rect2] = []
 	for cs: CollisionShape3D in floor.find_children("*", "CollisionShape3D", false, false):
 		if cs.shape is BoxShape3D:
@@ -250,7 +260,7 @@ static func _decorate(root: Node) -> void:
 	var open := func(p: Vector2) -> bool:
 		if not floors.any(func(r: Rect2) -> bool: return r.has_point(p)):
 			return false
-		return not walls.any(func(r: Rect2) -> bool: return r.grow(0.02).has_point(p))
+		return not walls.any(func(r: Rect2) -> bool: return r.grow(0.02).has_point(p)) and not slants.any(func(r: Rect2) -> bool: return r.has_point(p))
 	var free_at := func(p: Vector3, d: float) -> bool:
 		return not avoid.any(func(a: Vector3) -> bool: return Vector2(a.x - p.x, a.z - p.z).length() < d)
 	var put := func(name: String, p: Vector3, yaw: float) -> void:
@@ -275,7 +285,8 @@ static func _decorate(root: Node) -> void:
 			cap.position = Vector3(ab.get_center().x, ab.end.y + 0.012, ab.get_center().z)
 			cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.add_child(cap)
-	_landmarks(root, walls, open, free_at, avoid, rng)
+	if not (root.get("data") is Dictionary and root.data.has("loop")):   # the fire stairs have their own posters and clock to spot changes in
+		_landmarks(root, walls, open, free_at, avoid, rng)
 	var boards := 0
 	var extinguishers := 0
 	for r in walls:
@@ -307,7 +318,7 @@ static func _decorate(root: Node) -> void:
 					elif run >= 2.0 and extinguishers < 2 and roll > 0.985:
 						put.call("extinguisher", at + Vector3(0, 0.7, 0), yaw)
 						extinguishers += 1
-					elif roll < 0.16:
+					elif roll < 0.045:
 						put.call("outlet", at + Vector3(0, 0.32, 0), yaw)
 				t += 0.5
 	var ceiling := root.find_child("CeilingMesh", true, false) as Node3D

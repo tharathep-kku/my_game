@@ -74,6 +74,8 @@ func _build(stage_data: Dictionary, props: Dictionary, with_player: bool) -> Nod
 	_nodes.Markers.add_child(route_node)
 	_floor_and_ceiling(w, h)
 	_walls(w, h)
+	for sl in data.get("slants", []):
+		nav.add_child(slant_wall(sl[0], sl[1], _wall_mat()))
 	var route := {}
 	for z in h:
 		for x in w:
@@ -366,6 +368,66 @@ func _walls(w: int, h: int) -> void:
 			if z > z0:
 				_wall_box(Vector2(x, z0), Vector2(1, z - z0))
 			z = maxi(z, z0 + 1)
+
+func _wall_mat() -> Material:
+	if not _tex_cache.has("wall" + str(data.wall)):
+		_tex_cache["wall" + str(data.wall)] = psx_mat(data.wall, _tex("wall"), true)
+	return _tex_cache["wall" + str(data.wall)]
+
+# A full-height wall from grid corner a to grid corner b (in cells), so a room needn't be a box:
+# across a corner it cuts the corner off; from a wall into a room it is an angled divider.
+# Named Slant, not Wall: hd.gd hangs sockets and boards on straight walls only.
+static func slant_wall(a: Vector2, b: Vector2, mat: Material) -> StaticBody3D:
+	var d := (b - a) * CELL
+	var size := Vector3(d.length() + 0.3, WALL_H, 0.3)   # a little long: the ends bury into the walls
+	var body := StaticBody3D.new()
+	body.name = "Slant"
+	body.position = Vector3((a.x + b.x) / 2 * CELL, WALL_H / 2, (a.y + b.y) / 2 * CELL)
+	body.rotation.y = atan2(-d.y, d.x)
+	var s := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	s.shape = bs
+	body.add_child(s)
+	var m := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	m.mesh = bm
+	m.material_override = mat
+	body.add_child(m)
+	return body
+
+# Drops the navmesh pieces nobody can walk to from `keep` (inside toilet stalls, corners cut off
+# by slanted walls) so a ghost never picks a spot there it can't reach.
+static func prune_islands(nm: NavigationMesh, keep: Vector3) -> int:
+	var parent := {}
+	var polys := []
+	for i in nm.get_polygon_count():
+		var poly := nm.get_polygon(i)
+		polys.append(poly)
+		for k in range(1, poly.size()):
+			var ra := _root_of(parent, poly[0])
+			var rb := _root_of(parent, poly[k])
+			if ra != rb:
+				parent[ra] = rb
+	var verts := nm.get_vertices()
+	var best := 0
+	for v in verts.size():
+		if verts[v].distance_to(keep) < verts[best].distance_to(keep):
+			best = v
+	var main := _root_of(parent, best)
+	var kept := polys.filter(func(poly): return _root_of(parent, poly[0]) == main)
+	if kept.size() == polys.size():
+		return 0
+	nm.clear_polygons()
+	for poly in kept:
+		nm.add_polygon(poly)
+	return polys.size() - kept.size()
+
+static func _root_of(parent: Dictionary, a: int) -> int:
+	while parent.get(a, a) != a:
+		a = parent[a]
+	return a
 
 func _wall_box(at: Vector2, cells: Vector2) -> void:
 	_block(Vector3((at.x + cells.x / 2) * CELL, WALL_H / 2, (at.y + cells.y / 2) * CELL), Vector3(cells.x * CELL, WALL_H, cells.y * CELL), data.wall, "wall", "Wall")

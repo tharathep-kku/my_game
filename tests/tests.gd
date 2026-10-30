@@ -60,6 +60,7 @@ func _ready() -> void:
 	await t_still_screen()
 	await t_stages()
 	await t_reach()
+	await t_layout()
 	await t_vision()
 	await t_catch()
 	await t_guard()
@@ -1362,6 +1363,47 @@ func t_audio() -> void:
 	Game.new_game()
 
 # Every objective/item on the big maps is reachable from the spawn, and intro "act" steps exist.
+# Chapters 1 and 2 aren't a hub with dead ends: openings make loops, slanted walls cut corners.
+# The scenes match their maps (every wall box sits on '#' cells), the openings can be walked
+# through, and the corners cut off are off the navmesh (nobody gets sent there).
+func t_layout() -> void:
+	for i in Game.STAGES.size():
+		var data: Dictionary = Game.STAGES[i]
+		var lvl := stage_scene(i)
+		var off := []
+		for b in lvl.get_node("NavRegion").get_children():
+			var cs: Array = b.get_children().filter(func(c): return c is CollisionShape3D and c.shape is BoxShape3D)
+			if not b is StaticBody3D or cs.size() != 1 or cs[0].shape.size.y < 2.9 or b.rotation != Vector3.ZERO:
+				continue
+			var sz: Vector3 = cs[0].shape.size
+			for x in range(roundi((b.position.x - sz.x / 2) / 2.0), roundi((b.position.x + sz.x / 2) / 2.0)):
+				for z in range(roundi((b.position.z - sz.z / 2) / 2.0), roundi((b.position.z + sz.z / 2) / 2.0)):
+					if data.map[z][x] != "#":
+						off.append(Vector2i(x, z))
+		check(off.is_empty(), "stage %d: walls stand only on the map's # cells %s" % [i + 1, off])
+		var slants: Array = lvl.get_node("NavRegion").get_children().filter(func(n): return String(n.name).begins_with("Slant"))
+		var placed: bool = data.get("slants", []).all(func(sl): return slants.any(func(n): return absf(n.rotation.y) > 0.1 and Vector2(n.position.x, n.position.z).distance_to((sl[0] + sl[1])) < 0.05))
+		check(slants.size() == data.get("slants", []).size() and placed, "stage %d: %d slanted walls where story.gd puts them" % [i + 1, slants.size()])
+		lvl.free()
+	for c in [[0, Vector2i(24, 7), Vector2i(24, 9)], [0, Vector2i(24, 13), Vector2i(24, 15)], [1, Vector2i(5, 9), Vector2i(5, 11)]]:
+		Game.new_game()
+		Game.stage = c[0]
+		var lvl := stage_scene(c[0])
+		add_child(lvl)
+		await frames(10)
+		var map := lvl.get_world_3d().navigation_map
+		NavigationServer3D.map_force_update(map)
+		var path := NavigationServer3D.map_get_path(map, StageBuilder.cell_pos(c[1]), StageBuilder.cell_pos(c[2]), true)
+		var length := 0.0
+		for k in range(1, path.size()):
+			length += path[k].distance_to(path[k - 1])
+		check(not path.is_empty() and length < 5.0, "stage %d: straight through the opening %s -> %s (%.1f m)" % [c[0] + 1, c[1], c[2], length])
+		if c[2] == Vector2i(24, 9):   # the corner cut off in the store room (27,8)-(29,6): no navmesh in it
+			var q := NavigationServer3D.map_get_closest_point(map, Vector3(57.4, 0, 15.4))
+			check(Vector2(q.x - 57.4, q.z - 15.4).length() > 0.9, "stage 1: nothing walks into the cut-off corner (closest navmesh %.1f m away)" % Vector2(q.x - 57.4, q.z - 15.4).length())
+		lvl.queue_free()
+		await frames(2)
+
 func t_reach() -> void:
 	for i in Game.STAGES.size():
 		Game.new_game()

@@ -101,5 +101,6 @@ Cutscenes, timed phone texts, objectives and endings live in `scripts/story.gd`.
 - `scripts/ui/kit.gd` (colours, fonts, button/panel styles, UI sounds: change the look here), `scripts/ui/menu_bg.gd` (live office behind the menu), `scripts/ui/phone_map.gd` (map app), `scripts/ui/app_icon.gd`, `shaders/crt.gdshader` (screen overlay)
 - `scripts/player.gd`, `scripts/pickup.gd`, `scripts/body.gd` (@tool, loads the Blender model parts), `scripts/cutscene.gd`, `scripts/main.gd`
 - `scripts/stage_builder.gd` + `tools/bake_stages.tscn`: one-time generator of the stage scenes
+- `tools/remodel_stages.tscn`: applies map openings and `slants` (angled walls) from `story.gd` to stage scenes that already exist, re-bakes the navmesh, keeps editor edits
 - `tools/blender/build_characters.py`: generates every character .blend/.glb in Blender (or with the `bpy` pip module: `python tools/blender/build_characters.py -- guard_night`) · `shaders/vhs.gdshader`: fear post-process
 - Assets and licenses: `ASSETS.md` · sounds: `tools/fetch_freesound.py` (CC0), `tools/synth_sfx.py`, `tools/synth_ui.py` (UI sounds, menu and chase music)
