@@ -598,8 +598,8 @@ func _reveal() -> void:
 	var map: RID = lvl.get_world_3d().navigation_map
 	var space := lvl.get_world_3d().direct_space_state
 	var fwd: Vector3 = -cam.global_basis.z
-	for i in 40:
-		var q := NavigationServer3D.map_get_random_point(map, 1, false)
+	for i in 120:   # by area (true): the open floor ahead of him is a small slice of a big map
+		var q := NavigationServer3D.map_get_random_point(map, 1, true)
 		var d := q.distance_to(p.global_position)
 		var head := q + Vector3.UP * 1.6
 		var to := (head - cam.global_position).normalized()
