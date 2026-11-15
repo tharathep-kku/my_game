@@ -289,6 +289,7 @@ static func _decorate(root: Node) -> void:
 		_landmarks(root, walls, open, free_at, avoid, rng)
 	var boards := 0
 	var extinguishers := 0
+	var faces := []   # every half metre of bare wall: [point at the foot of it, yaw, the way back along it, bare metres behind]
 	for r in walls:
 		# each side: outward normal, start corner, direction along it, length
 		for side in [[Vector2(0, 1), Vector2(r.position.x, r.end.y), Vector2(1, 0), r.size.x],
@@ -310,6 +311,8 @@ static func _decorate(root: Node) -> void:
 					run = 0.0
 				var w: Vector2 = start + dir * t
 				var at := Vector3(w.x, 0.0, w.y)
+				if run >= 1.0:
+					faces.append([at, yaw, Vector3(-dir.x, 0, -dir.y), run])
 				if run >= 1.0 and free_at.call(at, 1.4):
 					var roll := rng.randf()
 					if run >= 3.0 and boards < 3 and roll < 0.07 and open.call(q + dir * 0.6) and open.call(q - dir * 0.6):
@@ -321,6 +324,7 @@ static func _decorate(root: Node) -> void:
 					elif roll < 0.045:
 						put.call("outlet", at + Vector3(0, 0.32, 0), yaw)
 				t += 0.5
+	_gore(root, faces, floors, open, free_at, avoid)
 	var ceiling := root.find_child("CeilingMesh", true, false) as Node3D
 	if ceiling == null:
 		return
@@ -349,6 +353,122 @@ static func _decorate(root: Node) -> void:
 		root.add_child(s)
 		s.global_position = Vector3(door.global_position.x, top, door.global_position.z)
 		s.global_rotation.y = door.global_rotation.y
+
+# ---------- the night gets worse: blood, scratches, writing on the walls ----------
+const GORE := "res://assets/textures/gore/%s.png"   # tools/make_gore_textures.py
+const GORE_SIZE := {"hand_1": Vector2(0.32, 0.64), "hand_2": Vector2(0.32, 0.64), "smear_1": Vector2(1.5, 0.5),
+	"drip_1": Vector2(0.8, 1.2), "scratch_1": Vector2(0.6, 0.6), "pool_1": Vector2(1.6, 1.6), "trail_1": Vector2(3.2, 0.8)}
+const GORE_Y := {"hand_1": 1.2, "hand_2": 1.2, "smear_1": 0.95, "drip_1": 1.45, "scratch_1": 1.2}   # centre height on a wall
+const SCRAWLS := ["กลับบ้านไม่ได้", "02:14", "ตื่นสิ", "อย่าหลับ", "เขามองอยู่", "ยังไม่ได้ลงเวลาออก", "ต๋อง ต๋อง ต๋อง ต๋อง"]
+static var _gore_res := {}   # kind -> [mesh, material]
+
+# One mark: on a wall (yaw = the way the wall faces, `at` = its foot) or flat on the floor (pool, trail).
+static func blood(root: Node, kind: String, at: Vector3, yaw: float) -> MeshInstance3D:
+	var flat: bool = not GORE_Y.has(kind)
+	if not _gore_res.has(kind):
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = load(GORE % kind)
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.roughness = 0.6   # tacky, not a mirror: glossier and the torch's hot spot wipes it out
+		m.metallic_specular = 0.3
+		var mesh: PrimitiveMesh = PlaneMesh.new() if flat else QuadMesh.new()
+		mesh.set("size", GORE_SIZE[kind])
+		_gore_res[kind] = [mesh, m]
+	var mi := MeshInstance3D.new()
+	mi.mesh = _gore_res[kind][0]
+	mi.material_override = _gore_res[kind][1]
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visibility_range_end = 26.0
+	mi.visibility_range_end_margin = 2.0
+	mi.set_meta("gore", kind)
+	root.add_child(mi)
+	mi.global_position = at + (Vector3.UP * 0.012 if flat else Vector3(sin(yaw) * 0.012, GORE_Y[kind], cos(yaw) * 0.012))
+	mi.rotation.y = yaw
+	return mi
+
+# How much of it a chapter starts with goes by how deep into the night it is: a scratch in
+# chapter 1, hands and smears after that, pools and drag marks and writing by the end.
+static func _gore(root: Node, faces: Array, floors: Array, open: Callable, free_at: Callable, avoid: Array) -> void:
+	var depth: int = root.get("stage_index") if root.get("stage_index") != null else -1
+	root.set_meta("wall_spots", faces)
+	if depth < 0:   # the tutorial's afternoon, an ending's morning
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(String(root.scene_file_path) + "gore")
+	var kinds := ["scratch_1", "hand_1", "hand_2", "smear_1", "drip_1"].slice(0, clampi(1 + depth * 2, 1, 5))
+	_wall_marks(root, faces, kinds, 1 + depth * 2, rng, free_at, avoid)
+	for i in mini(depth, 3):   # writing, shoulder high
+		var f := _wall_spot(faces, 2.5, rng, free_at)
+		if f.is_empty():
+			break
+		var l := Label3D.new()
+		l.text = SCRAWLS[rng.randi() % SCRAWLS.size()]
+		l.font = Kit.HAND
+		l.font_size = 72
+		l.pixel_size = 0.0035
+		l.modulate = Color(0.2, 0.012, 0.012, 0.9)
+		l.outline_size = 0
+		l.shaded = true
+		l.set_meta("gore", "scrawl")
+		root.add_child(l)
+		l.global_position = f[0] + f[2] * 1.2 + Vector3(sin(f[1]) * 0.015, 1.55, cos(f[1]) * 0.015)
+		l.rotation = Vector3(0, f[1], rng.randf_range(-0.07, 0.07))
+		avoid.append(f[0] + f[2] * 1.2)
+	var solid: Array[Vector2] = []   # furniture: nothing was dragged through a desk
+	for n in root.find_children("*", "Node3D", true, false):
+		if n.scene_file_path.begins_with("res://assets/models/") or n is StaticBody3D and not String(n.name) in ["Floor", "Ceiling"]:
+			solid.append(Vector2(n.global_position.x, n.global_position.z))
+	for i in depth:   # on the floor: a pool, or something dragged
+		for attempt in 12:
+			var r: Rect2 = floors[rng.randi() % floors.size()]
+			var p := Vector2(rng.randf_range(r.position.x, r.end.x), rng.randf_range(r.position.y, r.end.y))
+			var kind := "trail_1" if i % 2 == 1 else "pool_1"
+			var yaw := rng.randf() * TAU
+			var half: Vector2 = GORE_SIZE[kind] / 2.0
+			var along := Vector2(cos(yaw), -sin(yaw)) * half.x
+			var at := Vector3(p.x, 0, p.y)
+			var clear: bool = not solid.any(func(q: Vector2) -> bool: return Geometry2D.get_closest_point_to_segment(q, p - along, p + along).distance_to(q) < half.y + 0.7)
+			if clear and open.call(p + along) and open.call(p - along) and open.call(p + along.orthogonal().normalized() * half.y) \
+					and open.call(p - along.orthogonal().normalized() * half.y) and free_at.call(at, 1.8):
+				blood(root, kind, at, yaw)
+				avoid.append(at)
+				break
+
+# A stretch of bare wall at least `width` long with nothing within 1.5 m, or [].
+static func _wall_spot(faces: Array, width: float, rng: RandomNumberGenerator, free_at: Callable) -> Array:
+	for attempt in 30:
+		if faces.is_empty():
+			break
+		var f: Array = faces[rng.randi() % faces.size()]
+		if f[3] >= width + 0.4 and free_at.call(f[0] + f[2] * (width / 2.0), 1.5):
+			return f
+	return []
+
+static func _wall_marks(root: Node, faces: Array, kinds: Array, count: int, rng: RandomNumberGenerator, free_at: Callable, avoid: Array) -> int:
+	var made := 0
+	for i in count:
+		var kind: String = kinds[rng.randi() % kinds.size()]
+		var f := _wall_spot(faces, GORE_SIZE[kind].x, rng, free_at)
+		if f.is_empty():
+			continue
+		var at: Vector3 = f[0] + f[2] * (GORE_SIZE[kind].x / 2.0)
+		blood(root, kind, at, f[1])
+		avoid.append(at)
+		made += 1
+	return made
+
+# The lights went out: when they come back there are hands on the walls round him that weren't
+# there before (director.gd, the blackout half way through a chapter).
+static func bleed(root: Node, around: Vector3, count: int) -> int:
+	var near: Array = root.get_meta("wall_spots", []).filter(func(f): return f[0].distance_to(around) > 2.0 and f[0].distance_to(around) < 9.0)
+	var taken: Array = root.get_children().filter(func(n): return n.has_meta("gore") or n.has_meta("fixture")).map(func(n): return n.global_position)
+	for n in root.find_children("*", "Area3D", true, false):
+		taken.append(n.global_position)
+	var free_at := func(p: Vector3, d: float) -> bool:
+		return not taken.any(func(a: Vector3) -> bool: return Vector2(a.x - p.x, a.z - p.z).length() < d)
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	return _wall_marks(root, near, ["hand_1", "hand_2", "drip_1", "smear_1"], count, rng, free_at, taken)
 
 # Landmarks: four big things on the walls of a chapter, as far apart as they will go, so the floor
 # has places he remembers (a portrait, a poster, a fire hose, a TV left on, a clock stopped at 02:14).

@@ -420,6 +420,8 @@ func _on_caught(npc: Node) -> void:
 	if my_load != _load_id or Game.battery <= 0.0:   # retried/quit, or game over takes it from here
 		return
 	_cost_of_catch(npc as Npc, spot)
+	var fell: Vector3 = level.player.global_position   # where he was caught: dragged off from here, and it stays
+	HD.blood(level, "trail_1", Vector3(fell.x, 0, fell.z), level.player.rotation.y + PI / 2)
 	await get_tree().create_timer(0.8).timeout   # black, ears ringing (scare_ring)
 	if my_load != _load_id:
 		return

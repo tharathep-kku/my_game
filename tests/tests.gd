@@ -94,6 +94,7 @@ func _ready() -> void:
 	await t_catch_costs()
 	await t_veil()
 	await t_midpoint()
+	await t_gore()
 	await t_hide_learned()
 	await t_drawer_code()
 	await t_quiet_tips()
@@ -959,6 +960,51 @@ func t_midpoint() -> void:
 	await pframes(3)
 	check(not lvl.dark, "...once only")
 	await done(lvl)
+
+# Blood: a scratch in chapter 1, hands, pools, drag marks and writing by the last chapter; nothing
+# on top of an item or through furniture; more hands after a blackout; a drag mark where he's caught.
+func t_gore() -> void:
+	Game.retro = false
+	HD.apply_look()
+	var counts := []
+	for i in [0, Game.STAGES.size() - 1]:
+		Game.new_game()
+		Game.stage = i
+		var lvl := stage_scene(i)
+		add_child(lvl)
+		await frames(5)
+		var marks: Array = lvl.get_children().filter(func(n): return n.has_meta("gore"))
+		counts.append(marks.size())
+		var items: Array = lvl.find_children("*", "Area3D", true, false).filter(func(a): return a.get("kind") != null and a.get("kind") != "hide")
+		var on_item: Array = marks.filter(func(m): return items.any(func(it): return Vector2(it.global_position.x - m.global_position.x, it.global_position.z - m.global_position.z).length() < 0.8))
+		check(on_item.is_empty(), "stage %d: no blood on top of something to pick up %s" % [i + 1, on_item.map(func(m): return m.get_meta("gore"))])
+		if i > 0:
+			var kinds := {}
+			for m in marks:
+				kinds[m.get_meta("gore")] = true
+			check(kinds.has("pool_1") and kinds.has("trail_1") and kinds.has("scrawl"), "the last chapter has pools, drag marks and writing %s" % [kinds.keys()])
+			var more: int = HD.bleed(lvl, lvl.spawn, 4)
+			var after: int = lvl.get_children().filter(func(n): return n.has_meta("gore")).size()
+			check(more > 0 and after == marks.size() + more, "a blackout leaves %d more hands on the walls near him" % more)
+		await done(lvl)
+	check(counts[0] <= 2 and counts[1] >= 12, "chapter 1 has %d mark(s), the last chapter %d" % counts)
+	var main: Control = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await frames(2)
+	main._debug_start(0)
+	await get_tree().create_timer(0.6).timeout
+	get_tree().paused = false
+	main.show_screen("")
+	Game.skip_cutscene.emit()
+	await get_tree().create_timer(0.6).timeout
+	var where: Vector3 = Game.player.global_position
+	Game.catch(main.level.npcs[0])
+	await get_tree().create_timer(4.5).timeout
+	var trails: Array = main.level.get_children().filter(func(n): return n.get_meta("gore", "") == "trail_1")
+	check(trails.any(func(t): return Vector2(t.global_position.x - where.x, t.global_position.z - where.z).length() < 1.0), "caught: a drag mark stays where it happened")
+	main.queue_free()
+	await frames(2)
+	Game.new_game()
 
 # Hiding in the same spot again and again: from the third time, it comes to check it.
 func t_hide_learned() -> void:

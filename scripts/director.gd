@@ -627,5 +627,6 @@ func _midpoint() -> void:
 	if lvl.dark or lvl.power_out or lvl.get("fuse_dark") or lvl.npcs.any(func(n): return n.state == "chase"):
 		return
 	lvl.blackout(18.0)
+	HD.bleed(lvl, Game.player.global_position, 4)   # for when the lights come back
 	Game.say("(ไฟดับทั้งชั้น... ได้ยินเสียงเดินอยู่ไม่ไกล)", 3.5)
 	stalk()
