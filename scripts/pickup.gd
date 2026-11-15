@@ -3,7 +3,7 @@
 extends Area3D
 
 const PROMPTS := {
-	"doc": "[E] เก็บเอกสารงบดุล", "note": "[E] ดูโพสต์อิทรหัสผ่าน", "pc": "[E] ล็อกอินคอมพิวเตอร์",
+	"doc": "[E ค้างไว้] ค้นหาเอกสารงบดุล", "note": "[E] ดูโพสต์อิทรหัสผ่าน", "pc": "[E] ล็อกอินคอมพิวเตอร์",
 	"coffee": "[E] ชงกาแฟ", "coffee_goal": "[E] ชงกาแฟ", "phone": "[E] รับสาย",
 	"guard_phone": "[E] หยิบมือถือพี่สมชาย", "read": "[E] อ่าน", "clue": "[E] หยิบ... นี่มันอะไรกัน?",
 	"powerbank": "[E] เก็บพาวเวอร์แบงก์", "throwable": "[E] หยิบไว้ขว้าง", "breaker": "[E] สับเบรกเกอร์ (เสียงดัง!)",
@@ -84,7 +84,7 @@ func usable() -> bool:
 
 func prompt() -> String:
 	if kind == "file":
-		return "[E] เก็บ" + title
+		return ("[E] ไขรหัส: " if code != "" and not has_meta("unlocked") else "[E ค้างไว้] ค้นหา") + title
 	if kind == "quest":   # a job's step: the item says what you do with it
 		return "[E] " + title
 	return PROMPTS.get("hide_" + hide_type if kind == "hide" else kind, "[E]")

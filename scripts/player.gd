@@ -60,7 +60,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		crouching = not crouching
 	elif e.is_action_pressed("interact"):
 		var f := focus()
-		if f:
+		var held_for: bool = is_instance_valid(Game.level) and Game.level.has_method("searches") and Game.level.searches(f) if f else false
+		if f and not held_for:   # goal papers are held for (stage.gd _search)
 			f.interact()
 
 # Interactable in front of the camera (pickup.gd), or null.

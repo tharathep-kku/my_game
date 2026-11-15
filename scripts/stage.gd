@@ -28,6 +28,8 @@ const DISTANT := ["door_slam", "elevator_ding", "chair_creak", "printer", "whisp
 
 const GOAL_KINDS := ["doc", "note", "pc", "coffee_goal", "breaker", "scanner", "fuse", "fuse_box", "file"]
 const SCAN_SECS := 3.0
+const SEARCH_KINDS := ["doc", "file"]   # goal papers aren't lying about: he goes through a drawer for them (hold E)
+const SEARCH_SECS := [1.2, 2.0, 2.6]    # by difficulty
 const MOB_SCENES := ["manager", "sweeper", "goblin"]
 const DIRECTOR := preload("res://scripts/director.gd")
 
@@ -53,6 +55,8 @@ var power_out := false     ## lights stay off until the breaker is flipped
 var fuse_dark := false     ## stage 4: the fuse took the floor's power - dark until the exit, the flashlight lasts longer
 var raging := false        ## rage_on_goal / finale chase is on
 var scan_t := 0.0          ## seconds the exit scanner has been held
+var search_t := 0.0        ## seconds he has been going through a drawer
+var _rustle_t := 0.0
 var extras: Array[Npc] = []   # finale coworkers (freed on respawn)
 var _blackout_id := 0
 var _flicker_t := 0.0
@@ -646,6 +650,31 @@ func _phantom(dt: float) -> void:
 				_figure(["manager", "sweeper", "goblin", "guard"].pick_random(), p, 1.5, false, "whisper")
 				return
 
+# ---------- goal papers: hold E to go through the drawer ----------
+# Two seconds with his back to the room, and paper rustles: whoever is close comes to look.
+# Let go and he starts over. (A drawer still locked by a code opens its keypad at once.)
+func searches(f: Node) -> bool:
+	return f.get("kind") in SEARCH_KINDS and not (f.code != "" and not f.has_meta("unlocked"))
+
+func _search(dt: float) -> void:
+	var f: Node = player.focus()
+	if not (f and searches(f) and Input.is_action_pressed("interact") and not player.hidden and not Game.busy):
+		search_t = maxf(search_t - dt * 2.0, 0.0)
+		return
+	if search_t == 0.0:
+		_rustle_t = 0.0
+	search_t += dt
+	_rustle_t -= dt
+	if _rustle_t <= 0.0:
+		_rustle_t = 0.8
+		Game.sfx("bookFlip1", null, -5.0)
+		Game.noise(player.global_position, 9.0)
+	var need: float = SEARCH_SECS[clampi(Game.difficulty, 0, 2)]
+	Game.say("กำลังค้น... %d%%  (ปล่อยมือ = เริ่มใหม่)" % int(minf(search_t / need, 1.0) * 100), 0.3)
+	if search_t >= need:
+		search_t = 0.0
+		f.interact()
+
 # ---------- final stage: hold the scanner while everyone comes ----------
 # A stage with a fuse panel: the scanner is dead until the fuse is in.
 func scanner_powered() -> bool:
@@ -868,6 +897,7 @@ func _process(dt: float) -> void:
 		_hung(dt)
 		_phantom(dt)
 		_scan(dt)
+		_search(dt)
 		if flicker.y > 0.0:
 			_flicker_t -= dt
 			if _flicker_t <= 0.0:

@@ -97,6 +97,7 @@ func _ready() -> void:
 	await t_gore()
 	await t_echoes()
 	await t_setpieces()
+	await t_search()
 	await t_hide_learned()
 	await t_drawer_code()
 	await t_quiet_tips()
@@ -1093,6 +1094,69 @@ func t_setpieces() -> void:
 	await get_tree().create_timer(3.4).timeout
 	var after: int = lvl.get_children().filter(func(n): return n.get_meta("gore", "") == "trail_1").size()
 	check((bodies.is_empty() or not is_instance_valid(bodies[0])) and after == before + 1, "...dragged off, and the drag mark stays")
+	await done(lvl)
+
+# Goal papers are held for: E down for two seconds going through the drawer, paper rustling (a
+# coworker close by hears it); letting go starts it over. A tap does nothing.
+func t_search() -> void:
+	Game.new_game()
+	Game.difficulty = 1
+	var i := idx("stage_1")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(10)
+	var doc: Area3D = kinds(lvl, "doc")[0]
+	var p = lvl.player
+	var n: Npc = lvl.npcs[0]
+	n.global_position = doc.global_position + Vector3(6.0, 0, 0)
+	n.state = "patrol"
+	var stand := Vector3.ZERO   # a metre off it, whichever side has a clear line to it
+	for off in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
+		var from: Vector3 = doc.global_position + off * 1.1
+		var q := PhysicsRayQueryParameters3D.create(Vector3(from.x, 1.55, from.z), doc.global_position, 1)
+		if lvl.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			stand = Vector3(from.x, 0.05, from.z)
+			break
+	p.global_position = stand
+	var d: Vector3 = doc.global_position - p.eye()
+	p.rotation.y = atan2(-d.x, -d.z)
+	p.cam.rotation.x = atan2(d.y, Vector2(d.x, d.z).length())
+	await pframes(4)
+	d = doc.global_position - p.eye()
+	p.cam.rotation.x = atan2(d.y, Vector2(d.x, d.z).length())
+	await pframes(3)
+	check(p.focus() == doc and doc.prompt().contains("ค้างไว้"), "looking at a goal paper: the prompt says hold")
+	var ev := InputEventAction.new()
+	ev.action = "interact"
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await pframes(3)
+	ev = ev.duplicate()
+	ev.pressed = false
+	Input.parse_input_event(ev)
+	await pframes(3)
+	check(Game.goal_count == 0 and not doc.used, "a tap doesn't take it")
+	var heard := [0]
+	lvl.find_children("*", "Director", false, false).front().revealed = true   # (the first minute it keeps its distance)
+	n.global_position = doc.global_position + Vector3(6.0, 0, 0)
+	n.state = "patrol"
+	n.alert = 0.0
+	Input.action_press("interact")
+	for k in 9:
+		await get_tree().create_timer(0.1).timeout
+		if n.state == "investigate":
+			heard[0] += 1
+	check(lvl.search_t > 0.5 and Game.goal_count == 0 and heard[0] > 0, "holding: he's going through it (%.1f s), and the paper is heard (%s)" % [lvl.search_t, n.state])
+	Input.action_release("interact")
+	await get_tree().create_timer(0.7).timeout
+	check(lvl.search_t == 0.0 and Game.goal_count == 0, "letting go starts it over")
+	n.global_position = doc.global_position + Vector3(40.0, 0, 0)   # out of earshot: let him finish
+	n.state = "patrol"
+	Input.action_press("interact")
+	await get_tree().create_timer(2.4).timeout
+	Input.action_release("interact")
+	check(Game.goal_count == 1 and doc.used, "two seconds held: he has it")
 	await done(lvl)
 
 # Hiding in the same spot again and again: from the third time, it comes to check it.
