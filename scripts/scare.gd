@@ -9,9 +9,11 @@
 #   face        their face slams full screen with a scream (nothing else happens)
 #   peek        `preset` leans out at At, head on its side; gone when looked at
 #   crawl       `preset` scuttles on all fours from At to the child marker "To", then gone
+#   dangle      `preset` hangs head down out of the ceiling at At; hauled up when he gets close or stares
+#   drop        `preset` falls out of the ceiling at At, lies there, and is dragged off (leaves a blood trail)
 extends Area3D
 
-@export_enum("lights_out", "figure", "behind", "sound", "rush", "face", "peek", "crawl") var kind := "sound"
+@export_enum("lights_out", "figure", "behind", "sound", "rush", "face", "peek", "crawl", "dangle", "drop") var kind := "sound"
 ## Who appears (Story.BODIES key: guard, manager, sweeper, goblin, dummy, tong...)
 @export var preset := "guard"
 ## Sound name from assets/sfx (no extension). Plays with every kind.

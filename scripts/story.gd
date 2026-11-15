@@ -416,7 +416,10 @@ const STAGES := [
 			{"kind": "figure", "preset": "hr", "at": Vector2i(21, 10), "secs": 4.0, "sfx": "pa_chime"},
 			{"kind": "lights_out", "secs": 3.5, "sfx": "door_slam", "line": "ต๋อง: (ไฟดับ... ได้ยินเสียงปั๊มตราดังขึ้นเรื่อยๆ)"},
 		],
-		"goal_scares": {2: {"kind": "face", "preset": "hr", "sfx": "pa_chime", "line": "พี่แหม่ม HR: ...แอบเอาเอกสารไปทำไมคะ"}},
+		"goal_scares": {
+			1: {"kind": "dangle", "preset": "staff", "secs": 10.0, "line": "ต๋อง: (...มีคนห้อยหัวลงมาจากฝ้า แขนแกว่งอยู่ ...อย่าเข้าไปใกล้)"},
+			2: {"kind": "face", "preset": "hr", "sfx": "pa_chime", "line": "พี่แหม่ม HR: ...แอบเอาเอกสารไปทำไมคะ"},
+		},
 		"texts": [
 			[40.0, "พี่แหม่ม HR", "แบบฟอร์มลาออกต้องมีลายเซ็นหัวหน้าก่อนนะคะ ^^"],
 			[100.0, "แม่", "ลูก หมอโทรมา... ลูกอยู่ไหน"],
@@ -791,7 +794,10 @@ const STAGES := [
 			{"kind": "crawl", "preset": "sweeper", "at": Vector2i(20, 9), "to": Vector2i(24, 11), "sfx": "splash"},
 			{"kind": "face", "preset": "sweeper", "sfx": "flatline"},
 		],
-		"goal_scares": {2: {"kind": "behind", "preset": "doctor_night", "sfx": "flatline", "secs": 4.0}},
+		"goal_scares": {
+			1: {"kind": "drop", "preset": "tong", "line": "ต๋อง: ...เสื้อตัวนั้น ...นั่นมัน เรา?"},
+			2: {"kind": "behind", "preset": "doctor_night", "sfx": "flatline", "secs": 4.0},
+		},
 		"texts": [
 			[30.0, "แม่", "หมอบอกว่าลูกได้ยินเสียงแม่... ตื่นนะลูก"],
 			[90.0, "หัวหน้าธนา", "ต๋องจ๊ะ ลาป่วยต้องมีใบรับรองแพทย์นะจ๊ะ"],

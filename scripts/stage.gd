@@ -390,6 +390,10 @@ func scare(s) -> void:
 			b.parts.Head.rotation.z = 1.1
 		"crawl":
 			_crawl(s.preset, at_pos, s.to() if s is Node else at_pos + player.global_basis.x * 6.0, s.sfx)
+		"dangle":
+			_dangle(s.preset, at_pos if s is Node else _spot_in_view(5.0, 10.0), s.secs, s.sfx)
+		"drop":
+			_drop(s.preset, at_pos if s is Node else _spot_in_view(3.0, 5.5), s.sfx)
 		"behind":
 			var back: Vector3 = player.global_basis.z
 			var p: Vector3 = player.global_position + back * 1.7
@@ -397,6 +401,120 @@ func scare(s) -> void:
 			if not get_world_3d().direct_space_state.intersect_ray(q).is_empty():
 				p = player.global_position + back * 0.9
 			_figure(s.preset, p, s.secs, true, s.sfx)
+
+# Open floor that far from Tong that he can see from where he stands (in front of him if there
+# is any, else anywhere in plain sight); straight ahead if nothing else will do.
+func _spot_in_view(dmin: float, dmax: float) -> Vector3:
+	var map := get_world_3d().navigation_map
+	var space := get_world_3d().direct_space_state
+	var behind := Vector3.INF
+	for i in 60:
+		var p := NavigationServer3D.map_get_random_point(map, 1, false)
+		var d := Vector2(p.x - player.global_position.x, p.z - player.global_position.z).length()
+		if d < dmin or d > dmax:
+			continue
+		var head := Vector3(p.x, 1.6, p.z)
+		if not space.intersect_ray(PhysicsRayQueryParameters3D.create(player.eye(), head, 1)).is_empty():
+			continue
+		if player.cam.is_position_in_frustum(head):
+			return Vector3(p.x, 0.0, p.z)
+		behind = Vector3(p.x, 0.0, p.z)
+	return behind if behind != Vector3.INF else _ahead(dmax)
+
+# A ceiling tile gone: a black square overhead.
+func _ceiling_hole(pos: Vector3) -> MeshInstance3D:
+	var m := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(1.1, 1.1)
+	m.mesh = pm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color.BLACK
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.material_override = mat
+	add_child(m)
+	m.global_position = Vector3(pos.x, StageBuilder.WALL_H - 0.012, pos.z)
+	m.rotation.x = PI
+	return m
+
+func _body_at(preset: String, reach := 2.9) -> Body:
+	var b := Body.new()
+	b.build(Story.BODIES[preset])
+	add_child(b)
+	b.pose(0.0, "idle")
+	for arm in ["ArmL", "ArmR"]:   # both arms straight past the head
+		if b.parts.has(arm):
+			b.parts[arm].rotation.x = reach + randf_range(-0.15, 0.15)
+	return b
+
+# Someone hangs head down out of a missing ceiling tile, arms swinging. Get close, or look at it a
+# moment too long, and whatever has the legs hauls it up into the dark.
+var hung: Array[Dictionary] = []   # {body, hole, ttl, watch}
+func _dangle(preset: String, pos: Vector3, ttl: float, sfx_name := "") -> void:
+	var b := _body_at(preset)
+	b.global_position = Vector3(pos.x, StageBuilder.WALL_H + 0.45, pos.z)
+	b.rotation = Vector3(PI, randf() * TAU, 0.0)
+	var sway := b.create_tween().set_loops()
+	sway.tween_property(b, "rotation:z", 0.07, 1.3).set_trans(Tween.TRANS_SINE)
+	sway.tween_property(b, "rotation:z", -0.07, 1.3).set_trans(Tween.TRANS_SINE)
+	Game.sfx(sfx_name if sfx_name != "" else "creak2", b, -4.0)
+	hung.append({"body": b, "hole": _ceiling_hole(pos), "ttl": maxf(ttl, 6.0), "watch": 0.0})
+
+func _hung(dt: float) -> void:
+	for h in hung:
+		if not is_instance_valid(h.body):
+			continue
+		var b: Node3D = h.body
+		h.ttl -= dt
+		var head: Vector3 = b.global_position + Vector3.DOWN * 1.75
+		if player.cam.is_position_in_frustum(head) and get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(player.eye(), head, 1)).is_empty():
+			h.watch += dt
+		var close: bool = Vector2(head.x - player.global_position.x, head.z - player.global_position.z).length() < 4.0
+		if not (close or h.watch > 1.2 or h.ttl <= 0.0):
+			continue
+		h.body = null
+		var hole: Node = h.hole
+		if h.ttl > 0.0:   # he saw it go
+			Game.sfx("door_slam", b, -5.0)
+			Game.sfx("gasp", null, -8.0)
+			blackout(0.35)
+		var t := b.create_tween()
+		t.tween_property(b, "global_position:y", b.global_position.y + 2.4, 0.16).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+		t.tween_callback(b.queue_free)
+		get_tree().create_timer(2.0, false).timeout.connect(func(): if is_instance_valid(hole): hole.queue_free())
+
+# A body falls out of the ceiling in front of him and lies there face down, arms out towards
+# him... then it is dragged off feet first into the dark. The drag mark stays.
+func _drop(preset: String, pos: Vector3, sfx_name := "") -> void:
+	var h := Vector3(player.global_position.x - pos.x, 0, player.global_position.z - pos.z).normalized()
+	if h.length() < 0.5:
+		h = Vector3.BACK
+	var hole := _ceiling_hole(pos)
+	var b := _body_at(preset)
+	b.global_transform = Transform3D(Basis(h.cross(Vector3.UP), h, Vector3.UP), pos - h * 0.85 + Vector3.UP * (StageBuilder.WALL_H + 0.3))
+	if b.parts.has("Head"):   # face up off the floor, looking straight at him
+		b.parts.Head.rotation.x = 1.1
+	if sfx_name != "":
+		Game.sfx(sfx_name, b, -4.0)
+	var far := 9.0   # dragged away from him, as far as the first wall
+	var hit := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 0.6, pos + Vector3.UP * 0.6 - h * far, 1))
+	if not hit.is_empty():
+		far = maxf(pos.distance_to(Vector3(hit.position.x, 0, hit.position.z)) - 0.6, 0.5)
+	var lie := Vector3(b.global_position.x, 0.14, b.global_position.z)
+	var t := b.create_tween()
+	t.tween_property(b, "global_position", lie, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	t.tween_callback(func():
+		Game.sfx("scare_grab", b, -2.0)
+		Game.sfx("gasp", null, -8.0))
+	t.tween_interval(1.5)
+	t.tween_callback(func():
+		Game.sfx("mop_drag_0", b, 0.0)
+		HD.blood(self, "trail_1", pos - h * 1.6, atan2(h.z, -h.x)))
+	t.tween_property(b, "global_position", lie - h * far, 0.25 + far * 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	t.tween_callback(func():
+		if not dark:
+			blackout(0.3)
+		b.queue_free()
+		hole.queue_free())
 
 # A spot on the floor straight ahead of Tong, short of the first wall (at most `far` metres).
 func _ahead(far := 11.0) -> Vector3:
@@ -747,6 +865,7 @@ func _process(dt: float) -> void:
 	_cameos(dt)
 	if is_instance_valid(player) and not Game.in_cutscene:
 		_echoes()
+		_hung(dt)
 		_phantom(dt)
 		_scan(dt)
 		if flicker.y > 0.0:

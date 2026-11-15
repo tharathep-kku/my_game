@@ -96,6 +96,7 @@ func _ready() -> void:
 	await t_midpoint()
 	await t_gore()
 	await t_echoes()
+	await t_setpieces()
 	await t_hide_learned()
 	await t_drawer_code()
 	await t_quiet_tips()
@@ -1058,6 +1059,41 @@ func t_echoes() -> void:
 			await done(again)
 		else:
 			await done(lvl)
+
+# Two set pieces: someone hanging head down out of the ceiling (hauled up when he gets close), and
+# a body that falls out of it, lies there, and is dragged off leaving a blood trail.
+func t_setpieces() -> void:
+	var known := ["lights_out", "figure", "behind", "sound", "rush", "face", "peek", "crawl", "dangle", "drop"]
+	var odd := []
+	for d in Game.STAGES:
+		for sc in d.get("scares", []) + d.get("goal_scares", {}).values():
+			if not sc.kind in known or (sc.has("preset") and not Story.BODIES.has(sc.preset)):
+				odd.append(sc.kind)
+	check(odd.is_empty(), "every scare in story.gd is a kind the stage knows %s" % [odd])
+	Game.new_game()
+	var i := idx("stage_hr")
+	Game.stage = i
+	var lvl := stage_scene(i)
+	add_child(lvl)
+	await frames(10)
+	lvl.scare({"kind": "dangle", "preset": "staff", "secs": 20.0})
+	await frames(2)
+	var h: Dictionary = lvl.hung[0]
+	var b: Node3D = h.body
+	var away := Vector2(b.global_position.x - lvl.player.global_position.x, b.global_position.z - lvl.player.global_position.z).length()
+	check(is_instance_valid(b) and b.global_position.y > 3.0 and absf(b.rotation.x - PI) < 0.01 and away >= 2.0, "dangle: upside down out of the ceiling, %.1f m off" % away)
+	lvl.player.global_position = Vector3(b.global_position.x + 2.5, 0.1, b.global_position.z)
+	await get_tree().create_timer(0.6).timeout
+	check(not is_instance_valid(b), "he gets close: it is hauled up and gone")
+	var before: int = lvl.get_children().filter(func(n): return n.get_meta("gore", "") == "trail_1").size()
+	lvl.scare({"kind": "drop", "preset": "tong"})
+	await get_tree().create_timer(0.5).timeout
+	var bodies: Array = lvl.get_children().filter(func(n): return n is Body and n.global_position.y < 0.3 and absf(n.global_basis.y.y) < 0.1)   # lying flat
+	check(bodies.size() == 1, "drop: a body on the floor in front of him")
+	await get_tree().create_timer(3.4).timeout
+	var after: int = lvl.get_children().filter(func(n): return n.get_meta("gore", "") == "trail_1").size()
+	check((bodies.is_empty() or not is_instance_valid(bodies[0])) and after == before + 1, "...dragged off, and the drag mark stays")
+	await done(lvl)
 
 # Hiding in the same spot again and again: from the third time, it comes to check it.
 func t_hide_learned() -> void:
