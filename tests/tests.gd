@@ -95,6 +95,7 @@ func _ready() -> void:
 	await t_veil()
 	await t_midpoint()
 	await t_gore()
+	await t_echoes()
 	await t_hide_learned()
 	await t_drawer_code()
 	await t_quiet_tips()
@@ -1005,6 +1006,58 @@ func t_gore() -> void:
 	main.queue_free()
 	await frames(2)
 	Game.new_game()
+
+# Echoes: a coworker as they were that afternoon stands in the office. Walk up: they say what they
+# said that day, the light cuts to what they are tonight, and it's filed in the phone. Each stands
+# on open floor he can walk to; one already remembered doesn't come back on a retry.
+func t_echoes() -> void:
+	for i in Game.STAGES.size():
+		var data: Dictionary = Game.STAGES[i]
+		if not data.has("echoes"):
+			continue
+		Game.new_game()
+		Game.stage = i
+		var lvl := stage_scene(i)
+		add_child(lvl)
+		await frames(10)
+		var map := lvl.get_world_3d().navigation_map
+		NavigationServer3D.map_force_update(map)
+		var bad := []
+		for e in data.echoes:
+			var p: Vector3 = lvl.cell_pos(e.at)
+			var q := NavigationServer3D.map_get_closest_point(map, p)
+			var path := NavigationServer3D.map_get_path(map, lvl.spawn, q, true)
+			if Vector2(q.x - p.x, q.z - p.z).length() > 0.5 or path.is_empty() or not Story.BODIES.has(e.who) or not Story.BODIES.has(e.night):
+				bad.append(e.title)
+		check(bad.is_empty() and lvl.echoes.size() == data.echoes.size(), "stage %d: %d echo(es) on open floor he can reach %s" % [i + 1, lvl.echoes.size(), bad])
+		check(Game.all_docs().any(func(d): return d.title == data.echoes[0].title), "stage %d: its echo is in the archive's list" % (i + 1))
+		if i == 0:
+			var e: Dictionary = lvl.echoes[0]
+			var said := []
+			var on_say := func(t, _s): said.append(t)
+			Game.message.connect(on_say)
+			check(e.state == "waiting" and e.body.built_spec == Story.BODIES[e.data.who], "it waits, as they looked that day")
+			lvl.player.global_position = e.body.global_position + Vector3(-3.0, 0.1, 0)
+			await pframes(4)
+			check(e.state == "playing" and e.body.visible, "walking up to it starts it")
+			var t := 0.0
+			while e.state != "done" and t < 16.0:
+				await get_tree().create_timer(0.25).timeout
+				t += 0.25
+			check(e.state == "done" and said.any(func(x): return x.contains("งานต๋องเรียบร้อยดี")), "it says what was said that day (%d lines), then the light cuts" % said.size())
+			check(Game.read_log.any(func(r): return r.title == e.data.title) and is_instance_valid(e.body) and e.body.built_spec == Story.BODIES[e.data.night], "what stands there now is tonight's; the memory is filed in the phone")
+			await get_tree().create_timer(1.6).timeout
+			check(not is_instance_valid(e.body), "...and then nobody is there")
+			Game.message.disconnect(on_say)
+			lvl.queue_free()
+			await frames(2)
+			var again := stage_scene(i)   # a retry: Game.read_log still has it
+			add_child(again)
+			await frames(5)
+			check(again.echoes.is_empty(), "remembered already: it doesn't stand there again on a retry")
+			await done(again)
+		else:
+			await done(lvl)
 
 # Hiding in the same spot again and again: from the third time, it comes to check it.
 func t_hide_learned() -> void:

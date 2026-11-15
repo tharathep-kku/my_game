@@ -43,6 +43,7 @@ var npcs: Array[Npc] = []
 var player: CharacterBody3D
 var lights: Array[OmniLight3D] = []
 var cameos: Array[Dictionary] = []   # {body, watch, id}
+var echoes: Array[Dictionary] = []   # {body, light, data, state}: someone from the daytime, standing where it happened
 var wall_nodes := 0
 var leash := 20.0          ## patrol won't wander farther than this from the player - ~half the map
 var _rng := RandomNumberGenerator.new()
@@ -150,6 +151,7 @@ func _ready() -> void:
 	if wet_start > 0:
 		_scatter_wet()
 	if with_player and stage_index >= 0:
+		_spawn_echoes()
 		_start_quests()
 		if not data.has("loop"):   # the night's rhythm + the things that get under his skin
 			add_child(DIRECTOR.new())
@@ -744,6 +746,7 @@ func _process(dt: float) -> void:
 		lights[0].visible = not lights[0].visible or _rng.randf() < 0.5
 	_cameos(dt)
 	if is_instance_valid(player) and not Game.in_cutscene:
+		_echoes()
 		_phantom(dt)
 		_scan(dt)
 		if flicker.y > 0.0:
@@ -755,6 +758,83 @@ func _process(dt: float) -> void:
 	if _event_t <= 0.0 and gloom > 0.5 and is_instance_valid(player) and not Game.in_cutscene:   # nothing creepy by day
 		_event_t = randf_range(14.0, 32.0)
 		distant_event(DISTANT.pick_random())
+
+# Echoes (story.gd "echoes"): a coworker as they were that afternoon, back turned, in a patch of
+# daylight that shouldn't be there. Walk up and it plays: what they said that day, turning round
+# as they say it... the light cuts, and for a moment what stands there is what they are tonight.
+# Tells the chapter's back story in the office itself (and files it under the phone's documents).
+const ECHO_NEAR := 5.0
+func _spawn_echoes() -> void:
+	for e: Dictionary in data.get("echoes", []):
+		if Game.read_log.any(func(r): return r.title == e.title):   # remembered already this run (a retry)
+			continue
+		var b := Body.new()
+		b.build(Story.BODIES[e.who])
+		add_child(b)
+		b.global_position = cell_pos(e.at)
+		var away := b.global_position - spawn
+		b.rotation.y = atan2(away.x, away.z) + PI   # its back to where he comes from
+		b.pose(0.0, "idle")
+		b.visible = false   # until the intro cutscene is over
+		var l := OmniLight3D.new()
+		l.light_color = Color(1.0, 0.92, 0.78)
+		l.light_energy = 1.1
+		l.omni_range = 3.4
+		l.position = Vector3(0, 2.3, 0)
+		b.add_child(l)
+		echoes.append({"body": b, "light": l, "data": e, "state": "waiting"})
+
+func _echoes() -> void:
+	for e in echoes:
+		if e.state != "waiting" or not is_instance_valid(e.body):
+			continue
+		var b: Body = e.body
+		b.visible = true   # (hidden while the intro cutscene ran)
+		var head := b.global_position + Vector3.UP * 1.6
+		if head.distance_to(player.eye()) > ECHO_NEAR or player.hidden or Game.busy:
+			continue
+		var q := PhysicsRayQueryParameters3D.create(player.eye(), head, 1)
+		if get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			_play_echo(e)
+
+func _play_echo(e: Dictionary) -> void:
+	e.state = "playing"
+	var b: Body = e.body
+	Game.sfx("whisper", b, -6.0)
+	for line: String in e.data.lines:
+		Game.say(line, 3.4)
+		var t := 0.0
+		while t < 3.6:   # turning round, a little with every word
+			await get_tree().process_frame
+			if not is_instance_valid(b) or not is_instance_valid(player):
+				return
+			t += get_process_delta_time()
+			var d := player.global_position - b.global_position
+			b.rotation.y = lerp_angle(b.rotation.y, atan2(-d.x, -d.z), 0.35 * get_process_delta_time())
+	var at := b.global_position
+	e.light.visible = false
+	blackout(0.3)
+	Game.sfx("stab", null, -4.0)
+	b.queue_free()
+	var night := Body.new()   # what the afternoon turned into
+	night.build(Story.BODIES[e.data.night])
+	add_child(night)
+	night.global_position = at
+	var d := player.global_position - at
+	night.rotation.y = atan2(-d.x, -d.z)
+	var red := OmniLight3D.new()
+	red.light_color = Color(0.75, 0.82, 1.0)
+	red.light_energy = 1.6
+	red.omni_range = 3.4
+	red.position = Vector3(0, 2.3, 0)
+	night.add_child(red)
+	e.body = night
+	e.state = "done"
+	Game._log_read(e.data.title, e.data.log)
+	await get_tree().create_timer(1.1, false).timeout
+	if is_instance_valid(night):
+		_vanish(night)
+		Game.say(e.data.get("after", "ต๋อง: ...เมื่อกี้มัน... ภาพเมื่อตอนกลางวัน"), 3.0)
 
 # พี่สมชาย standing still at the far end of a sightline. Look at him for half a second:
 # you noticed (hint) and he's gone. Glance away or walk up to him: gone, and you missed it.

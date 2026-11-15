@@ -233,6 +233,8 @@ static func all_docs() -> Array:
 		for key in ["notes", "items", "postits"]:
 			for d in Story.STAGES[i].get(key, []):
 				out.append({"title": d.title, "text": d.text, "chapter": i})
+		for d in Story.STAGES[i].get("echoes", []):   # a memory walked into (stage.gd)
+			out.append({"title": d.title, "text": d.log, "chapter": i})
 		for q in Story.STAGES[i].get("quests", []):   # what a job's steps let you read
 			for st in q.steps:
 				if st.has("text"):
