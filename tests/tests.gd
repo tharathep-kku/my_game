@@ -1093,14 +1093,15 @@ func t_setpieces() -> void:
 	lvl.player.global_position = Vector3(b.global_position.x + 2.5, 0.1, b.global_position.z)
 	await get_tree().create_timer(0.6).timeout
 	check(not is_instance_valid(b), "he gets close: it is hauled up and gone")
-	var before: int = lvl.get_children().filter(func(n): return n.get_meta("gore", "") == "trail_1").size()
+	var left := func() -> int: return lvl.get_children().filter(func(n): return n.get_meta("gore", "") in ["trail_1", "pool_1"]).size()   # a drag mark, or a pool if it fell against a wall
+	var before: int = left.call()
 	lvl.scare({"kind": "drop", "preset": "tong"})
 	await get_tree().create_timer(0.5).timeout
 	var bodies: Array = lvl.get_children().filter(func(n): return n is Body and n.global_position.y < 0.3 and absf(n.global_basis.y.y) < 0.1)   # lying flat
 	check(bodies.size() == 1, "drop: a body on the floor in front of him")
 	await get_tree().create_timer(3.4).timeout
-	var after: int = lvl.get_children().filter(func(n): return n.get_meta("gore", "") == "trail_1").size()
-	check((bodies.is_empty() or not is_instance_valid(bodies[0])) and after == before + 1, "...dragged off, and the drag mark stays")
+	var after: int = left.call()
+	check((bodies.is_empty() or not is_instance_valid(bodies[0])) and after == before + 1, "...dragged off, and the blood it left stays")
 	await done(lvl)
 
 # Goal papers are held for: E down for two seconds going through the drawer, paper rustling (a
@@ -1264,7 +1265,7 @@ func t_sound_bed() -> void:
 	check(Game.stream("footstep02").resource_path.ends_with("step_carpet_2.ogg"), "office footsteps are on carpet")
 	var rev := AudioServer.get_bus_effect(AudioServer.get_bus_index("SFX"), 0) as AudioEffectReverb
 	check(rev and is_equal_approx(rev.room_size, Game.ROOMS.carpet[0]), "the office reverb is small and dead")
-	var l: OmniLight3D = lvl.lights[0]
+	var l: OmniLight3D = lvl.lights[1]   # (not lights[0]: that tube is the dying one, it blinks and its hum with it)
 	var hum := l.get_node_or_null("Hum") as AudioStreamPlayer3D
 	check(hum != null and hum.playing and not hum.stream_paused, "a ceiling light hums")
 	lvl.set_dark(true)
