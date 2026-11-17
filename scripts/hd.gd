@@ -418,7 +418,7 @@ static func _gore(root: Node, faces: Array, floors: Array, open: Callable, free_
 	for n in root.find_children("*", "Node3D", true, false):
 		if n.scene_file_path.begins_with("res://assets/models/") or n is StaticBody3D and not String(n.name) in ["Floor", "Ceiling"]:
 			solid.append(Vector2(n.global_position.x, n.global_position.z))
-	for i in depth:   # on the floor: a pool, or something dragged
+	for i in depth if not floors.is_empty() else 0:   # on the floor: a pool, or something dragged
 		for attempt in 12:
 			var r: Rect2 = floors[rng.randi() % floors.size()]
 			var p := Vector2(rng.randf_range(r.position.x, r.end.x), rng.randf_range(r.position.y, r.end.y))

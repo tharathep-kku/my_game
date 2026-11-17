@@ -118,10 +118,12 @@ func throw() -> void:
 			landed[0] = true
 			Game.sfx("metalPot%d" % randi_range(1, 3), rb)
 			Game.noise(rb.global_position, 18.0))
+	var rid := rb.get_instance_id()
 	get_tree().create_timer(3.0, false).timeout.connect(func():
-		if is_instance_valid(rb):
-			Game.level.spawn_throwable(rb.global_position)
-			rb.queue_free())
+		var o: Object = instance_from_id(rid) if is_instance_id_valid(rid) else null
+		if o and is_instance_valid(Game.level):
+			Game.level.spawn_throwable(o.global_position)
+			o.queue_free())
 
 # Enter a hide spot. Coworkers who saw us get in come and search it.
 func hide_in(s: Area3D) -> void:

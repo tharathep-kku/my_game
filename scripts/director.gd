@@ -326,7 +326,8 @@ func _breath() -> void:
 	var p: Node3D = Game.player
 	if is_instance_valid(p):
 		var a := _sound("breathing", p.global_position + p.global_basis.z * 0.6 + Vector3.UP * 1.6, 2.0)
-		get_tree().create_timer(1.6, false).timeout.connect(func(): if is_instance_valid(a): a.queue_free())
+		var aid := a.get_instance_id()   # (not the node: a lambda holding a freed node logs an error)
+		get_tree().create_timer(1.6, false).timeout.connect(func(): if is_instance_id_valid(aid): instance_from_id(aid).queue_free())
 
 func _clock_back() -> void:
 	Game.clock = _clock_was if _clock_was != "-" else ""
@@ -612,9 +613,11 @@ func _reveal() -> void:
 			who.state = "patrol"
 			who._freeze_t = 2.6   # stands there; its head turns to him
 			who._freeze_cd = 12.0
+			var wid := who.get_instance_id()
 			get_tree().create_timer(2.8, false).timeout.connect(func():
-				if is_instance_valid(who) and who.state != "chase":
-					who.retreat(_far_point(who), 14.0))
+				var n: Object = instance_from_id(wid) if is_instance_id_valid(wid) else null
+				if n and n.state != "chase":
+					n.retreat(_far_point(n), 14.0))
 			return
 
 # ---------- half-way through the chapter ----------

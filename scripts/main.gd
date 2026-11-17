@@ -1193,10 +1193,11 @@ func _hallucinate(kind: String) -> void:
 	var was := l.text
 	l.text = GARBLED.pick_random()
 	l.set_meta("garbled", true)
+	var lid := l.get_instance_id()   # (not the label: the chat may have been redrawn by then, and a lambda holding a freed node logs an error)
 	get_tree().create_timer(0.7, false).timeout.connect(func():
-		if is_instance_valid(l):
-			l.text = was
-			l.remove_meta("garbled"))
+		if is_instance_id_valid(lid):
+			instance_from_id(lid).text = was
+			instance_from_id(lid).remove_meta("garbled"))
 
 # 0..1: how badly Tong is losing it. Low Social Battery, plus a spike while hunted.
 func fear() -> float:

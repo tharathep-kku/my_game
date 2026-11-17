@@ -1042,6 +1042,13 @@ func t_echoes() -> void:
 			lvl.player.global_position = e.body.global_position + Vector3(-3.0, 0.1, 0)
 			await pframes(4)
 			check(e.state == "playing" and e.body.visible, "walking up to it starts it")
+			var back: Vector3 = lvl.player.global_position
+			lvl.player.global_position = e.body.global_position + Vector3(0, 0.1, 20.0)   # he walks off in the middle of it
+			await get_tree().create_timer(0.3).timeout
+			check(e.state == "waiting" and Game.read_log.is_empty(), "walk off in the middle: it waits, nothing filed yet")
+			said.clear()
+			lvl.player.global_position = back
+			await pframes(4)
 			var t := 0.0
 			while e.state != "done" and t < 16.0:
 				await get_tree().create_timer(0.25).timeout
@@ -1109,8 +1116,8 @@ func t_search() -> void:
 	var doc: Area3D = kinds(lvl, "doc")[0]
 	var p = lvl.player
 	var n: Npc = lvl.npcs[0]
-	n.global_position = doc.global_position + Vector3(6.0, 0, 0)
-	n.state = "patrol"
+	n.set_physics_process(false)   # it only listens here: seeing and catching him would end the search
+	n.global_position = doc.global_position + Vector3(40.0, 0, 0)
 	var stand := Vector3.ZERO   # a metre off it, whichever side has a clear line to it
 	for off in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
 		var from: Vector3 = doc.global_position + off * 1.1
@@ -1137,6 +1144,12 @@ func t_search() -> void:
 	Input.parse_input_event(ev)
 	await pframes(3)
 	check(Game.goal_count == 0 and not doc.used, "a tap doesn't take it")
+	Game.phone_open = true
+	Input.action_press("interact")
+	await get_tree().create_timer(0.4).timeout
+	Input.action_release("interact")
+	check(lvl.search_t == 0.0, "not through the phone screen")
+	Game.phone_open = false
 	var heard := [0]
 	lvl.find_children("*", "Director", false, false).front().revealed = true   # (the first minute it keeps its distance)
 	n.global_position = doc.global_position + Vector3(6.0, 0, 0)
@@ -1152,7 +1165,6 @@ func t_search() -> void:
 	await get_tree().create_timer(0.7).timeout
 	check(lvl.search_t == 0.0 and Game.goal_count == 0, "letting go starts it over")
 	n.global_position = doc.global_position + Vector3(40.0, 0, 0)   # out of earshot: let him finish
-	n.state = "patrol"
 	Input.action_press("interact")
 	await get_tree().create_timer(2.4).timeout
 	Input.action_release("interact")

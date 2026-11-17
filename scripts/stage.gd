@@ -484,7 +484,9 @@ func _hung(dt: float) -> void:
 		var t := b.create_tween()
 		t.tween_property(b, "global_position:y", b.global_position.y + 2.4, 0.16).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
 		t.tween_callback(b.queue_free)
-		get_tree().create_timer(2.0, false).timeout.connect(func(): if is_instance_valid(hole): hole.queue_free())
+		var close_up := hole.create_tween()   # the hole's own tween: it dies with the hole (a timer would call into a freed node)
+		close_up.tween_interval(2.0)
+		close_up.tween_callback(hole.queue_free)
 
 # A body falls out of the ceiling in front of him and lies there face down, arms out towards
 # him... then it is dragged off feet first into the dark. The drag mark stays.
@@ -512,7 +514,10 @@ func _drop(preset: String, pos: Vector3, sfx_name := "") -> void:
 	t.tween_interval(1.5)
 	t.tween_callback(func():
 		Game.sfx("mop_drag_0", b, 0.0)
-		HD.blood(self, "trail_1", pos - h * 1.6, atan2(h.z, -h.x)))
+		if far >= 2.6:
+			HD.blood(self, "trail_1", pos - h * 1.6, atan2(h.z, -h.x))
+		else:   # against a wall: nowhere to be dragged, so no 3 m trail poking out the far side
+			HD.blood(self, "pool_1", pos, randf() * TAU))
 	t.tween_property(b, "global_position", lie - h * far, 0.25 + far * 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	t.tween_callback(func():
 		if not dark:
@@ -658,7 +663,7 @@ func searches(f: Node) -> bool:
 
 func _search(dt: float) -> void:
 	var f: Node = player.focus()
-	if not (f and searches(f) and Input.is_action_pressed("interact") and not player.hidden and not Game.busy):
+	if not (f and searches(f) and Input.is_action_pressed("interact") and not player.hidden and not player.frozen and not Game.busy and not Game.phone_open):
 		search_t = maxf(search_t - dt * 2.0, 0.0)
 		return
 	if search_t == 0.0:
@@ -959,6 +964,9 @@ func _play_echo(e: Dictionary) -> void:
 				return
 			t += get_process_delta_time()
 			var d := player.global_position - b.global_position
+			if Game.busy or d.length() > 14.0:   # caught, or he walked off: it waits, and starts over next time
+				e.state = "waiting"
+				return
 			b.rotation.y = lerp_angle(b.rotation.y, atan2(-d.x, -d.z), 0.35 * get_process_delta_time())
 	var at := b.global_position
 	e.light.visible = false
