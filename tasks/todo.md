@@ -1,6 +1,6 @@
 # v13 checklist
 - [x] T1 echo night form in the dark — `t_echoes` passes, probe shot shows silhouette
-- [ ] T2 scrawl textures — `tools/make_scrawls.gd`, `t_gore` counts `scrawl_*`
+- [x] T2 scrawl textures — `tools/make_scrawls.gd`, `t_gore` counts `scrawl_*`
 - [ ] T3 ceiling body poses — `t_setpieces` passes, shots by eye
 - [ ] checkpoint: send T1–T3 shots
 - [ ] T4 search ring — `t_search` checks ring value held/released

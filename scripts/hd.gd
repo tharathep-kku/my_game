@@ -359,12 +359,14 @@ const GORE := "res://assets/textures/gore/%s.png"   # tools/make_gore_textures.p
 const GORE_SIZE := {"hand_1": Vector2(0.32, 0.64), "hand_2": Vector2(0.32, 0.64), "smear_1": Vector2(1.5, 0.5),
 	"drip_1": Vector2(0.8, 1.2), "scratch_1": Vector2(0.6, 0.6), "pool_1": Vector2(1.6, 1.6), "trail_1": Vector2(3.2, 0.8)}
 const GORE_Y := {"hand_1": 1.2, "hand_2": 1.2, "smear_1": 0.95, "drip_1": 1.45, "scratch_1": 1.2}   # centre height on a wall
+# written on the walls; tools/make_scrawls.gd turns each into scrawl_N.png (run it after changing these)
 const SCRAWLS := ["กลับบ้านไม่ได้", "02:14", "ตื่นสิ", "อย่าหลับ", "เขามองอยู่", "ยังไม่ได้ลงเวลาออก", "ต๋อง ต๋อง ต๋อง ต๋อง"]
 static var _gore_res := {}   # kind -> [mesh, material]
 
 # One mark: on a wall (yaw = the way the wall faces, `at` = its foot) or flat on the floor (pool, trail).
 static func blood(root: Node, kind: String, at: Vector3, yaw: float) -> MeshInstance3D:
-	var flat: bool = not GORE_Y.has(kind)
+	var scrawl := kind.begins_with("scrawl_")
+	var flat: bool = not (scrawl or GORE_Y.has(kind))
 	if not _gore_res.has(kind):
 		var m := StandardMaterial3D.new()
 		m.albedo_texture = load(GORE % kind)
@@ -372,7 +374,7 @@ static func blood(root: Node, kind: String, at: Vector3, yaw: float) -> MeshInst
 		m.roughness = 0.6   # tacky, not a mirror: glossier and the torch's hot spot wipes it out
 		m.metallic_specular = 0.3
 		var mesh: PrimitiveMesh = PlaneMesh.new() if flat else QuadMesh.new()
-		mesh.set("size", GORE_SIZE[kind])
+		mesh.set("size", Vector2(2.2, 0.83) if scrawl else GORE_SIZE[kind])
 		_gore_res[kind] = [mesh, m]
 	var mi := MeshInstance3D.new()
 	mi.mesh = _gore_res[kind][0]
@@ -382,7 +384,7 @@ static func blood(root: Node, kind: String, at: Vector3, yaw: float) -> MeshInst
 	mi.visibility_range_end_margin = 2.0
 	mi.set_meta("gore", kind)
 	root.add_child(mi)
-	mi.global_position = at + (Vector3.UP * 0.012 if flat else Vector3(sin(yaw) * 0.012, GORE_Y[kind], cos(yaw) * 0.012))
+	mi.global_position = at + (Vector3.UP * 0.012 if flat else Vector3(sin(yaw) * 0.012, 1.5 if scrawl else GORE_Y[kind], cos(yaw) * 0.012))
 	mi.rotation.y = yaw
 	return mi
 
@@ -401,18 +403,7 @@ static func _gore(root: Node, faces: Array, floors: Array, open: Callable, free_
 		var f := _wall_spot(faces, 2.5, rng, free_at)
 		if f.is_empty():
 			break
-		var l := Label3D.new()
-		l.text = SCRAWLS[rng.randi() % SCRAWLS.size()]
-		l.font = Kit.HAND
-		l.font_size = 72
-		l.pixel_size = 0.0035
-		l.modulate = Color(0.2, 0.012, 0.012, 0.9)
-		l.outline_size = 0
-		l.shaded = true
-		l.set_meta("gore", "scrawl")
-		root.add_child(l)
-		l.global_position = f[0] + f[2] * 1.2 + Vector3(sin(f[1]) * 0.015, 1.55, cos(f[1]) * 0.015)
-		l.rotation = Vector3(0, f[1], rng.randf_range(-0.07, 0.07))
+		blood(root, "scrawl_%d" % (rng.randi() % SCRAWLS.size()), f[0] + f[2] * 1.2, f[1])
 		avoid.append(f[0] + f[2] * 1.2)
 	var solid: Array[Vector2] = []   # furniture: nothing was dragged through a desk
 	for n in root.find_children("*", "Node3D", true, false):

@@ -984,7 +984,7 @@ func t_gore() -> void:
 		if i > 0:
 			var kinds := {}
 			for m in marks:
-				kinds[m.get_meta("gore")] = true
+				kinds[m.get_meta("gore").get_slice("_", 0) if m.get_meta("gore").begins_with("scrawl_") else m.get_meta("gore")] = true
 			check(kinds.has("pool_1") and kinds.has("trail_1") and kinds.has("scrawl"), "the last chapter has pools, drag marks and writing %s" % [kinds.keys()])
 			var more: int = HD.bleed(lvl, lvl.spawn, 4)
 			var after: int = lvl.get_children().filter(func(n): return n.has_meta("gore")).size()
