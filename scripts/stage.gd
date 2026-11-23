@@ -674,7 +674,7 @@ func searches(f: Node) -> bool:
 func _search(dt: float) -> void:
 	var f: Node = player.focus()
 	if not (f and searches(f) and Input.is_action_pressed("interact") and not player.hidden and not player.frozen and not Game.busy and not Game.phone_open):
-		search_t = maxf(search_t - dt * 2.0, 0.0)
+		search_t = 0.0   # let go: start over
 		return
 	if search_t == 0.0:
 		_rustle_t = 0.0

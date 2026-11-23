@@ -6,4 +6,4 @@
 - [x] T4 search ring — `t_search` checks ring value held/released
 - [x] T5 echoes ch6, ch7 — `t_echoes` covers stages 6, 7
 - [x] T6 catch mark respects walls — `t_gore` mark centre on open floor
-- [ ] T7 full suite, EDITING.md/README, push
+- [x] T7 full suite, EDITING.md/README, push
