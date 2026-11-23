@@ -440,14 +440,20 @@ func _ceiling_hole(pos: Vector3) -> MeshInstance3D:
 	m.rotation.x = PI
 	return m
 
-func _body_at(preset: String, reach := 2.9) -> Body:
+# Limp: both arms past the head and splayed, elbows a little bent, the head rolled to one side.
+# (Upside down that's arms hanging to the floor; face down, arms reaching along it.)
+func _body_at(preset: String, splay := 0.4) -> Body:
 	var b := Body.new()
 	b.build(Story.BODIES[preset])
 	add_child(b)
 	b.pose(0.0, "idle")
-	for arm in ["ArmL", "ArmR"]:   # both arms straight past the head
-		if b.parts.has(arm):
-			b.parts[arm].rotation.x = reach + randf_range(-0.15, 0.15)
+	for side in [["ArmL", "ForearmL", 1.0], ["ArmR", "ForearmR", -1.0]]:
+		if b.parts.has(side[0]):
+			b.parts[side[0]].rotation = Vector3(2.95 + randf_range(-0.1, 0.1), 0.0, side[2] * (splay + randf_range(-0.1, 0.1)))
+		if b.parts.has(side[1]):
+			b.parts[side[1]].rotation.x = randf_range(0.05, 0.2)
+	if b.parts.has("Head"):
+		b.parts.Head.rotation.z = randf_range(0.35, 0.55) * (1.0 if randf() < 0.5 else -1.0)
 	return b
 
 # Someone hangs head down out of a missing ceiling tile, arms swinging. Get close, or look at it a
@@ -495,7 +501,7 @@ func _drop(preset: String, pos: Vector3, sfx_name := "") -> void:
 	if h.length() < 0.5:
 		h = Vector3.BACK
 	var hole := _ceiling_hole(pos)
-	var b := _body_at(preset)
+	var b := _body_at(preset, 0.85)   # arms wide either side of the face, reaching for him
 	b.global_transform = Transform3D(Basis(h.cross(Vector3.UP), h, Vector3.UP), pos - h * 0.85 + Vector3.UP * (StageBuilder.WALL_H + 0.3))
 	if b.parts.has("Head"):   # face up off the floor, looking straight at him
 		b.parts.Head.rotation.x = 1.1
