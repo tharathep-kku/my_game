@@ -1003,8 +1003,21 @@ func t_gore() -> void:
 	var where: Vector3 = Game.player.global_position
 	Game.catch(main.level.npcs[0])
 	await get_tree().create_timer(4.5).timeout
-	var trails: Array = main.level.get_children().filter(func(n): return n.get_meta("gore", "") == "trail_1")
-	check(trails.any(func(t): return Vector2(t.global_position.x - where.x, t.global_position.z - where.z).length() < 1.0), "caught: a drag mark stays where it happened")
+	var marks: Array = main.level.get_children().filter(func(n): return n.get_meta("gore", "") in ["trail_1", "pool_1"] \
+			and Vector2(n.global_position.x - where.x, n.global_position.z - where.z).length() < 2.0)
+	check(not marks.is_empty(), "caught: a drag mark stays where it happened")
+	var space: PhysicsDirectSpaceState3D = main.level.get_world_3d().direct_space_state
+	var clear := func(m: Node3D, at: Vector3) -> bool:   # a trail runs from his feet to its far end over open floor
+		if m.get_meta("gore") != "trail_1":
+			return true
+		var far: Vector3 = m.global_position * 2.0 - Vector3(at.x, 0, at.z)
+		return space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(at.x, 0.4, at.z), Vector3(far.x, 0.4, far.z), 1)).is_empty()
+	check(marks.all(func(m): return clear.call(m, where)), "...across open floor, not through a wall or a desk")
+	var wall: Vector3 = Vector3(main.level.cell_pos(Vector2i(1, 1)).x - 0.55, 0.0, main.level.cell_pos(Vector2i(1, 1)).z - 0.55)   # a corner
+	var before: int = main.level.get_children().filter(func(n): return n.has_meta("gore")).size()
+	main._drag_mark(wall)
+	var last: Node3D = main.level.get_children().filter(func(n): return n.has_meta("gore")).back()
+	check(main.level.get_children().filter(func(n): return n.has_meta("gore")).size() == before + 1 and clear.call(last, wall), "caught in a corner: the mark still keeps out of the walls (%s)" % last.get_meta("gore"))
 	main.queue_free()
 	await frames(2)
 	Game.new_game()

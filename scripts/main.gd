@@ -420,8 +420,7 @@ func _on_caught(npc: Node) -> void:
 	if my_load != _load_id or Game.battery <= 0.0:   # retried/quit, or game over takes it from here
 		return
 	_cost_of_catch(npc as Npc, spot)
-	var fell: Vector3 = level.player.global_position   # where he was caught: dragged off from here, and it stays
-	HD.blood(level, "trail_1", Vector3(fell.x, 0, fell.z), level.player.rotation.y + PI / 2)
+	_drag_mark(level.player.global_position)
 	await get_tree().create_timer(0.8).timeout   # black, ears ringing (scare_ring)
 	if my_load != _load_id:
 		return
@@ -431,6 +430,19 @@ func _on_caught(npc: Node) -> void:
 	Game.busy = false
 	_fade_to(0.0, 0.6)
 	_tip("caught", "โดนจับ = Social Battery ลด แล้วกลับไปจุดเช็คพอยต์ · หมดเมื่อไหร่ = Game Over · กาแฟช่วยเติมพลัง")
+
+# Where he was caught: a drag mark from his feet out across open floor (never through a wall or a
+# desk), or a pool if there is no room to have been dragged anywhere. It stays.
+func _drag_mark(fell: Vector3) -> void:
+	var space := level.get_world_3d().direct_space_state
+	var from := Vector3(fell.x, 0.4, fell.z)
+	for k in 8:
+		var a: float = level.player.rotation.y + k * TAU / 8.0
+		var d := Vector3(cos(a), 0, sin(a))
+		if space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + d * 3.4, 1)).is_empty():
+			HD.blood(level, "trail_1", Vector3(fell.x, 0, fell.z) + d * 1.6, atan2(-d.z, d.x))
+			return
+	HD.blood(level, "pool_1", Vector3(fell.x, 0, fell.z), randf() * TAU)
 
 # Every catch after the first in a chapter: the lights die, its voice right against your ear, a whip
 # round to nothing, black.
