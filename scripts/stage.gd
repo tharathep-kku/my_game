@@ -970,7 +970,6 @@ func _play_echo(e: Dictionary) -> void:
 			b.rotation.y = lerp_angle(b.rotation.y, atan2(-d.x, -d.z), 0.35 * get_process_delta_time())
 	var at := b.global_position
 	e.light.visible = false
-	blackout(0.3)
 	Game.sfx("stab", null, -4.0)
 	b.queue_free()
 	var night := Body.new()   # what the afternoon turned into
@@ -979,12 +978,13 @@ func _play_echo(e: Dictionary) -> void:
 	night.global_position = at
 	var d := player.global_position - at
 	night.rotation.y = atan2(-d.x, -d.z)
+	blackout(1.3)   # it is never shown in the light: only a red glow behind it, a shape against it
 	var red := OmniLight3D.new()
-	red.light_color = Color(0.75, 0.82, 1.0)
-	red.light_energy = 1.6
-	red.omni_range = 3.4
-	red.position = Vector3(0, 2.3, 0)
+	red.light_color = Color(0.7, 0.04, 0.03)
+	red.light_energy = 0.9
+	red.omni_range = 2.6
 	night.add_child(red)
+	red.global_position = at - d.normalized() * 1.1 + Vector3.UP * 1.5
 	e.body = night
 	e.state = "done"
 	Game._log_read(e.data.title, e.data.log)
