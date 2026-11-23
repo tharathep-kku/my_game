@@ -1309,6 +1309,7 @@ func _process(dt: float) -> void:
 			ptext = "[E] ออกมา · [Space ค้าง] กลั้นหายใจ" + ("  (กำลังกลั้น...)" if Game.player.holding_breath else "")
 		_set_prompt(ptext)
 		crosshair.set_meta("on", f != null)
+		crosshair.set_meta("search", level.search_progress() if is_instance_valid(level) and level.has_method("search_progress") else 0.0)
 		crosshair.queue_redraw()
 		stamina_bar.size.x = 180.0 * Game.player.stamina / 100.0
 		stamina_bar.color = Color(1, 0.45, 0.3) if Game.player.exhausted else Color(0.45, 0.75, 1.0)
@@ -1663,6 +1664,10 @@ func _build_hud() -> void:
 	crosshair.mouse_filter = MOUSE_FILTER_IGNORE
 	crosshair.set_meta("on", false)
 	crosshair.draw.connect(func():
+		var got: float = crosshair.get_meta("search", 0.0)
+		if got > 0.0:   # going through a drawer: a ring fills round the dot
+			crosshair.draw_arc(Vector2(10, 10), 15.0, 0.0, TAU, 32, Color(0, 0, 0, 0.45), 4.0)
+			crosshair.draw_arc(Vector2(10, 10), 15.0, -PI / 2, -PI / 2 + TAU * got, 32, Color(0.85, 0.12, 0.1), 3.0)
 		if crosshair.get_meta("on"):
 			crosshair.draw_arc(Vector2(10, 10), 8.0, 0.0, TAU, 24, Kit.YELLOW, 2.0)
 			crosshair.draw_circle(Vector2(10, 10), 2.0, Kit.YELLOW)

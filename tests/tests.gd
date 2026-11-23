@@ -1161,10 +1161,11 @@ func t_search() -> void:
 		await get_tree().create_timer(0.1).timeout
 		if n.state == "investigate":
 			heard[0] += 1
+	check(lvl.search_progress() > 0.2 and lvl.search_progress() < 1.0, "the ring fills while held (%.2f)" % lvl.search_progress())
 	check(lvl.search_t > 0.5 and Game.goal_count == 0 and heard[0] > 0, "holding: he's going through it (%.1f s), and the paper is heard (%s)" % [lvl.search_t, n.state])
 	Input.action_release("interact")
 	await get_tree().create_timer(0.7).timeout
-	check(lvl.search_t == 0.0 and Game.goal_count == 0, "letting go starts it over")
+	check(lvl.search_t == 0.0 and lvl.search_progress() == 0.0 and Game.goal_count == 0, "letting go starts it over (ring empty)")
 	n.global_position = doc.global_position + Vector3(40.0, 0, 0)   # out of earshot: let him finish
 	Input.action_press("interact")
 	await get_tree().create_timer(2.4).timeout

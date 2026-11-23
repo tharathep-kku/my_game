@@ -664,6 +664,10 @@ func _phantom(dt: float) -> void:
 # ---------- goal papers: hold E to go through the drawer ----------
 # Two seconds with his back to the room, and paper rustles: whoever is close comes to look.
 # Let go and he starts over. (A drawer still locked by a code opens its keypad at once.)
+# 0..1 for the ring round the crosshair (main.gd)
+func search_progress() -> float:
+	return clampf(search_t / SEARCH_SECS[clampi(Game.difficulty, 0, 2)], 0.0, 1.0)
+
 func searches(f: Node) -> bool:
 	return f.get("kind") in SEARCH_KINDS and not (f.code != "" and not f.has_meta("unlocked"))
 
@@ -681,7 +685,6 @@ func _search(dt: float) -> void:
 		Game.sfx("bookFlip1", null, -5.0)
 		Game.noise(player.global_position, 9.0)
 	var need: float = SEARCH_SECS[clampi(Game.difficulty, 0, 2)]
-	Game.say("กำลังค้น... %d%%  (ปล่อยมือ = เริ่มใหม่)" % int(minf(search_t / need, 1.0) * 100), 0.3)
 	if search_t >= need:
 		search_t = 0.0
 		f.interact()
